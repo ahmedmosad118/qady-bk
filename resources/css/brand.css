@@ -1,0 +1,32 @@
+/* ==========================================================================
+   Al Qadi Library — Brand tokens (alqadi-brand-kit)
+   Source of truth: alqadi-brand-kit/colors/colors.css
+   ========================================================================== */
+
+:root {
+    /* Raw brand palette */
+    --qadi-ink: #16181d;
+    --qadi-crimson: #a3162b;
+    --qadi-crimson-light: #e0344b;
+    --qadi-gold: #b8923a;
+    --qadi-gold-light: #d7b26a;
+    --qadi-white: #ffffff;
+
+    /* Derived tints & shades used across the UI */
+    --qadi-50: #fbeef0;
+    --qadi-100: #f6dde1;
+    --qadi-200: #eebac1;
+    --qadi-300: #e5939d;
+    --qadi-400: #d97381;
+    --qadi-500: #a3162b;
+    --qadi-600: #8a1226;
+    --qadi-700: #74101f;
+    --qadi-800: #5c0c19;
+    --qadi-900: #430811;
+    --qadi-950: #16181d;
+
+    /* Semantic */
+    --qadi-surface-dark: #16181d;
+    --qadi-surface-dark-2: #1e2128;
+    --qadi-surface-dark-3: #0e0f12;
+}
