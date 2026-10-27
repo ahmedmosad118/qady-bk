@@ -1,10 +1,19 @@
-import { LayoutDashboard, Users } from 'lucide-vue-next';
+import {
+  BarChart3,
+  BookOpen,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings,
+  ShieldCheck,
+  UsersRound,
+} from 'lucide-vue-next';
 
 /**
  * Sidebar navigation definition.
  *
- * Every group is rendered as a collapsible section when it has `children`,
- * or as a plain list when it has `items`.
+ * Groups with `items` render as always-visible sections (matching the
+ * dashboard design); groups with `children` would render as collapsible.
  *
  * To add a new module, push an entry here and register its route in
  * `resources/js/router/routes.js`.
@@ -12,7 +21,7 @@ import { LayoutDashboard, Users } from 'lucide-vue-next';
 export const navigation = [
   {
     key: 'main',
-    label: 'nav.main',
+    label: null,
     items: [
       {
         label: 'nav.dashboard',
@@ -22,13 +31,56 @@ export const navigation = [
     ],
   },
   {
-    key: 'user-management',
-    label: 'nav.userManagement',
-    children: [
+    key: 'sales',
+    label: 'nav.salesGroup',
+    items: [
+      {
+        label: 'nav.invoices',
+        to: '/invoices',
+        icon: Receipt,
+        badge: 7,
+      },
+      {
+        label: 'nav.customers',
+        to: '/customers',
+        icon: UsersRound,
+      },
+    ],
+  },
+  {
+    key: 'catalog',
+    label: 'nav.catalogGroup',
+    items: [
+      {
+        label: 'nav.publications',
+        to: '/publications',
+        icon: BookOpen,
+      },
+      {
+        label: 'nav.inventory',
+        to: '/inventory',
+        icon: Package,
+      },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'nav.adminGroup',
+    items: [
+      {
+        label: 'nav.reports',
+        to: '/reports',
+        icon: BarChart3,
+      },
       {
         label: 'nav.users',
         to: '/users',
-        icon: Users,
+        icon: ShieldCheck,
+      },
+      {
+        label: 'nav.settings',
+        to: '/settings',
+        icon: Settings,
       },
     ],
   },

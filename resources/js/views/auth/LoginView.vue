@@ -1,171 +1,261 @@
 <template>
   <div>
-    <!-- Title and Subtitle -->
-    <div class="mb-6" :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'">
-      <h2 class="text-2xl font-black text-gray-900 dark:text-white">
-        {{ $t('auth.loginTitle') }}
-      </h2>
-      <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
-        {{ $t('auth.loginSubtitle') }}
-      </p>
-    </div>
+    <h1 class="text-center text-[28px] font-extrabold leading-tight text-[var(--text)]">
+      {{ $t('auth.loginTitle') }}
+    </h1>
+    <p class="mt-2 text-center text-sm leading-7 text-[var(--muted)]">
+      {{ $t('auth.loginSubtitle') }}
+    </p>
 
-    <!-- 1-Click Demo Login Helper Pill -->
-    <button
-      type="button"
-      @click="fillDemoCredentials"
-      class="w-full mb-6 flex items-center justify-center gap-2 p-2.5 rounded-2xl border border-[#A3162B]/30 bg-[#A3162B]/10 hover:bg-[#A3162B]/15 dark:border-[#A3162B]/30 dark:bg-[#A3162B]/10 dark:hover:bg-[#A3162B]/20 text-[#8A1226] dark:text-[#E0344B] text-xs font-bold transition-all shadow-xs"
-    >
-      <Zap class="h-4 w-4 text-amber-500" />
-      <span>{{ $t('auth.demoLoginPill') }}</span>
-    </button>
-
-    <!-- Error Alert -->
+    <!-- General error -->
     <div
-      v-if="errorMessage"
-      class="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300 flex items-start gap-2.5 animate-in fade-in duration-150"
-      :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'"
+      v-if="generalError"
+      class="mt-6 flex items-start gap-2.5 rounded-xl border border-[var(--crimson)]/25 bg-[var(--crimson-soft)] px-4 py-3 text-sm font-semibold leading-6 text-[var(--crimson)]"
+      role="alert"
+      aria-live="polite"
     >
-      <AlertTriangle class="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-      <span>{{ errorMessage }}</span>
+      <AlertCircle class="mt-0.5 h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+      <span>{{ generalError }}</span>
     </div>
 
-    <form @submit.prevent="handleLogin" class="space-y-4" :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'">
+    <form class="mt-7 space-y-5" novalidate @submit.prevent="handleLogin">
       <!-- Email -->
       <div>
-        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-          {{ $t('auth.email') }} <span class="text-rose-500">*</span>
+        <label for="email" class="mb-2 block text-sm font-semibold text-[var(--text)]">
+          {{ $t('auth.email') }}
         </label>
+
         <div class="relative">
-          <input
-            type="email"
-            v-model="form.email"
-            required
-            autocomplete="username"
-            placeholder="admin@kady.sys"
-            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
-            :class="$i18n.locale === 'ar' ? 'pr-10 pl-4' : 'pl-10 pr-4'"
+          <Mail
+            class="pointer-events-none absolute right-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
+            aria-hidden="true"
           />
-          <span
-            class="absolute top-2.5 text-gray-400 pointer-events-none"
-            :class="$i18n.locale === 'ar' ? 'right-3.5' : 'left-3.5'"
-          >
-            <Mail class="h-4 w-4" />
-          </span>
+          <input
+            id="email"
+            ref="emailInput"
+            v-model.trim="form.email"
+            type="email"
+            dir="ltr"
+            inputmode="email"
+            autocomplete="username"
+            spellcheck="false"
+            placeholder="name@example.com"
+            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-4 pr-11 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
+            :class="fieldClass(errors.email)"
+            :aria-invalid="Boolean(errors.email)"
+            :aria-describedby="errors.email ? 'email-error' : undefined"
+          />
         </div>
+
+        <p
+          v-if="errors.email"
+          id="email-error"
+          class="mt-2 flex items-center gap-1.5 text-sm font-medium text-[var(--crimson)]"
+          role="alert"
+        >
+          <AlertCircle class="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{{ errors.email }}</span>
+        </p>
       </div>
 
       <!-- Password -->
       <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <label class="block text-xs font-bold text-gray-700 dark:text-gray-300">
-            {{ $t('auth.password') }} <span class="text-rose-500">*</span>
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <label for="password" class="block text-sm font-semibold text-[var(--text)]">
+            {{ $t('auth.password') }}
           </label>
-          <a href="#" class="text-[11px] font-semibold text-[#A3162B] hover:underline">
-            {{ $t('auth.forgotPassword') }}
-          </a>
         </div>
 
         <div class="relative">
-          <input
-            :type="showPassword ? 'text' : 'password'"
-            v-model="form.password"
-            required
-            autocomplete="current-password"
-            placeholder="••••••••"
-            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
-            :class="$i18n.locale === 'ar' ? 'pr-10 pl-10' : 'pl-10 pr-10'"
+          <Lock
+            class="pointer-events-none absolute right-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
+            aria-hidden="true"
           />
-          <span
-            class="absolute top-2.5 text-gray-400 pointer-events-none"
-            :class="$i18n.locale === 'ar' ? 'right-3.5' : 'left-3.5'"
-          >
-            <Lock class="h-4 w-4" />
-          </span>
+          <input
+            id="password"
+            v-model="form.password"
+            :type="showPassword ? 'text' : 'password'"
+            dir="ltr"
+            autocomplete="current-password"
+            spellcheck="false"
+            placeholder="••••••••"
+            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-12 pr-11 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
+            :class="fieldClass(errors.password)"
+            :aria-invalid="Boolean(errors.password)"
+            :aria-describedby="errors.password ? 'password-error' : undefined"
+          />
           <button
             type="button"
+            class="absolute left-2.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+            :aria-label="showPassword ? $t('auth.hidePassword') : $t('auth.showPassword')"
+            :title="showPassword ? $t('auth.hidePassword') : $t('auth.showPassword')"
             @click="showPassword = !showPassword"
-            class="absolute top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-            :class="$i18n.locale === 'ar' ? 'left-3.5' : 'right-3.5'"
-            tabindex="-1"
           >
-            <EyeOff v-if="showPassword" class="h-4 w-4" />
-            <Eye v-else class="h-4 w-4" />
+            <EyeOff v-if="showPassword" class="h-[18px] w-[18px]" aria-hidden="true" />
+            <Eye v-else class="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
         </div>
+
+        <p
+          v-if="errors.password"
+          id="password-error"
+          class="mt-2 flex items-center gap-1.5 text-sm font-medium text-[var(--crimson)]"
+          role="alert"
+        >
+          <AlertCircle class="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{{ errors.password }}</span>
+        </p>
       </div>
 
-      <!-- Remember Me -->
-      <div class="flex items-center gap-2 pt-1">
-        <input
-          type="checkbox"
-          id="remember"
-          v-model="rememberMe"
-          class="rounded-md border-gray-300 text-[#A3162B] focus:ring-[#A3162B]"
-        />
-        <label for="remember" class="text-xs font-medium text-gray-600 dark:text-gray-400 cursor-pointer">
-          {{ $t('auth.rememberMe') }}
+      <!-- Remember me / forgot password -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+        <label for="remember" class="flex cursor-pointer select-none items-center gap-2.5 text-sm font-medium text-[var(--muted)]">
+          <AppCheckbox
+            id="remember"
+            :checked="rememberMe"
+            @change="rememberMe = $event.target.checked"
+          />
+          <span>{{ $t('auth.rememberMe') }}</span>
         </label>
+
+        <button
+          type="button"
+          class="text-sm font-semibold text-[var(--crimson)] transition-colors hover:text-[var(--crimson-hover)] hover:underline"
+          @click="showForgotHint"
+        >
+          {{ $t('auth.forgotPassword') }}
+        </button>
       </div>
 
-      <!-- Submit Button -->
+      <!-- Submit -->
       <button
         type="submit"
-        :disabled="loading"
-        class="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#A3162B] via-[#931429] to-[#7C1123] py-3 text-xs font-bold text-white hover:from-[#931429] hover:to-[#69101E] disabled:opacity-50 transition-all shadow-md shadow-[#A3162B]/25 cursor-pointer"
+        :disabled="loading || cooldown > 0"
+        class="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] text-[15px] font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span v-if="loading" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-        <LogIn v-else class="h-4 w-4" />
-        <span>{{ $t('auth.loginButton') }}</span>
+        <span
+          v-if="loading"
+          class="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/35 border-t-white"
+          aria-hidden="true"
+        ></span>
+        <span>
+          {{ cooldown > 0 ? $t('auth.retryAfter', { seconds: cooldown }) : $t('auth.loginButton') }}
+        </span>
       </button>
     </form>
+
+    <p class="mt-6 text-center text-sm leading-7 text-[var(--muted)]">
+      {{ $t('auth.helpText') }}
+    </p>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { AlertTriangle, LogIn, Mail, Lock, Eye, EyeOff, Zap } from 'lucide-vue-next';
+import { AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-vue-next';
 import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 const router = useRouter();
+const route = useRoute();
 
-const DEMO_EMAIL = 'admin@kady.sys';
-const DEMO_PASSWORD = 'Admin@12345';
-
-const form = ref({
-  email: '',
-  password: '',
-});
-
+const emailInput = ref(null);
+const form = reactive({ email: '', password: '' });
+const errors = reactive({ email: '', password: '' });
+const generalError = ref('');
 const showPassword = ref(false);
-const rememberMe = ref(true);
+const rememberMe = ref(false);
 const loading = ref(false);
-const errorMessage = ref('');
+const cooldown = ref(0);
+let cooldownTimer = null;
 
-const fillDemoCredentials = () => {
-  form.value.email = DEMO_EMAIL;
-  form.value.password = DEMO_PASSWORD;
+const fieldClass = (error) =>
+  error
+    ? 'border-[var(--crimson)] ring-4 ring-[var(--crimson-soft)]'
+    : 'border-[var(--border)] focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]';
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const validate = () => {
+  errors.email = !form.email
+    ? t('auth.emailRequired')
+    : emailPattern.test(form.email)
+      ? ''
+      : t('auth.emailInvalid');
+
+  errors.password = form.password ? '' : t('auth.passwordRequired');
+
+  return !errors.email && !errors.password;
+};
+
+const startCooldown = (seconds) => {
+  cooldown.value = seconds;
+  clearInterval(cooldownTimer);
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1;
+    if (cooldown.value <= 0) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+      cooldown.value = 0;
+    }
+  }, 1000);
+};
+
+const showForgotHint = () => {
+  notificationStore.info(t('auth.forgotHint'));
 };
 
 const handleLogin = async () => {
-  loading.value = true;
-  errorMessage.value = '';
+  if (loading.value || cooldown.value > 0) return;
 
-  const res = await authStore.login(form.value.email, form.value.password);
+  generalError.value = '';
+  errors.email = '';
+  errors.password = '';
+
+  if (!validate()) {
+    emailInput.value?.focus();
+    return;
+  }
+
+  loading.value = true;
+  const res = await authStore.login(form.email, form.password, null, rememberMe.value);
+  loading.value = false;
 
   if (res.success) {
     notificationStore.success(t('auth.welcomeBack'));
-    router.push('/');
-  } else {
-    errorMessage.value = res.message;
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
+    router.push(redirect.startsWith('/') ? redirect : '/');
+    return;
   }
 
-  loading.value = false;
+  if (res.status === 429) {
+    generalError.value = t('auth.tooManyAttempts');
+    startCooldown(60);
+    return;
+  }
+
+  if (res.status === 403) {
+    generalError.value = res.message || t('auth.inactiveAccount');
+    return;
+  }
+
+  generalError.value = t('auth.invalidCredentials');
+
+  if (res.errors?.email?.[0]) {
+    errors.email = res.errors.email[0];
+  }
+  if (res.errors?.password?.[0]) {
+    errors.password = res.errors.password[0];
+  }
 };
+
+onBeforeUnmount(() => {
+  clearInterval(cooldownTimer);
+});
 </script>

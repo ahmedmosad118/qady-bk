@@ -1,137 +1,99 @@
 <template>
   <div
-    class="min-h-screen flex flex-col lg:flex-row bg-gray-50 dark:bg-gray-950 font-sans transition-colors duration-150"
+    class="flex min-h-[100dvh] flex-col bg-[var(--bg)] font-sans text-[var(--text)] lg:flex-row"
     :dir="$i18n.locale === 'ar' ? 'rtl' : 'ltr'"
   >
-    <!-- Left / Brand Showcase Hero (Hidden on small screens, 50% on lg) -->
-    <div
-      class="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 bg-gradient-to-br from-[#16181D] via-[#1E2128] to-[#0E0F12] text-white overflow-hidden border-e border-white/10"
+    <!-- Brand panel (desktop) -->
+    <section
+      class="relative hidden w-1/2 flex-col overflow-hidden bg-[#16181D] lg:flex"
+      aria-label="مكتبة القاضي"
     >
-      <!-- Subtle Background Glows -->
-      <div class="absolute -top-24 -left-24 w-96 h-96 bg-[#A3162B]/15 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-[#A3162B]/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      <!-- Top Brand Header -->
-      <div class="relative z-10">
-        <BrandLogo size="lg" textColor="light" />
+      <!-- Ambient decoration -->
+      <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div class="absolute -top-32 -right-24 h-[30rem] w-[30rem] rounded-full bg-[#A3162B]/25 blur-[130px]"></div>
+        <div class="absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-[#B8923A]/10 blur-[130px]"></div>
+        <img
+          :src="symbolUrl"
+          alt=""
+          class="absolute -bottom-16 left-1/2 w-[84%] max-w-[540px] -translate-x-1/2 opacity-[0.055] brightness-0 invert"
+        />
       </div>
 
-      <!-- Middle Feature Highlights -->
-      <div class="relative z-10 my-auto py-8">
-        <h2 class="text-3xl font-black text-white leading-tight mb-4 max-w-lg">
-          {{ $t('auth.brandHeading') }}
-        </h2>
-        <p class="text-sm text-gray-300 mb-8 max-w-md leading-relaxed">
-          {{ $t('auth.brandDesc') }}
+      <!-- Centered stacked lockup -->
+      <div class="relative z-10 flex flex-1 items-center justify-center px-10 py-12">
+        <img
+          :src="stackedLogoUrl"
+          alt="مكتبة القاضي — للإصدارات القانونية"
+          class="h-auto w-[300px] max-w-[78%] xl:w-[340px]"
+        />
+      </div>
+
+      <!-- Footer -->
+      <div class="relative z-10 flex items-center justify-between gap-4 border-t border-white/10 px-10 py-5 xl:px-14">
+        <p class="text-sm text-white/45">
+          &copy; {{ year }} {{ brand.name }}. {{ $t('auth.allRightsReserved') }}
         </p>
+        <span class="shrink-0 text-sm font-semibold text-[var(--gold)]">{{ $t('common.isolatedDb') }}</span>
+      </div>
+    </section>
 
-        <!-- Feature List -->
-        <div class="space-y-4 max-w-md">
-          <div class="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#B8923A]/15 text-[#D7B26A] shrink-0">
-              <Database class="h-5 w-5" />
-            </div>
-            <span class="text-xs font-bold text-gray-200">{{ $t('auth.featMultiTenant') }}</span>
-          </div>
+    <!-- Form side -->
+    <section class="flex min-h-[100dvh] flex-1 flex-col lg:min-h-0">
+      <!-- Utilities -->
+      <div class="flex items-center justify-end gap-2 px-5 py-5 sm:px-8">
+        <button
+          type="button"
+          class="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40"
+          :aria-label="$t('header.language')"
+          @click="toggleLang"
+        >
+          <Globe class="h-4 w-4 text-[var(--crimson)]" aria-hidden="true" />
+          <span>{{ $i18n.locale === 'ar' ? 'English' : 'العربية' }}</span>
+        </button>
 
-          <div class="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#B8923A]/15 text-[#D7B26A] shrink-0">
-              <ShieldCheck class="h-5 w-5" />
-            </div>
-            <span class="text-xs font-bold text-gray-200">{{ $t('auth.featRoles') }}</span>
-          </div>
+        <button
+          type="button"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40"
+          :aria-label="themeStore.isDark ? $t('header.lightMode') : $t('header.darkMode')"
+          :title="themeStore.isDark ? $t('header.lightMode') : $t('header.darkMode')"
+          @click="themeStore.toggleTheme"
+        >
+          <Sun v-if="themeStore.isDark" class="h-[18px] w-[18px] text-[var(--gold)]" aria-hidden="true" />
+          <Moon v-else class="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
+      </div>
 
-          <div class="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#B8923A]/15 text-[#D7B26A] shrink-0">
-              <Activity class="h-5 w-5" />
-            </div>
-            <span class="text-xs font-bold text-gray-200">{{ $t('auth.featAudit') }}</span>
-          </div>
+      <!-- Form -->
+      <div class="flex flex-1 items-center justify-center px-5 pb-10 pt-4 sm:px-8">
+        <div class="w-full max-w-[420px]">
+          <router-view />
         </div>
       </div>
 
-      <!-- Bottom Footer Info -->
-      <div class="relative z-10 text-xs text-gray-400 flex items-center justify-between border-t border-white/10 pt-4">
-        <span>&copy; {{ new Date().getFullYear() }} {{ $t('common.system') }}</span>
-        <span class="text-[11px] text-[#D7B26A] font-bold font-mono">{{ $t('common.isolatedDb') }}</span>
-      </div>
-    </div>
-
-    <!-- Right / Form Area (100% mobile, 50% on lg) -->
-    <div class="flex-1 flex flex-col justify-between p-6 sm:p-10 lg:p-12">
-      <!-- Top Action Bar (Language Switcher & Dark Mode) -->
-      <div class="flex items-center justify-between">
-        <!-- Mobile Logo (Shown only on small screens) -->
-        <div class="lg:hidden">
-          <BrandLogo size="sm" />
-        </div>
-
-        <div class="flex items-center gap-2 ms-auto">
-          <!-- Language Switcher Toggle -->
-          <button
-            @click="toggleLang"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors shadow-xs"
-          >
-            <Globe class="h-3.5 w-3.5 text-[#A3162B]" />
-            <span>{{ $i18n.locale === 'ar' ? 'English' : 'العربية' }}</span>
-          </button>
-
-          <!-- Theme Toggle -->
-          <button
-            @click="toggleDarkMode"
-            class="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors shadow-xs"
-            :title="isDark ? $t('header.lightMode') : $t('header.darkMode')"
-          >
-            <Sun v-if="isDark" class="h-4 w-4 text-amber-500" />
-            <Moon v-else class="h-4 w-4 text-slate-700" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Auth Form Container (Render child route LoginView via router-view) -->
-      <div class="my-auto mx-auto w-full max-w-md py-8">
-        <router-view />
-      </div>
-
-      <!-- Bottom Mobile Footer -->
-      <div class="text-center text-xs text-gray-400 pt-4 border-t border-gray-100 dark:border-gray-800/80">
-        &copy; {{ new Date().getFullYear() }} {{ $t('common.system') }}. {{ $t('auth.allRightsReserved') }}
-      </div>
-    </div>
+      <footer class="px-5 pb-6 text-center text-sm text-[var(--muted)] sm:px-8">
+        &copy; {{ year }} {{ brand.name }}. {{ $t('auth.allRightsReserved') }}
+      </footer>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BrandLogo from '../components/common/BrandLogo.vue';
-import { Globe, Sun, Moon, Database, ShieldCheck, Activity, Sparkles } from 'lucide-vue-next';
+import { Globe, Sun, Moon } from 'lucide-vue-next';
+import brand from '../config/brand';
 import { setLanguage } from '../i18n';
+import { useThemeStore } from '../stores/theme';
 
 const { locale } = useI18n();
-const isDark = ref(false);
+const themeStore = useThemeStore();
+const year = computed(() => new Date().getFullYear());
+
+const basePath = (window.APP_BASE_PATH || '/').replace(/\/+$/, '');
+const symbolUrl = `${basePath}/brand/symbol.svg`;
+const stackedLogoUrl = `${basePath}/brand/logo-primary-white-transparent.svg`;
 
 const toggleLang = () => {
-  const target = locale.value === 'ar' ? 'en' : 'ar';
-  setLanguage(target);
+  setLanguage(locale.value === 'ar' ? 'en' : 'ar');
 };
-
-const toggleDarkMode = () => {
-  isDark.value = !isDark.value;
-  if (isDark.value) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('sarh_theme', 'dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('sarh_theme', 'light');
-  }
-};
-
-onMounted(() => {
-  const savedTheme = localStorage.getItem('sarh_theme');
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    isDark.value = true;
-    document.documentElement.classList.add('dark');
-  }
-});
 </script>

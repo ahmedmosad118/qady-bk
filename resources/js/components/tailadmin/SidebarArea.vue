@@ -8,33 +8,36 @@
           : '-translate-x-full lg:translate-x-0',
       isRtl ? 'right-0 border-l' : 'left-0 border-r',
     ]"
-    class="fixed top-0 z-50 flex h-screen w-72 flex-col overflow-y-hidden bg-white border-gray-100 duration-300 ease-linear dark:bg-gray-900 dark:border-gray-800 lg:static transition-all"
+    class="fixed top-0 z-50 flex h-screen w-72 flex-col overflow-y-hidden border-[var(--border)] bg-[var(--card)] duration-300 ease-linear transition-all lg:static"
   >
     <!-- Sidebar Header -->
-    <div class="flex items-center justify-between gap-2 px-6 py-5 border-b border-gray-100 dark:border-gray-800/80">
-      <div class="flex flex-col gap-2">
-        <router-link to="/">
+    <div class="flex items-center justify-between gap-2 border-b border-[var(--border)] px-6 py-5">
+      <div class="flex w-full flex-col gap-2.5">
+        <router-link to="/" class="inline-flex w-fit" :aria-label="$t('common.dashboard')">
           <BrandLogo size="md" />
         </router-link>
-        <span class="h-0.5 w-12 rounded-full bg-gradient-to-r from-[#B8923A] to-[#D7B26A]"></span>
+        <span class="h-px w-full bg-gradient-to-l from-transparent via-[var(--gold)] to-[var(--gold)]/40"></span>
       </div>
 
       <button
+        type="button"
+        class="block rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:hidden"
+        :aria-label="$t('common.close')"
+        :title="$t('common.close')"
         @click="$emit('close-sidebar')"
-        class="block lg:hidden p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
       >
-        <X class="h-5 w-5" />
+        <X class="h-5 w-5" aria-hidden="true" />
       </button>
     </div>
 
     <!-- Navigation Links -->
-    <div class="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear p-4 space-y-6">
+    <div class="no-scrollbar flex flex-col space-y-6 overflow-y-auto p-4 duration-300 ease-linear">
       <div v-for="group in navigation" :key="group.key">
         <!-- Plain group -->
         <template v-if="group.items">
           <h3
             v-if="group.label"
-            class="mb-2.5 px-3 text-[11px] font-black uppercase text-gray-400 tracking-wider"
+            class="mb-2 px-3 text-sm font-semibold text-[var(--muted)]"
           >
             {{ $t(group.label) }}
           </h3>
@@ -44,12 +47,23 @@
                 :to="item.to"
                 :aria-current="isItemActive(item) ? 'page' : undefined"
                 :class="[
-                  'group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/60 transition-colors',
+                  'group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]',
                   isItemActive(item) ? activeClass : '',
                 ]"
               >
-                <component :is="item.icon" class="h-4 w-4 shrink-0 text-[#A3162B]" />
+                <component
+                  :is="item.icon"
+                  class="h-[18px] w-[18px] shrink-0"
+                  :class="isItemActive(item) ? 'text-[var(--crimson)]' : 'text-[var(--muted)] group-hover:text-[var(--text)]'"
+                  aria-hidden="true"
+                />
                 <span>{{ $t(item.label) }}</span>
+                <span
+                  v-if="item.badge"
+                  class="ms-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--crimson)] px-1.5 text-sm font-bold leading-none text-white"
+                >
+                  {{ item.badge }}
+                </span>
               </router-link>
             </li>
           </ul>
@@ -59,20 +73,23 @@
         <template v-else-if="group.children">
           <button
             type="button"
-            @click="toggleGroup(group.key)"
-            class="w-full flex items-center justify-between mb-2 px-3 py-1 rounded-lg text-[11px] font-black uppercase text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 tracking-wider transition-colors cursor-pointer group"
+            class="group mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-sm font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)]"
             :aria-expanded="isGroupOpen(group.key)"
+            :aria-controls="`nav-group-${group.key}`"
+            @click="toggleGroup(group.key)"
           >
-            <span class="flex items-center gap-1.5">
+            <span class="flex items-center gap-2">
               <span>{{ $t(group.label) }}</span>
               <span
                 v-if="isGroupActive(group)"
-                class="w-1.5 h-1.5 rounded-full bg-[#A3162B] animate-pulse"
+                class="h-1.5 w-1.5 rounded-full bg-[var(--crimson)]"
+                aria-hidden="true"
               ></span>
             </span>
             <ChevronDown
-              class="h-3.5 w-3.5 transform transition-transform duration-200"
+              class="h-4 w-4 transform transition-transform duration-200"
               :class="{ '-rotate-90 rtl:rotate-90': !isGroupOpen(group.key), 'rotate-0': isGroupOpen(group.key) }"
+              aria-hidden="true"
             />
           </button>
 
@@ -84,18 +101,29 @@
             leave-from-class="opacity-100 translate-y-0"
             leave-to-class="opacity-0 -translate-y-1"
           >
-            <ul v-show="isGroupOpen(group.key)" class="space-y-1">
+            <ul v-show="isGroupOpen(group.key)" :id="`nav-group-${group.key}`" class="space-y-1">
               <li v-for="item in group.children" :key="item.to">
                 <router-link
                   :to="item.to"
                   :aria-current="isItemActive(item) ? 'page' : undefined"
                   :class="[
-                    'group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/60 transition-colors',
+                    'group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]',
                     isItemActive(item) ? activeClass : '',
                   ]"
                 >
-                  <component :is="item.icon" class="h-4 w-4 shrink-0 text-[#A3162B]" />
+                  <component
+                    :is="item.icon"
+                    class="h-[18px] w-[18px] shrink-0"
+                    :class="isItemActive(item) ? 'text-[var(--crimson)]' : 'text-[var(--muted)] group-hover:text-[var(--text)]'"
+                    aria-hidden="true"
+                  />
                   <span>{{ $t(item.label) }}</span>
+                <span
+                  v-if="item.badge"
+                  class="ms-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--crimson)] px-1.5 text-sm font-bold leading-none text-white"
+                >
+                  {{ item.badge }}
+                </span>
                 </router-link>
               </li>
             </ul>
@@ -105,8 +133,8 @@
     </div>
 
     <!-- Sidebar Footer -->
-    <div class="mt-auto p-4 border-t border-gray-100 dark:border-gray-800 text-center">
-      <p class="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+    <div class="mt-auto border-t border-[var(--border)] p-4 text-center">
+      <p class="text-sm font-medium text-[var(--muted)]">
         {{ appName }} &middot; v1.0
       </p>
     </div>
@@ -132,7 +160,8 @@ defineProps({
 defineEmits(['close-sidebar']);
 
 const appName = brand.name;
-const activeClass = 'bg-[#A3162B]/10 text-[#8A1226] dark:bg-[#A3162B]/15 dark:text-[#E0344B] font-bold shadow-xs';
+const activeClass =
+  'bg-[var(--crimson-soft)] text-[var(--crimson)] font-bold hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]';
 
 const route = useRoute();
 const { locale } = useI18n();

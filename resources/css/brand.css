@@ -29,4 +29,43 @@
     --qadi-surface-dark: #16181d;
     --qadi-surface-dark-2: #1e2128;
     --qadi-surface-dark-3: #0e0f12;
+
+    /* ======================================================================
+       Redesign design tokens (login + users) — the only palette the new
+       screens are allowed to use. Dark values are overridden below.
+       ====================================================================== */
+    --crimson: #a3162b;
+    --gold: #b8923a;
+    --text: #16181d;
+    --muted: #5b616b;
+    --bg: #f6f6f8;
+    --card: #ffffff;
+    --border: #e6e8ec;
+
+    /* Tints derived from the tokens above */
+    --crimson-soft: rgba(163, 22, 43, 0.1);
+    --crimson-hover: #8a1226;
+    --gold-soft: rgba(184, 146, 58, 0.14);
+    --gold-strong: #7a5a12;
+    --success: #1f7a45;
+    --success-soft: #eaf6ef;
+    --success-border: #cfe9d9;
+}
+
+.dark {
+    --crimson: #d01f38;
+    --gold: #d7b26a;
+    --text: #f4f5f7;
+    --muted: #a0a6b0;
+    --bg: #0f1115;
+    --card: #16181d;
+    --border: #262a31;
+
+    --crimson-soft: rgba(208, 31, 56, 0.16);
+    --crimson-hover: #e0344b;
+    --gold-soft: rgba(215, 178, 106, 0.16);
+    --gold-strong: #e8c77f;
+    --success: #6fd39b;
+    --success-soft: rgba(111, 211, 155, 0.12);
+    --success-border: rgba(111, 211, 155, 0.22);
 }

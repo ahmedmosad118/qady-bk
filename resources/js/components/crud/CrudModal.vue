@@ -2,50 +2,52 @@
   <Teleport to="body">
     <div
       v-if="show"
-      class="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-gray-950/80 backdrop-blur-sm transition-opacity"
+      class="fixed inset-0 z-[999] flex items-center justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm transition-opacity sm:p-6"
       :dir="$i18n.locale === 'ar' ? 'rtl' : 'ltr'"
     >
       <div
-        class="relative w-full rounded-3xl border border-gray-100 bg-white p-5 sm:p-7 shadow-2xl dark:border-gray-700/80 dark:bg-gray-900 dark:shadow-black/40 max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        class="relative flex max-h-[92vh] w-full flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 dark:shadow-black/40 sm:p-7"
         :class="modalSizeClass"
       >
         <!-- Modal Header -->
-        <div class="flex items-center justify-between gap-3 pb-4 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
           <div class="flex items-center gap-3">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#A3162B]/10 text-[#A3162B] ring-1 ring-inset ring-[#A3162B]/15 dark:bg-[#A3162B]/20 dark:text-[#E0344B] dark:ring-[#A3162B]/30">
-              <PencilLine v-if="mode === 'edit'" class="h-5 w-5" />
-              <Plus v-else class="h-5 w-5" />
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
+              <PencilLine v-if="mode === 'edit'" class="h-5 w-5" aria-hidden="true" />
+              <Plus v-else class="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <h3 class="text-sm sm:text-base font-black text-gray-900 dark:text-white">
+              <h3 class="text-base font-extrabold text-[var(--text)]">
                 {{ title }}
               </h3>
             </div>
           </div>
           <button
             type="button"
+            class="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+            :aria-label="$t('common.close')"
+            :title="$t('common.close')"
             @click="$emit('close')"
-            class="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 transition-colors cursor-pointer"
           >
-            <X class="h-5 w-5" />
+            <X class="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         <!-- Modal Body (Scrollable) -->
-        <div class="overflow-y-auto py-5 px-1 flex-1 custom-scrollbar">
+        <div class="custom-scrollbar flex-1 overflow-y-auto px-1 py-5">
           <slot />
         </div>
 
         <!-- Modal Footer -->
         <div
           v-if="showFooter"
-          class="flex items-center justify-end gap-3 pt-4 mt-1 border-t border-gray-100 dark:border-gray-800 shrink-0"
+          class="mt-1 flex shrink-0 items-center justify-end gap-3 border-t border-[var(--border)] pt-4"
         >
           <button
             v-if="showCancelButton"
             type="button"
+            class="cursor-pointer rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
             @click="$emit('close')"
-            class="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors cursor-pointer"
           >
             {{ cancelText || (!showSaveButton ? $t('common.close') : $t('common.cancel')) }}
           </button>
@@ -54,8 +56,8 @@
             v-if="showSaveButton"
             type="button"
             :disabled="loading"
+            class="flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--crimson)] px-6 py-2.5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] disabled:opacity-50"
             @click="$emit('save')"
-            class="flex items-center gap-2 rounded-xl bg-[#A3162B] hover:bg-[#931429] px-6 py-2.5 text-xs font-black text-white disabled:opacity-50 transition-colors shadow-sm shadow-[#A3162B]/20 cursor-pointer"
           >
             <span v-if="loading" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
             <span>{{ saveText || $t('common.save') }}</span>

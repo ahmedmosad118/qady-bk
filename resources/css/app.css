@@ -11,7 +11,17 @@
 
 @theme {
     --font-sans: 'Cairo', 'Outfit', ui-sans-serif, system-ui, sans-serif;
-    --font-display: 'Outfit', 'Cairo', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Cairo', ui-sans-serif, system-ui, sans-serif;
+
+    /* Redesign tokens (exposed as utilities: bg-card, text-ink, border-line…) */
+    --color-crimson: var(--crimson);
+    --color-gold: var(--gold);
+    --color-ink: var(--text);
+    --color-muted: var(--muted);
+    --color-canvas: var(--bg);
+    --color-card: var(--card);
+    --color-line: var(--border);
+    --color-success: var(--success);
 
     /* Al Qadi Library — primary brand colors (alqadi-brand-kit) */
     --color-qadi-ink: #16181d;
@@ -57,6 +67,26 @@
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(107, 114, 128, 0.8);
+}
+
+/* Redesign base: keep every screen on the shared token palette. */
+html {
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+}
+
+:focus-visible {
+    outline: 2px solid var(--crimson);
+    outline-offset: 2px;
+}
+
+::selection {
+    background: var(--crimson);
+    color: #fff;
 }
 
 /* ==========================================================================
