@@ -1,7 +1,7 @@
 <template>
   <div :class="[colClass, $i18n.locale === 'ar' ? 'text-right' : 'text-left']" class="mb-3.5">
     <div class="flex items-center justify-between mb-1.5">
-      <label v-if="field.type !== 'boolean'" class="block text-xs font-bold text-gray-700 dark:text-gray-300">
+      <label v-if="field.type !== 'boolean'" class="block text-sm font-bold text-gray-700 dark:text-gray-300">
         {{ formatLabel(field.label) }}
         <span v-if="field.required" class="text-rose-500 font-bold">*</span>
       </label>
@@ -9,7 +9,7 @@
         v-if="field.name === 'customer_id' || field.allow_create"
         type="button"
         @click="$emit('field-action', field.name)"
-        class="text-[11px] font-bold text-[#8A1226] hover:text-[#A3162B] hover:underline dark:text-[#E0344B] flex items-center gap-1 cursor-pointer transition-colors"
+        class="text-sm font-bold text-[#8A1226] hover:text-[#A3162B] hover:underline dark:text-[#E0344B] flex items-center gap-1 cursor-pointer transition-colors"
       >
         <Plus class="h-3 w-3" />
         <span>{{ $t('leads.addNewCustomer') }}</span>
@@ -25,7 +25,7 @@
         :placeholder="formatLabel(field.placeholder) || formatLabel(field.label)"
         :required="field.required"
         :disabled="field.readonly"
-        class="w-full rounded-xl border py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden transition-all dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+        class="w-full rounded-xl border py-2.5 px-3.5 text-sm font-medium text-gray-900 outline-hidden transition-all dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
         :class="error ? 'border-rose-500 bg-rose-50/40 dark:border-rose-500 dark:bg-rose-950/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20' : 'border-gray-200 bg-gray-50 focus:border-[#A3162B] focus:bg-white focus:ring-2 focus:ring-[#A3162B]/20 dark:border-gray-700 dark:bg-gray-800 dark:focus:bg-gray-800 dark:focus:ring-[#A3162B]/25'"
       />
     </div>
@@ -39,7 +39,7 @@
         :rows="3"
         :required="field.required"
         :disabled="field.readonly"
-        class="w-full rounded-xl border py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden transition-all dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+        class="w-full rounded-xl border py-2.5 px-3.5 text-sm font-medium text-gray-900 outline-hidden transition-all dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
         :class="error ? 'border-rose-500 bg-rose-50/40 dark:border-rose-500 dark:bg-rose-950/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20' : 'border-gray-200 bg-gray-50 focus:border-[#A3162B] focus:bg-white focus:ring-2 focus:ring-[#A3162B]/20 dark:border-gray-700 dark:bg-gray-800 dark:focus:bg-gray-800 dark:focus:ring-[#A3162B]/25'"
       ></textarea>
     </div>
@@ -54,18 +54,18 @@
         :placeholder="formatLabel(field.placeholder) || '0.00'"
         :required="field.required"
         :disabled="field.readonly"
-        class="w-full bg-transparent py-2.5 px-3.5 text-xs font-bold font-mono text-gray-900 dark:text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"
+        class="w-full bg-transparent py-2.5 px-3.5 text-sm font-bold font-mono text-gray-900 dark:text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"
         dir="ltr"
       />
       <span
         v-if="field.type === 'currency' || field.name === 'estimated_value'"
-        class="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-900/70 border-s border-gray-200 dark:border-gray-700 text-xs font-black text-[#8A1226] dark:text-[#E0344B] select-none whitespace-nowrap"
+        class="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-900/70 border-s border-gray-200 dark:border-gray-700 text-sm font-black text-[#8A1226] dark:text-[#E0344B] select-none whitespace-nowrap"
       >
         {{ $t('opportunities.currencyEGP') || 'ج.م' }}
       </span>
       <span
         v-else-if="field.type === 'percentage'"
-        class="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-900/70 border-s border-gray-200 dark:border-gray-700 text-xs font-black text-[#8A1226] dark:text-[#E0344B] select-none whitespace-nowrap"
+        class="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-900/70 border-s border-gray-200 dark:border-gray-700 text-sm font-black text-[#8A1226] dark:text-[#E0344B] select-none whitespace-nowrap"
       >
         %
       </span>
@@ -90,8 +90,8 @@
     <!-- 5. Boolean Toggle / Switch -->
     <div v-else-if="['boolean', 'switch'].includes(field.type)" class="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
       <div>
-        <label class="block text-xs font-bold text-gray-900 dark:text-white">{{ formatLabel(field.label) }}</label>
-        <span v-if="field.help_text" class="text-[11px] text-gray-400">{{ formatLabel(field.help_text) }}</span>
+        <label class="block text-sm font-bold text-gray-900 dark:text-white">{{ formatLabel(field.label) }}</label>
+        <span v-if="field.help_text" class="text-sm text-gray-400">{{ formatLabel(field.help_text) }}</span>
       </div>
       <label class="relative inline-flex items-center cursor-pointer">
         <input
@@ -112,12 +112,12 @@
         @input="$emit('update:modelValue', $event.target.value)"
         :required="field.required"
         :disabled="field.readonly"
-        class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white focus:ring-2 focus:ring-[#A3162B]/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:bg-gray-800 dark:focus:ring-[#A3162B]/25 transition-all [color-scheme:light] dark:[color-scheme:dark]"
+        class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-sm font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white focus:ring-2 focus:ring-[#A3162B]/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:bg-gray-800 dark:focus:ring-[#A3162B]/25 transition-all [color-scheme:light] dark:[color-scheme:dark]"
       />
     </div>
 
     <!-- Validation Error Feedback -->
-    <p v-if="error" class="mt-1 text-[11px] font-bold text-rose-500">
+    <p v-if="error" class="mt-1 text-sm font-bold text-rose-500">
       {{ error }}
     </p>
   </div>

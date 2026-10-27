@@ -1,14 +1,54 @@
 import { defineStore } from 'pinia';
 import api from '../services/api';
 
+/**
+ * Auth persistence helpers.
+ *
+ * "Remember me" decides where the token lives: localStorage (persists across
+ * browser restarts) or sessionStorage (cleared when the tab closes).
+ */
+const AUTH_KEYS = ['sarh_token', 'sarh_user', 'sarh_tenant', 'sarh_permissions', 'sarh_roles'];
+
+const readKey = (key) => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+};
+
+const authStorage = () =>
+  typeof window !== 'undefined' && localStorage.getItem('sarh_token') ? localStorage : sessionStorage;
+
+const persistSession = (data, remember) => {
+  const target = remember ? localStorage : sessionStorage;
+  const other = remember ? sessionStorage : localStorage;
+
+  AUTH_KEYS.forEach((key) => other.removeItem(key));
+
+  target.setItem('sarh_token', data.token);
+  target.setItem('sarh_user', JSON.stringify(data.user));
+  target.setItem('sarh_tenant', JSON.stringify(data.tenant));
+  target.setItem('sarh_permissions', JSON.stringify(data.permissions || []));
+  target.setItem('sarh_roles', JSON.stringify(data.roles || []));
+};
+
+const clearSession = () => {
+  AUTH_KEYS.forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+};
+
+const persistUser = (user) => {
+  authStorage().setItem('sarh_user', JSON.stringify(user));
+};
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: JSON.parse(localStorage.getItem('sarh_user') || 'null'),
-    tenant: JSON.parse(localStorage.getItem('sarh_tenant') || 'null'),
-    token: localStorage.getItem('sarh_token') || null,
+    user: JSON.parse(readKey('sarh_user') || 'null'),
+    tenant: JSON.parse(readKey('sarh_tenant') || 'null'),
+    token: readKey('sarh_token') || null,
     tenantSlug: localStorage.getItem('sarh_tenant_slug') || '',
-    permissions: JSON.parse(localStorage.getItem('sarh_permissions') || '[]'),
-    roles: JSON.parse(localStorage.getItem('sarh_roles') || '[]'),
+    permissions: JSON.parse(readKey('sarh_permissions') || '[]'),
+    roles: JSON.parse(readKey('sarh_roles') || '[]'),
     loading: false,
     error: null,
   }),
@@ -29,7 +69,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(email, password, slug = null) {
+    async login(email, password, slug = null, remember = true) {
       this.loading = true;
       this.error = null;
 
@@ -44,17 +84,19 @@ export const useAuthStore = defineStore('auth', {
         });
 
         const data = response.data.data;
+        const permissions = data.user.permissions || [];
+        const roles = data.user.roles || [];
+
         this.token = data.token;
         this.user = data.user;
         this.tenant = data.tenant;
-        this.permissions = data.user.permissions || [];
-        this.roles = data.user.roles || [];
+        this.permissions = permissions;
+        this.roles = roles;
 
-        localStorage.setItem('sarh_token', this.token);
-        localStorage.setItem('sarh_user', JSON.stringify(this.user));
-        localStorage.setItem('sarh_tenant', JSON.stringify(this.tenant));
-        localStorage.setItem('sarh_permissions', JSON.stringify(this.permissions));
-        localStorage.setItem('sarh_roles', JSON.stringify(this.roles));
+        persistSession(
+          { token: data.token, user: this.user, tenant: this.tenant, permissions, roles },
+          remember
+        );
 
         return { success: true, data };
       } catch (err) {
@@ -63,6 +105,7 @@ export const useAuthStore = defineStore('auth', {
           success: false,
           message: this.error,
           errors: err.response?.data?.errors,
+          status: err.response?.status,
         };
       } finally {
         this.loading = false;
@@ -80,10 +123,11 @@ export const useAuthStore = defineStore('auth', {
         this.permissions = data.user.permissions || [];
         this.roles = data.user.roles || [];
 
-        localStorage.setItem('sarh_user', JSON.stringify(this.user));
-        localStorage.setItem('sarh_tenant', JSON.stringify(this.tenant));
-        localStorage.setItem('sarh_permissions', JSON.stringify(this.permissions));
-        localStorage.setItem('sarh_roles', JSON.stringify(this.roles));
+        const storage = authStorage();
+        storage.setItem('sarh_user', JSON.stringify(this.user));
+        storage.setItem('sarh_tenant', JSON.stringify(this.tenant));
+        storage.setItem('sarh_permissions', JSON.stringify(this.permissions));
+        storage.setItem('sarh_roles', JSON.stringify(this.roles));
       } catch (err) {
         this.logout();
       }
@@ -101,11 +145,7 @@ export const useAuthStore = defineStore('auth', {
         this.permissions = [];
         this.roles = [];
 
-        localStorage.removeItem('sarh_token');
-        localStorage.removeItem('sarh_user');
-        localStorage.removeItem('sarh_tenant');
-        localStorage.removeItem('sarh_permissions');
-        localStorage.removeItem('sarh_roles');
+        clearSession();
       }
     },
 
@@ -116,7 +156,7 @@ export const useAuthStore = defineStore('auth', {
         const response = await api.put('/auth/profile', payload);
         const updatedUser = response.data.data.user;
         this.user = { ...this.user, ...updatedUser };
-        localStorage.setItem('sarh_user', JSON.stringify(this.user));
+        persistUser(this.user);
         return { success: true, message: response.data.message, data: response.data.data };
       } catch (err) {
         const message = err.response?.data?.message || 'فشل تحديث بيانات الملف الشخصي';
@@ -150,7 +190,7 @@ export const useAuthStore = defineStore('auth', {
           this.user = { ...this.user, avatar_url: response.data.avatar_url };
         }
 
-        localStorage.setItem('sarh_user', JSON.stringify(this.user));
+        persistUser(this.user);
         return {
           success: true,
           message: response.data.message,

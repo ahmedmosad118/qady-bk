@@ -1,116 +1,117 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
-use App\Core\CRUD\CRUDController;
-use App\Core\CRUD\Field;
-use App\Core\CRUD\InputMaker;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\User\StoreUserRequest;
+use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
+use App\Repositories\UserRepository;
+use App\Services\UserSchemaProvider;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
-class UserController extends CRUDController
+class UserController extends Controller
 {
-    protected string $model = User::class;
+    public function __construct(
+        protected UserRepository $userRepository,
+        protected UserService $userService,
+        protected UserSchemaProvider $schemaProvider,
+    ) {}
 
-    protected array $searchable = ['name', 'email', 'phone'];
-
-    protected string $defaultSortBy = 'id';
-
-    protected string $defaultSortOrder = 'desc';
-
-    protected function inputMaker(): InputMaker
-    {
-        return InputMaker::make()
-            ->title('users.title')
-            ->singularTitle('header.member')
-            ->model(User::class)
-            ->fields([
-                Field::text('name', 'common.name')->required()->col(6),
-                Field::email('email', 'auth.email')->required()->rules('email')->col(6),
-                Field::tel('phone', 'users.phoneCol')->col(6),
-                Field::select('status', 'common.status', [
-                    ['value' => 'active', 'label' => 'common.active'],
-                    ['value' => 'inactive', 'label' => 'common.inactive'],
-                ])->default('active')->required()->col(6),
-                Field::password('password', 'auth.password')
-                    ->col(12)
-                    ->help('اتركه فارغاً عند التعديل للإبقاء على كلمة المرور الحالية.'),
-            ]);
-    }
-
+    /**
+     * Display a listing of users with server-side pagination, search, and filtering.
+     */
     public function index(Request $request): JsonResponse
     {
-        $response = parent::index($request);
-        $payload = $response->getData(true);
-
-        $payload['stats'] = [
-            'total' => User::count(),
-            'active' => User::where('status', 'active')->count(),
-            'inactive' => User::where('status', 'inactive')->count(),
+        $filters = [
+            'search' => $request->input('search'),
+            'status' => $request->input('status'),
+            'sort_by' => $request->input('sort_by'),
+            'sort_order' => $request->input('sort_order'),
         ];
 
-        $payload['data'] = collect($payload['data'])->map(function (array $user) {
-            $user['avatar_url'] = 'https://ui-avatars.com/api/?background=00C896&color=fff&name='.urlencode($user['name']);
+        $perPage = $request->integer('per_page', 15);
+        $paginated = $this->userRepository->paginate($filters, $perPage);
 
-            return $user;
+        $items = collect($paginated->items())->map(function (User $user) {
+            $data = $user->toArray();
+            $data['avatar_url'] = 'https://ui-avatars.com/api/?background=00C896&color=fff&name='.urlencode($user->name);
+
+            return $data;
         })->all();
 
-        return response()->json($payload);
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+            'stats' => $this->userRepository->getStats(),
+            'schema' => $this->schemaProvider->getSchema(),
+        ]);
     }
 
-    public function store(Request $request): JsonResponse
+    /**
+     * Store a newly created user.
+     */
+    public function store(StoreUserRequest $request): JsonResponse
     {
-        return parent::store($request);
+        $user = $this->userService->create($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => __('crud.saved_successfully'),
+            'data' => $user,
+        ], 201);
     }
 
-    public function update(Request $request, int|string $id): JsonResponse
+    /**
+     * Display the specified user.
+     */
+    public function show(int $id): JsonResponse
     {
-        return parent::update($request, $id);
+        $user = User::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $user,
+            'schema' => $this->schemaProvider->getSchema(),
+        ]);
     }
 
-    public function destroy(int|string|Request $ids): JsonResponse
+    /**
+     * Update the specified user.
+     */
+    public function update(UpdateUserRequest $request, int $id): JsonResponse
     {
-        $idArray = is_string($ids) ? explode(',', $ids) : (is_array($ids) ? $ids : [$ids]);
+        $user = User::findOrFail($id);
+        $updated = $this->userService->update($user, $request->validated());
 
-        if (in_array((string) auth()->id(), array_map('strval', $idArray), true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'لا يمكنك حذف حسابك الحالي.',
-            ], 422);
-        }
-
-        return parent::destroy($ids);
+        return response()->json([
+            'success' => true,
+            'message' => __('crud.updated_successfully'),
+            'data' => $updated,
+        ]);
     }
 
-    protected function beforeSave(Model $model, Request $request, bool $isUpdate): void
+    /**
+     * Delete one or more users.
+     */
+    public function destroy(string $ids): JsonResponse
     {
-        /** @var User $model */
-        if ($request->filled('password')) {
-            $model->password = Hash::make($request->password);
-        } elseif ($isUpdate) {
-            // Keep the existing password when the field is left empty.
-            $model->password = $model->getOriginal('password');
-        } else {
-            $model->password = Hash::make('12345678');
-        }
+        $idArray = explode(',', $ids);
+        $this->userService->delete($idArray, (int) auth()->id());
 
-        $model->email = strtolower(trim((string) $request->email));
-    }
-
-    protected function customValidationRules(bool $isUpdate = false, mixed $currentId = null): array
-    {
-        $uniqueEmail = 'unique:users,email';
-
-        if ($isUpdate && $currentId) {
-            $uniqueEmail .= ",{$currentId}";
-        }
-
-        return [
-            'email' => ['required', 'email', $uniqueEmail],
-        ];
+        return response()->json([
+            'success' => true,
+            'message' => __('crud.deleted_successfully'),
+        ]);
     }
 }

@@ -1,0 +1,32 @@
+<?php
+
+return [
+    'saved_successfully' => 'Contact saved successfully.',
+    'updated_successfully' => 'Contact updated successfully.',
+    'deleted_successfully' => 'Contact deleted successfully.',
+    'address_saved_successfully' => 'Address saved successfully.',
+    'address_updated_successfully' => 'Address updated successfully.',
+    'address_deleted_successfully' => 'Address deleted successfully.',
+    'default_address_set' => 'Default address updated successfully.',
+    'delete_has_relations' => 'Cannot delete contact because it has linked records.',
+    'validation' => [
+        'type_required' => 'Contact type is required.',
+        'type_invalid' => 'Contact type is invalid.',
+        'name_required' => 'Contact name is required.',
+        'name_max' => 'Contact name may not exceed 255 characters.',
+        'at_least_one_role' => 'At least one role must be selected (customer or supplier).',
+        'email_invalid' => 'The email format is invalid.',
+        'phone_max' => 'Phone may not exceed 30 characters.',
+        'mobile_max' => 'Mobile may not exceed 30 characters.',
+        'tax_number_max' => 'Tax number may not exceed 100 characters.',
+        'tax_registration_type_max' => 'Tax registration type may not exceed 50 characters.',
+        'commercial_register_max' => 'Commercial register may not exceed 100 characters.',
+        'company_contact_person_max' => 'Company contact person may not exceed 255 characters.',
+        'address_max' => 'Address may not exceed 255 characters.',
+        'city_max' => 'City may not exceed 100 characters.',
+        'governorate_max' => 'Governorate may not exceed 100 characters.',
+        'postal_code_max' => 'Postal code may not exceed 20 characters.',
+        'country_max' => 'Country may not exceed 100 characters.',
+        'contact_id_exists' => 'The selected contact does not exist.',
+    ],
+];

@@ -31,7 +31,7 @@ const api = axios.create({
 
 // Request Interceptor: Attach Token & Tenant Context
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('sarh_token');
+  const token = localStorage.getItem('sarh_token') || sessionStorage.getItem('sarh_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -57,8 +57,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('sarh_token');
-      localStorage.removeItem('sarh_user');
+      ['sarh_token', 'sarh_user'].forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
       // Redirection handled by router guard
     }
     return Promise.reject(error);

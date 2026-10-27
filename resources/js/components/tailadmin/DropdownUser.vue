@@ -9,10 +9,10 @@
         <img
           :src="currentAvatarUrl"
           @error="handleAvatarError"
-          alt="User"
-          class="h-9 w-9 rounded-xl object-cover ring-2 ring-[#A3162B]/40 group-hover:ring-[#A3162B] bg-emerald-50 dark:bg-slate-800 transition-all shadow-xs"
+          alt=""
+          class="h-9 w-9 rounded-full object-cover ring-2 ring-[var(--crimson)]/20 transition-all group-hover:ring-[var(--crimson)]/50"
         />
-        <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#A3162B] ring-2 ring-white dark:ring-gray-900"></span>
+        <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#2F9E63] ring-2 ring-white dark:ring-[var(--card)]"></span>
       </div>
       <ChevronDown class="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-transform duration-200" :class="{ 'rotate-180': isOpen }" />
     </button>
@@ -24,13 +24,13 @@
       :class="$i18n.locale === 'ar' ? 'left-0' : 'right-0'"
     >
       <div class="px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1" :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'">
-        <p class="text-xs font-bold text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
-        <p class="text-[11px] text-gray-400 truncate font-mono">{{ authStore.user?.email }}</p>
+        <p class="text-sm font-bold text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
+        <p class="truncate font-mono text-sm text-gray-500 dark:text-gray-400">{{ authStore.user?.email }}</p>
         <div class="mt-1.5 flex flex-wrap gap-1">
           <span
             v-for="role in authStore.roles"
             :key="role"
-            class="rounded-md bg-[#A3162B]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#8A1226] dark:text-[#E0344B]"
+            class="rounded-md bg-[#A3162B]/10 px-1.5 py-0.5 text-sm font-bold text-[#8A1226] dark:text-[#E0344B]"
           >
             {{ role }}
           </span>
@@ -41,7 +41,7 @@
       <router-link
         to="/profile"
         @click="isOpen = false"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
         :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'"
       >
         <User class="h-4 w-4 text-[#A3162B]" />
@@ -51,7 +51,7 @@
       <router-link
         to="/settings"
         @click="isOpen = false"
-        class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
       >
         <Settings class="h-4 w-4 text-slate-400" />
         <span>{{ $t('header.settings') }}</span>
@@ -61,7 +61,7 @@
 
       <button
         @click="handleLogout"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
         :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'"
       >
         <LogOut class="h-4 w-4 text-rose-500" />
@@ -94,8 +94,8 @@ const showProfileModal = ref(false);
 const profileModalTab = ref('info');
 
 const generateSvgFallback = (name) => {
-  const initial = (name || 'U').trim().charAt(0);
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="36" fill="%2316181D"/><rect x="4" y="4" width="120" height="120" rx="32" fill="none" stroke="%23A3162B" stroke-width="3" stroke-opacity="0.5"/><text x="50%" y="54%" font-family="Cairo, Outfit, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
+  const initial = Array.from((name || 'U').trim())[0] || 'U';
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="64" fill="%23F7E6E9"/><text x="50%" y="54%" font-family="Cairo, Outfit, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
 };
 
 const currentAvatarUrl = computed(() => {

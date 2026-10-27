@@ -7,6 +7,7 @@ import AppLayout from '../layouts/AppLayout.vue';
 import LoginView from '../views/auth/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 import UsersView from '../views/team/UsersView.vue';
+import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
  * Application routes.
@@ -41,6 +42,42 @@ const routes = [
         path: 'users',
         name: 'users',
         component: UsersView,
+      },
+      {
+        path: 'invoices',
+        name: 'invoices',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.invoices' },
+      },
+      {
+        path: 'customers',
+        name: 'customers',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.customers' },
+      },
+      {
+        path: 'publications',
+        name: 'publications',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.publications' },
+      },
+      {
+        path: 'inventory',
+        name: 'inventory',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.inventory' },
+      },
+      {
+        path: 'reports',
+        name: 'reports',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.reports' },
+      },
+      {
+        path: 'settings',
+        name: 'settings',
+        component: ComingSoonView,
+        meta: { titleKey: 'nav.settings' },
       },
     ],
   },
