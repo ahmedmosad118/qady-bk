@@ -239,4 +239,29 @@ class ContactTest extends TestCase
             'contact_id' => $contact->id,
         ]);
     }
+
+    public function test_can_list_contacts_with_stats_and_role_filters(): void
+    {
+        $this->actingUser();
+
+        Contact::factory()->count(2)->create();
+        Contact::factory()->supplier()->create();
+        Contact::factory()->company()->bothRoles()->create();
+
+        $this->getJson('/api/contacts?per_page=2')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 4)
+            ->assertJsonPath('stats.total', 4)
+            ->assertJsonPath('stats.customers', 3)
+            ->assertJsonPath('stats.suppliers', 2);
+
+        $this->getJson('/api/contacts?is_supplier=1')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2);
+
+        $this->getJson('/api/contacts?type=company')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1);
+    }
 }

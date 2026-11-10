@@ -45,6 +45,7 @@ class ProductController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
+            'stats' => $this->productRepository->stats(),
         ]);
     }
 

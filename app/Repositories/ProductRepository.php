@@ -50,6 +50,20 @@ class ProductRepository
     }
 
     /**
+     * Aggregate counters used by the products dashboard cards.
+     *
+     * @return array{total: int, active: int, inactive: int}
+     */
+    public function stats(): array
+    {
+        return [
+            'total' => Product::query()->count(),
+            'active' => Product::query()->where('is_active', true)->count(),
+            'inactive' => Product::query()->where('is_active', false)->count(),
+        ];
+    }
+
+    /**
      * Find a product by id.
      */
     public function findById(int $id): ?Product

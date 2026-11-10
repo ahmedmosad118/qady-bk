@@ -6,6 +6,7 @@ import {
   Receipt,
   Settings,
   ShieldCheck,
+  Tags,
   UsersRound,
 } from 'lucide-vue-next';
 
@@ -42,7 +43,7 @@ export const navigation = [
       },
       {
         label: 'nav.customers',
-        to: '/customers',
+        to: '/contacts',
         icon: UsersRound,
       },
     ],
@@ -52,9 +53,14 @@ export const navigation = [
     label: 'nav.catalogGroup',
     items: [
       {
-        label: 'nav.publications',
-        to: '/publications',
+        label: 'nav.products',
+        to: '/products',
         icon: BookOpen,
+      },
+      {
+        label: 'nav.productCategories',
+        to: '/product-categories',
+        icon: Tags,
       },
       {
         label: 'nav.inventory',

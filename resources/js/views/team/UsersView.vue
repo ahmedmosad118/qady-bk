@@ -209,7 +209,7 @@
 
       <!-- Pagination -->
       <div
-        v-if="!loading && filteredUsers.length"
+        v-if="!loading && totalRecords > 0"
         class="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <p class="text-sm text-[var(--muted)]">{{ rangeLabel }}</p>

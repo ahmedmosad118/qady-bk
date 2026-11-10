@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Contact\StoreContactRequest;
 use App\Http\Requests\Contact\UpdateContactRequest;
 use App\Models\Contact;
+use App\Repositories\ContactRepository;
 use App\Services\ContactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ use Illuminate\Http\Request;
 class ContactController extends Controller
 {
     public function __construct(
-        protected ContactService $contactService
+        protected ContactService $contactService,
+        protected ContactRepository $contactRepository,
     ) {}
 
     /**
@@ -21,35 +23,18 @@ class ContactController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Contact::query()->with('defaultAddress');
+        $filters = [
+            'search' => $request->input('search'),
+            'type' => $request->input('type'),
+            'is_customer' => $request->boolean('is_customer'),
+            'is_supplier' => $request->boolean('is_supplier'),
+            'is_active' => $request->input('is_active'),
+            'sort_by' => $request->input('sort_by'),
+            'sort_order' => $request->input('sort_order'),
+        ];
 
-        if ($request->filled('search')) {
-            $query->search($request->input('search'));
-        }
-
-        if ($request->filled('type')) {
-            $query->where('type', $request->input('type'));
-        }
-
-        if ($request->boolean('is_customer')) {
-            $query->customers();
-        }
-
-        if ($request->boolean('is_supplier')) {
-            $query->suppliers();
-        }
-
-        if ($request->filled('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
-
-        $sortBy = in_array($request->input('sort_by'), ['name', 'type', 'created_at'], true)
-            ? $request->input('sort_by')
-            : 'id';
-        $sortOrder = strtolower((string) $request->input('sort_order')) === 'asc' ? 'asc' : 'desc';
-
-        $perPage = min(max($request->integer('per_page', 15), 1), 100);
-        $paginated = $query->orderBy($sortBy, $sortOrder)->paginate($perPage);
+        $perPage = $request->integer('per_page', 15);
+        $paginated = $this->contactRepository->paginate($filters, $perPage);
 
         return response()->json([
             'success' => true,
@@ -60,6 +45,7 @@ class ContactController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
+            'stats' => $this->contactRepository->stats(),
         ]);
     }
 

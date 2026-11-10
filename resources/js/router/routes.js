@@ -7,6 +7,9 @@ import AppLayout from '../layouts/AppLayout.vue';
 import LoginView from '../views/auth/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 import UsersView from '../views/team/UsersView.vue';
+import ProductsView from '../views/catalog/ProductsView.vue';
+import ProductCategoriesView from '../views/catalog/ProductCategoriesView.vue';
+import ContactsView from '../views/sales/ContactsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -42,6 +45,21 @@ const routes = [
         path: 'users',
         name: 'users',
         component: UsersView,
+      },
+      {
+        path: 'products',
+        name: 'products',
+        component: ProductsView,
+      },
+      {
+        path: 'product-categories',
+        name: 'product-categories',
+        component: ProductCategoriesView,
+      },
+      {
+        path: 'contacts',
+        name: 'contacts',
+        component: ContactsView,
       },
       {
         path: 'invoices',

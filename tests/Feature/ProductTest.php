@@ -195,4 +195,25 @@ class ProductTest extends TestCase
         // The category is untouched.
         $this->assertDatabaseHas('product_categories', ['id' => $category->id]);
     }
+
+    public function test_can_list_products_with_pagination_stats_and_category_filter(): void
+    {
+        $this->actingUser();
+
+        $category = ProductCategory::factory()->create(['name' => 'تفسير']);
+
+        Product::factory()->count(2)->create(['is_active' => true]);
+        Product::factory()->inactive()->create();
+        Product::factory()->inCategory($category)->create(['name' => 'تفسير ابن كثير']);
+
+        $response = $this->getJson("/api/products?per_page=2&category_id={$category->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('stats.total', 4)
+            ->assertJsonPath('stats.active', 3)
+            ->assertJsonPath('stats.inactive', 1)
+            ->assertJsonPath('data.0.category.name', 'تفسير');
+    }
 }
