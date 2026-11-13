@@ -3,9 +3,11 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\InventoryDocumentController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -54,4 +56,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/contacts/{contact}/addresses/{address}', [ContactAddressController::class, 'update']);
     Route::delete('/contacts/{contact}/addresses/{address}', [ContactAddressController::class, 'destroy']);
     Route::patch('/contacts/{contact}/addresses/{address}/default', [ContactAddressController::class, 'setDefault']);
+
+    // Warehouses (Strictly view & update only; no create, no delete)
+    Route::get('/warehouses', [WarehouseController::class, 'index']);
+    Route::get('/warehouses/default', [WarehouseController::class, 'defaultWarehouse']);
+    Route::get('/warehouses/{warehouse}', [WarehouseController::class, 'show']);
+    Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update']);
+
+    // Inventory Documents & Workflow
+    Route::get('/inventory-documents', [InventoryDocumentController::class, 'index']);
+    Route::post('/inventory-documents', [InventoryDocumentController::class, 'store']);
+    Route::get('/inventory-documents/{inventory_document}', [InventoryDocumentController::class, 'show']);
+    Route::put('/inventory-documents/{inventory_document}', [InventoryDocumentController::class, 'update']);
+    Route::delete('/inventory-documents/{inventory_document}', [InventoryDocumentController::class, 'destroy']);
+    Route::post('/inventory-documents/{inventory_document}/submit', [InventoryDocumentController::class, 'submit']);
+    Route::post('/inventory-documents/{inventory_document}/approve', [InventoryDocumentController::class, 'approve']);
+    Route::post('/inventory-documents/{inventory_document}/reject', [InventoryDocumentController::class, 'reject']);
+    Route::post('/inventory-documents/{inventory_document}/cancel', [InventoryDocumentController::class, 'cancel']);
+    Route::post('/inventory-documents/{inventory_document}/post', [InventoryDocumentController::class, 'post']);
+    Route::post('/inventory-documents/{inventory_document}/reverse', [InventoryDocumentController::class, 'reverse']);
 });

@@ -10,6 +10,8 @@ import UsersView from '../views/team/UsersView.vue';
 import ProductsView from '../views/catalog/ProductsView.vue';
 import ProductCategoriesView from '../views/catalog/ProductCategoriesView.vue';
 import ContactsView from '../views/sales/ContactsView.vue';
+import InventoryDocumentsView from '../views/inventory/InventoryDocumentsView.vue';
+import WarehouseEditView from '../views/inventory/WarehouseEditView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -82,8 +84,20 @@ const routes = [
       {
         path: 'inventory',
         name: 'inventory',
-        component: ComingSoonView,
+        component: InventoryDocumentsView,
         meta: { titleKey: 'nav.inventory' },
+      },
+      {
+        path: 'inventory/:type',
+        name: 'inventory.by-type',
+        component: InventoryDocumentsView,
+        meta: { titleKey: 'nav.inventory' },
+      },
+      {
+        path: 'warehouses/:id?',
+        name: 'warehouses.edit',
+        component: WarehouseEditView,
+        meta: { titleKey: 'warehouses.editWarehouse' },
       },
       {
         path: 'reports',

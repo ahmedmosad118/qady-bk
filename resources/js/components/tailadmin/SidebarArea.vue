@@ -172,8 +172,8 @@ const isRtl = computed(() => locale.value === 'ar');
  * match every route, which is what router-link's default active matching does).
  */
 const isItemActive = (item) => {
-  if (item.to === '/') {
-    return route.path === '/';
+  if (item.to === '/' || item.to === '/inventory') {
+    return route.path === item.to;
   }
   return route.path === item.to || route.path.startsWith(`${item.to}/`);
 };

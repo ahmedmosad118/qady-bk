@@ -1,0 +1,199 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use App\Enums\InventoryDocumentStatus;
+use App\Enums\InventoryDocumentType;
+use App\Enums\InventoryReturnDirection;
+use App\Enums\StockAdjustmentDirection;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+#[Fillable([
+    'document_number',
+    'document_type',
+    'referenceable_type',
+    'referenceable_id',
+    'source_warehouse_id',
+    'destination_warehouse_id',
+    'adjustment_direction',
+    'return_direction',
+    'status',
+    'document_date',
+    'notes',
+    'write_off_reason',
+    'created_by',
+    'reviewed_by',
+    'reviewed_at',
+    'approved_by',
+    'approved_at',
+    'posted_by',
+    'posted_at',
+    'rejected_by',
+    'rejected_at',
+    'rejection_reason',
+    'cancelled_by',
+    'cancelled_at',
+    'reversed_by',
+    'reversed_at',
+    'reversal_reason',
+])]
+class InventoryDocument extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'document_type' => InventoryDocumentType::class,
+            'status' => InventoryDocumentStatus::class,
+            'adjustment_direction' => StockAdjustmentDirection::class,
+            'return_direction' => InventoryReturnDirection::class,
+            'document_date' => 'date',
+            'reviewed_at' => 'datetime',
+            'approved_at' => 'datetime',
+            'posted_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'reversed_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Line items for this document.
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(InventoryDocumentItem::class, 'inventory_document_id');
+    }
+
+    /**
+     * Source warehouse.
+     */
+    public function sourceWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'source_warehouse_id');
+    }
+
+    /**
+     * Destination warehouse.
+     */
+    public function destinationWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'destination_warehouse_id');
+    }
+
+    /**
+     * Optional polymorphic referenceable source document.
+     */
+    public function referenceable(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    /**
+     * User who created the document.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * User who reviewed the document.
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * User who approved the document.
+     */
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * User who posted the document.
+     */
+    public function poster(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by');
+    }
+
+    /**
+     * User who rejected the document.
+     */
+    public function rejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    /**
+     * User who cancelled the document.
+     */
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * User who reversed the document.
+     */
+    public function reverser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
+    }
+
+    /**
+     * Check if the document can be edited.
+     */
+    public function isEditable(): bool
+    {
+        return in_array($this->status, [
+            InventoryDocumentStatus::DRAFT,
+            InventoryDocumentStatus::REJECTED,
+        ], true);
+    }
+
+    /**
+     * Check if the document is posted.
+     */
+    public function isPosted(): bool
+    {
+        return $this->status === InventoryDocumentStatus::POSTED;
+    }
+
+    /**
+     * Scope query to specific document type.
+     */
+    public function scopeOfType(Builder $query, InventoryDocumentType|string $type): Builder
+    {
+        $value = $type instanceof InventoryDocumentType ? $type->value : $type;
+
+        return $query->where('document_type', $value);
+    }
+
+    /**
+     * Scope query to specific status.
+     */
+    public function scopeOfStatus(Builder $query, InventoryDocumentStatus|string $status): Builder
+    {
+        $value = $status instanceof InventoryDocumentStatus ? $status->value : $status;
+
+        return $query->where('status', $value);
+    }
+}

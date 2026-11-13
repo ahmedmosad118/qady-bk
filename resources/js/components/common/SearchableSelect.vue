@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full" ref="containerRef">
+  <div class="relative w-full" ref="containerRef" :class="isOpen ? 'z-40' : 'z-0'">
     <!-- Trigger Button -->
     <button
       type="button"
@@ -109,7 +109,7 @@
 
           <!-- List Items -->
           <button
-            v-for="opt in filteredOptions"
+            v-for="opt in paginatedOptions"
             :key="opt.value"
             type="button"
             @click="selectOption(opt.value)"
@@ -135,6 +135,34 @@
           >
             {{ $t('common.noData') }}
           </div>
+        </div>
+
+        <!-- Pagination Footer (when paginate is enabled) -->
+        <div
+          v-if="perPageLimit > 0 && totalPages > 1"
+          class="flex items-center justify-between border-t border-gray-100 pt-2 px-2 pb-1 text-xs dark:border-gray-700"
+        >
+          <button
+            type="button"
+            :disabled="currentPage <= 1"
+            class="rounded-lg px-2.5 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-30 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+            @click.stop="currentPage--"
+          >
+            {{ $i18n.locale === 'ar' ? 'السابق' : 'Prev' }}
+          </button>
+
+          <span class="text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+            {{ currentPage }} / {{ totalPages }} ({{ filteredOptions.length }})
+          </span>
+
+          <button
+            type="button"
+            :disabled="currentPage >= totalPages"
+            class="rounded-lg px-2.5 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-30 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+            @click.stop="currentPage++"
+          >
+            {{ $i18n.locale === 'ar' ? 'التالي' : 'Next' }}
+          </button>
         </div>
       </div>
     </Transition>
@@ -182,6 +210,10 @@ const props = defineProps({
   actionLabel: {
     type: String,
     default: '',
+  },
+  paginate: {
+    type: [Boolean, Number],
+    default: false,
   },
 });
 
@@ -231,6 +263,32 @@ const filteredOptions = computed(() => {
     const val = String(opt.value).toLowerCase();
     return label.includes(q) || val.includes(q);
   });
+});
+
+const perPageLimit = computed(() => {
+  if (typeof props.paginate === 'number' && props.paginate > 0) {
+    return props.paginate;
+  }
+  return props.paginate ? 10 : 0;
+});
+
+const currentPage = ref(1);
+
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
+
+const totalPages = computed(() => {
+  if (!perPageLimit.value) return 1;
+  return Math.ceil(filteredOptions.value.length / perPageLimit.value) || 1;
+});
+
+const paginatedOptions = computed(() => {
+  if (!perPageLimit.value) {
+    return filteredOptions.value;
+  }
+  const start = (currentPage.value - 1) * perPageLimit.value;
+  return filteredOptions.value.slice(start, start + perPageLimit.value);
 });
 
 const toggleDropdown = () => {

@@ -1,12 +1,19 @@
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   BarChart3,
   BookOpen,
+  FileOutput,
+  Layers,
   LayoutDashboard,
   Package,
   Receipt,
+  RotateCcw,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Tags,
+  Trash2,
   UsersRound,
 } from 'lucide-vue-next';
 
@@ -62,10 +69,51 @@ export const navigation = [
         to: '/product-categories',
         icon: Tags,
       },
+    ],
+  },
+  {
+    key: 'inventory',
+    label: 'nav.inventoryGroup',
+    children: [
       {
-        label: 'nav.inventory',
+        label: 'nav.allInventory',
         to: '/inventory',
         icon: Package,
+      },
+      {
+        label: 'nav.goodsReceipt',
+        to: '/inventory/goods-receipt',
+        icon: ArrowDownToLine,
+      },
+      {
+        label: 'nav.goodsDelivery',
+        to: '/inventory/goods-delivery',
+        icon: ArrowUpFromLine,
+      },
+      {
+        label: 'nav.stockIssue',
+        to: '/inventory/stock-issue',
+        icon: FileOutput,
+      },
+      {
+        label: 'nav.stockAdjustment',
+        to: '/inventory/stock-adjustment',
+        icon: SlidersHorizontal,
+      },
+      {
+        label: 'nav.inventoryReturn',
+        to: '/inventory/inventory-return',
+        icon: RotateCcw,
+      },
+      {
+        label: 'nav.stockWriteOff',
+        to: '/inventory/stock-write-off',
+        icon: Trash2,
+      },
+      {
+        label: 'nav.openingBalance',
+        to: '/inventory/opening-balance',
+        icon: Layers,
       },
     ],
   },
