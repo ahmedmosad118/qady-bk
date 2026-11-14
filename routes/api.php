@@ -5,7 +5,6 @@ use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\InventoryDocumentController;
 use App\Http\Controllers\Api\Pos\PosDashboardController;
-use App\Http\Controllers\Api\Pos\PosHeldSaleController;
 use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosReturnController;
 use App\Http\Controllers\Api\Pos\PosSaleController;
@@ -130,13 +129,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/sales/by-number/{invoice_number}', [PosSaleController::class, 'byNumber']);
     Route::get('/pos/sales/{pos_sale}', [PosSaleController::class, 'show']);
     Route::get('/pos/sales/{pos_sale}/returnable-items', [PosReturnController::class, 'returnableItems']);
-
-    // POS Held Sales (Hold / Resume)
-    Route::get('/pos/held-sales', [PosHeldSaleController::class, 'index']);
-    Route::post('/pos/held-sales', [PosHeldSaleController::class, 'store']);
-    Route::get('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'show']);
-    Route::put('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'update']);
-    Route::delete('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'destroy']);
 
     // POS Returns
     Route::post('/pos/returns', [PosReturnController::class, 'store']);

@@ -12,7 +12,7 @@
   - `PosSaleItem`: `pos_sale_items`. Captures `product_snapshot`, supports price overrides, item discounts, and accurate distribution of invoice discount (`allocated_invoice_discount`) for partial returns. Unique `(sale_id, product_id)`.
   - `PosReturn`: `pos_returns` (No `status`, no `ReturnStatus` enum). Bound to original sale and original payment method.
   - `PosReturnItem`: `pos_return_items`. Pro-rates discounts and verifies requested quantity against remaining returnable quantity.
-  - `PosHeldSale` & `PosHeldSaleItem`: Independent tables for held/draft carts (`pos_held_sales`, `pos_held_sale_items`). No inventory impact until resumed and completed.
+  - `PosHeldSale` (Hold / Resume): Stored STRICTLY in browser Local Storage. No database tables, no models, and no backend endpoints exist. Does not reserve or deduct inventory.
   - `PosSyncTransaction`: `pos_sync_transactions`. Client UUID idempotency tracking, preserving local payloads upon stock conflict without polluting `pos_sales`.
 
 ## Inventory Integration

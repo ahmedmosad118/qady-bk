@@ -167,4 +167,66 @@ class PosAuthorizationTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_offline_sync_price_override_is_blocked_when_gate_denies(): void
+    {
+        Gate::define('pos.override_price', fn () => false);
+
+        $response = $this->postJson('/api/pos/sync/sales', [
+            'client_uuid' => '11111111-2222-3333-4444-555555555555',
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                    'unit_price' => 75.00,
+                ],
+            ],
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_offline_sync_item_discount_is_blocked_when_gate_denies(): void
+    {
+        Gate::define('pos.apply_item_discount', fn () => false);
+
+        $response = $this->postJson('/api/pos/sync/sales', [
+            'client_uuid' => '22222222-3333-4444-5555-666666666666',
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                    'discount_type' => 'fixed',
+                    'discount_value' => 15.00,
+                ],
+            ],
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_offline_sync_invoice_discount_is_blocked_when_gate_denies(): void
+    {
+        Gate::define('pos.apply_invoice_discount', fn () => false);
+
+        $response = $this->postJson('/api/pos/sync/sales', [
+            'client_uuid' => '33333333-4444-5555-6666-777777777777',
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'invoice_discount_type' => 'fixed',
+            'invoice_discount_value' => 20.00,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+        $response->assertForbidden();
+    }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Pos;
 
-use App\Models\PosHeldSale;
 use App\Models\PosReturn;
 use App\Models\PosSale;
 use App\Models\PosShift;
@@ -75,29 +74,6 @@ class PosNumberService
                 ->lockForUpdate()
                 ->orderByDesc('id')
                 ->value('return_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $m)) {
-                $next = (int) $m[1] + 1;
-            }
-
-            return sprintf('%s%05d', $prefix, $next);
-        });
-    }
-
-    /**
-     * Generate unique hold reference: HOLD-XXXXX
-     */
-    public function generateHoldReference(): string
-    {
-        $prefix = 'HOLD-';
-
-        return DB::transaction(function () use ($prefix): string {
-            $lastNumber = PosHeldSale::query()
-                ->where('reference_note', 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value('reference_note');
 
             $next = 1;
             if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $m)) {

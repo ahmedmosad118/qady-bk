@@ -4,12 +4,47 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Pos;
 
+use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 class SyncPosSaleRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        $user = $this->user();
+
+        // 1. Check invoice discount authorization
+        $invDiscVal = $this->input('invoice_discount_value');
+        if ($invDiscVal !== null && (float) $invDiscVal > 0) {
+            if (! Gate::allows('pos.apply_invoice_discount', $user)) {
+                return false;
+            }
+        }
+
+        // 2. Check item-level price overrides and discounts
+        $items = $this->input('items', []);
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                // Check discount authorization
+                if (! empty($item['discount_value']) && (float) $item['discount_value'] > 0) {
+                    if (! Gate::allows('pos.apply_item_discount', $user)) {
+                        return false;
+                    }
+                }
+
+                // Check price override authorization
+                if (isset($item['unit_price']) && ! empty($item['product_id'])) {
+                    $product = Product::query()->find($item['product_id']);
+                    if ($product && bccomp((string) $item['unit_price'], (string) $product->selling_price, 2) !== 0) {
+                        if (! Gate::allows('pos.override_price', $user)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
         return true;
     }
 

@@ -113,12 +113,4 @@ class PosShift extends Model
     {
         return $this->hasMany(PosReturn::class, 'shift_id');
     }
-
-    /**
-     * Held sales belonging to this shift.
-     */
-    public function heldSales(): HasMany
-    {
-        return $this->hasMany(PosHeldSale::class, 'shift_id');
-    }
 }

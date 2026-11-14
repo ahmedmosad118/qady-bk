@@ -165,7 +165,7 @@ class PosSaleService
                 $snapshot = [
                     'name' => $product->name,
                     'sku' => $product->sku,
-                    'barcodes' => $product->barcode ? [$product->barcode] : [],
+                    'barcode' => $product->barcode,
                     'unit_name' => 'قطعة',
                 ];
 

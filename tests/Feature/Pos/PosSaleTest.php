@@ -241,7 +241,7 @@ class PosSaleTest extends TestCase
         $this->assertEquals('180.00', (string) $item->unit_price);
         $this->assertEquals('صحيح البخاري', $item->product_snapshot['name']);
         $this->assertEquals('BK-BUKHARI-001', $item->product_snapshot['sku']);
-        $this->assertContains('6221000000001', $item->product_snapshot['barcodes']);
+        $this->assertEquals('6221000000001', $item->product_snapshot['barcode']);
         $this->assertEquals('قطعة', $item->product_snapshot['unit_name']);
     }
 
