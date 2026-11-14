@@ -39,8 +39,10 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // A single active token per client name keeps the table clean.
-        $user->tokens()->where('name', 'spa')->delete();
+        // Prune excessively old tokens if count exceeds limit to avoid table bloat without terminating active concurrent tabs.
+        if ($user->tokens()->where('name', 'spa')->count() > 15) {
+            $user->tokens()->where('name', 'spa')->oldest()->limit(5)->delete();
+        }
 
         return response()->json([
             'success' => true,

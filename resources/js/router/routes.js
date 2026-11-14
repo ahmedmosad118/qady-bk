@@ -11,7 +11,9 @@ import ProductsView from '../views/catalog/ProductsView.vue';
 import ProductCategoriesView from '../views/catalog/ProductCategoriesView.vue';
 import ContactsView from '../views/sales/ContactsView.vue';
 import InventoryDocumentsView from '../views/inventory/InventoryDocumentsView.vue';
+import WarehouseStocksView from '../views/inventory/WarehouseStocksView.vue';
 import WarehouseEditView from '../views/inventory/WarehouseEditView.vue';
+import StocktakesView from '../views/inventory/StocktakesView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -86,6 +88,18 @@ const routes = [
         name: 'inventory',
         component: InventoryDocumentsView,
         meta: { titleKey: 'nav.inventory' },
+      },
+      {
+        path: 'inventory/stocks',
+        name: 'inventory.stocks',
+        component: WarehouseStocksView,
+        meta: { titleKey: 'nav.warehouseStocks' },
+      },
+      {
+        path: 'inventory/stocktakes',
+        name: 'inventory.stocktakes',
+        component: StocktakesView,
+        meta: { titleKey: 'nav.stocktaking' },
       },
       {
         path: 'inventory/:type',

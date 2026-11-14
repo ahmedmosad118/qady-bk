@@ -1,0 +1,179 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Pos;
+
+use App\Models\PaymentMethod;
+use App\Models\PosSale;
+use App\Models\PosShift;
+use App\Models\PosShiftTransaction;
+use App\Models\Product;
+use App\Models\User;
+use App\Models\Warehouse;
+use App\Models\WarehouseStock;
+use App\Services\Pos\PosSaleService;
+use App\Services\Pos\PosShiftService;
+use Database\Seeders\PaymentMethodSeeder;
+use Database\Seeders\WarehouseSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use LogicException;
+use Tests\TestCase;
+
+class PosShiftTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected User $user;
+    protected PosShiftService $shiftService;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create();
+        Sanctum::actingAs($this->user);
+
+        $this->seed(PaymentMethodSeeder::class);
+        $this->seed(WarehouseSeeder::class);
+
+        $this->shiftService = app(PosShiftService::class);
+    }
+
+    public function test_can_open_shift(): void
+    {
+        $response = $this->postJson('/api/pos/shifts', [
+            'opening_balance' => 500.00,
+            'notes' => 'وردية الصباح',
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.opening_balance', '500.00');
+        $response->assertJsonPath('data.expected_cash', '500.00');
+        $this->assertNull($response->json('data.closed_at'));
+
+        $this->assertDatabaseHas('pos_shifts', [
+            'opened_by' => $this->user->id,
+            'opening_balance' => '500.00',
+            'closed_at' => null,
+        ]);
+    }
+
+    public function test_can_open_multiple_shifts_simultaneously(): void
+    {
+        $shift1 = $this->shiftService->openShift($this->user, 200.00);
+        $shift2 = $this->shiftService->openShift($this->user, 400.00);
+
+        $this->assertTrue($shift1->isOpen());
+        $this->assertTrue($shift2->isOpen());
+
+        $response = $this->getJson('/api/pos/shifts/open');
+        $response->assertOk();
+        $this->assertCount(2, $response->json('data'));
+    }
+
+    public function test_can_record_expense_and_withdrawal(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, 1000.00);
+
+        // Expense
+        $expResponse = $this->postJson("/api/pos/shifts/{$shift->id}/expenses", [
+            'amount' => 50.00,
+            'name' => 'شراء أدوات مكتبية',
+            'description' => 'أوراق وأقلام',
+        ]);
+        $expResponse->assertCreated();
+        $this->assertDatabaseHas('pos_shift_transactions', [
+            'shift_id' => $shift->id,
+            'type' => 'expense',
+            'amount' => '50.00',
+            'name' => 'شراء أدوات مكتبية',
+        ]);
+
+        // Withdrawal
+        $withResponse = $this->postJson("/api/pos/shifts/{$shift->id}/withdrawals", [
+            'amount' => 150.00,
+            'name' => 'سحب نقدي للخزينة',
+            'description' => 'إيداع بنكي جزئي',
+        ]);
+        $withResponse->assertCreated();
+        $this->assertDatabaseHas('pos_shift_transactions', [
+            'shift_id' => $shift->id,
+            'type' => 'withdrawal',
+            'amount' => '150.00',
+            'name' => 'سحب نقدي للخزينة',
+        ]);
+
+        // Expected cash should be: 1000 - 50 - 150 = 800.00
+        $shift->refresh();
+        $this->assertEquals('800.00', $shift->expected_cash);
+    }
+
+    public function test_calculates_expected_cash_and_difference_upon_close(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, 1000.00);
+
+        // Record expense 100 and withdrawal 200 => expected = 700
+        $this->shiftService->recordExpense($shift, $this->user, 100.00, 'ضيافة');
+        $this->shiftService->recordWithdrawal($shift, $this->user, 200.00, 'سحب');
+
+        // Close with actual cash = 650 (Shortage of 50 => difference = -50.00)
+        $response = $this->postJson("/api/pos/shifts/{$shift->id}/close", [
+            'actual_cash' => 650.00,
+            'notes' => 'عجز 50 جنيه',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('data.expected_cash', '700.00');
+        $response->assertJsonPath('data.actual_cash', '650.00');
+        $response->assertJsonPath('data.difference', '-50.00');
+
+        $shift->refresh();
+        $this->assertTrue($shift->isClosed());
+        $this->assertEquals('700.00', (string) $shift->expected_cash);
+        $this->assertEquals('650.00', (string) $shift->actual_cash);
+        $this->assertEquals('-50.00', (string) $shift->difference);
+        $this->assertNotNull($shift->closed_at);
+        $this->assertEquals($this->user->id, $shift->closed_by);
+    }
+
+    public function test_cannot_record_operations_on_closed_shift(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, 500.00);
+        $this->shiftService->closeShift($shift, $this->user, 500.00);
+
+        // Attempt expense on closed shift
+        $response = $this->postJson("/api/pos/shifts/{$shift->id}/expenses", [
+            'amount' => 50.00,
+            'name' => 'مصروف بعد الإغلاق',
+        ]);
+        $response->assertStatus(422);
+
+        // Attempt closing again
+        $closeAgain = $this->postJson("/api/pos/shifts/{$shift->id}/close", [
+            'actual_cash' => 500.00,
+        ]);
+        $closeAgain->assertStatus(422);
+    }
+
+    public function test_shift_transactions_are_immutable(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, 500.00);
+        $tx = $this->shiftService->recordExpense($shift, $this->user, 40.00, 'فاتورة كهرباء');
+
+        $this->expectException(LogicException::class);
+        $tx->update(['amount' => '60.00']);
+    }
+
+    public function test_shift_transactions_cannot_be_deleted(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, 500.00);
+        $tx = $this->shiftService->recordExpense($shift, $this->user, 40.00, 'فاتورة مياه');
+
+        $this->expectException(LogicException::class);
+        $tx->delete();
+    }
+}

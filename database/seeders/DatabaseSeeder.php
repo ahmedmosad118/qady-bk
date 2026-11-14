@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             WarehouseSeeder::class,
             BookCatalogSeeder::class,
+            PaymentMethodSeeder::class,
         ]);
     }
 }

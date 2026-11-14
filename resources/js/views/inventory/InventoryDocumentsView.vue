@@ -598,6 +598,8 @@ async function confirmDelete(doc) {
 }
 
 function typeLabel(type) {
+  if (!type) return '';
+  const clean = String(type).replace(/-/g, '_');
   const labels = {
     goods_receipt: 'إذن استلام',
     goods_delivery: 'إذن تسليم',
@@ -608,7 +610,7 @@ function typeLabel(type) {
     stock_write_off: 'إذن إتلاف',
     opening_balance: 'رصيد افتتاحي',
   };
-  return labels[type] || type;
+  return labels[clean] || clean;
 }
 
 function statusLabel(status) {

@@ -50,6 +50,30 @@ class ProductController extends Controller
     }
 
     /**
+     * Look up an active product by its barcode for scanner operations.
+     */
+    public function lookupBarcode(string $barcode): JsonResponse
+    {
+        $product = Product::query()
+            ->with('category:id,name,parent_id')
+            ->where('barcode', trim($barcode))
+            ->where('is_active', true)
+            ->first();
+
+        if (! $product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'لم يتم العثور على أي كتاب أو صنف بهذا الباركود.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $product,
+        ]);
+    }
+
+    /**
      * Display the specified product.
      */
     public function show(Product $product): JsonResponse

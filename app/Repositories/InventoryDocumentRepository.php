@@ -42,7 +42,8 @@ class InventoryDocumentRepository
         $baseQuery = InventoryDocument::query();
 
         if (! empty($filters['document_type'])) {
-            $baseQuery->where('document_type', $filters['document_type']);
+            $type = str_replace('-', '_', (string) $filters['document_type']);
+            $baseQuery->where('document_type', $type);
         }
 
         if (! empty($filters['source_warehouse_id'])) {
@@ -93,7 +94,7 @@ class InventoryDocumentRepository
                 $q->where('document_number', 'like', "%{$search}%");
             })
             ->when($filters['document_type'] ?? null, function (Builder $q, $type): void {
-                $q->where('document_type', $type);
+                $q->where('document_type', str_replace('-', '_', (string) $type));
             })
             ->when($filters['status'] ?? null, function (Builder $q, $status): void {
                 $q->where('status', $status);

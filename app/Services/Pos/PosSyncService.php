@@ -1,0 +1,259 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Pos;
+
+use App\Models\PaymentMethod;
+use App\Models\PosSale;
+use App\Models\PosShift;
+use App\Models\PosSyncTransaction;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\User;
+use App\Models\Warehouse;
+use App\Models\WarehouseStock;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class PosSyncService
+{
+    public function __construct(
+        protected PosSaleService $saleService,
+    ) {}
+
+    /**
+     * Synchronize a local offline sale transaction idempotently.
+     *
+     * @param array<string, mixed> $payload
+     * @return array{
+     *     status: string,
+     *     is_idempotent: bool,
+     *     sale: ?PosSale,
+     *     conflict_reason: ?string
+     * }
+     */
+    public function syncOfflineSale(array $payload, User $user): array
+    {
+        $clientUuid = trim((string) ($payload['client_uuid'] ?? ''));
+        if ($clientUuid === '') {
+            throw ValidationException::withMessages([
+                'client_uuid' => ['معرف العملية المحلي الفريد (UUID) مطلوب لإجراء المزامنة.'],
+            ]);
+        }
+
+        // 1. Idempotency Check: check if already processed
+        $existing = PosSyncTransaction::query()
+            ->where('client_uuid', $clientUuid)
+            ->with(['sale.items.product', 'sale.paymentMethod', 'sale.customer'])
+            ->first();
+
+        if ($existing) {
+            if ($existing->status === PosSyncTransaction::STATUS_SYNCED && $existing->sale) {
+                return [
+                    'status' => 'synced',
+                    'is_idempotent' => true,
+                    'sale' => $existing->sale,
+                    'conflict_reason' => null,
+                ];
+            }
+
+            if ($existing->status === PosSyncTransaction::STATUS_CONFLICT) {
+                return [
+                    'status' => 'conflict',
+                    'is_idempotent' => true,
+                    'sale' => null,
+                    'conflict_reason' => $existing->conflict_reason,
+                ];
+            }
+        }
+
+        // 2. Validate shift
+        $shiftId = (int) ($payload['shift_id'] ?? 0);
+        $shift = PosShift::query()->find($shiftId);
+        if (! $shift || $shift->isClosed()) {
+            // Find any currently open shift or fail
+            $openShift = PosShift::query()->open()->first();
+            if (! $openShift) {
+                $conflictReason = 'لا توجد وردية مفتوحة على الخادم لاستقبال المزامنة.';
+                $this->recordConflict($clientUuid, $shiftId ?: 1, $payload, $conflictReason);
+
+                return [
+                    'status' => 'conflict',
+                    'is_idempotent' => false,
+                    'sale' => null,
+                    'conflict_reason' => $conflictReason,
+                ];
+            }
+            $shift = $openShift;
+            $payload['shift_id'] = $openShift->id;
+        }
+
+        // 3. Resolve warehouse
+        $warehouseId = $payload['warehouse_id'] ?? null;
+        if ($warehouseId) {
+            $warehouse = Warehouse::query()->where('is_active', true)->find($warehouseId);
+        } else {
+            $warehouse = Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
+                ?: Warehouse::query()->where('is_active', true)->first();
+        }
+
+        if (! $warehouse) {
+            $conflictReason = 'لم يتم العثور على مخزن نشط لمعالجة الفاتورة.';
+            $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
+
+            return [
+                'status' => 'conflict',
+                'is_idempotent' => false,
+                'sale' => null,
+                'conflict_reason' => $conflictReason,
+            ];
+        }
+
+        // 4. Pre-flight stock check to detect conflicts before writing to pos_sales
+        $items = $payload['items'] ?? [];
+        foreach ($items as $item) {
+            $prodId = (int) $item['product_id'];
+            $reqQty = (float) $item['quantity'];
+
+            $stock = WarehouseStock::query()
+                ->where('warehouse_id', $warehouse->id)
+                ->where('product_id', $prodId)
+                ->first();
+
+            $avail = $stock ? (float) $stock->quantity : 0.0;
+
+            if ($reqQty > $avail) {
+                $product = Product::query()->find($prodId);
+                $prodName = $product?->name ?? "صنف #{$prodId}";
+                $conflictReason = "تعارض مخزون: الرصيد غير كافٍ للمنتج '{$prodName}' في المخزن '{$warehouse->name}'. الرصيد المتاح: {$avail}، الكمية المطلوبة محلياً: {$reqQty}.";
+
+                $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
+
+                return [
+                    'status' => 'conflict',
+                    'is_idempotent' => false,
+                    'sale' => null,
+                    'conflict_reason' => $conflictReason,
+                ];
+            }
+        }
+
+        // 5. Attempt official sale creation
+        try {
+            $sale = $this->saleService->createSale($payload, $user);
+
+            // Record successful sync
+            PosSyncTransaction::query()->create([
+                'client_uuid' => $clientUuid,
+                'shift_id' => $shift->id,
+                'pos_sale_id' => $sale->id,
+                'payload' => $payload,
+                'status' => PosSyncTransaction::STATUS_SYNCED,
+                'conflict_reason' => null,
+                'synced_at' => Carbon::now(),
+            ]);
+
+            return [
+                'status' => 'synced',
+                'is_idempotent' => false,
+                'sale' => $sale,
+                'conflict_reason' => null,
+            ];
+        } catch (\Throwable $e) {
+            $conflictReason = $e->getMessage();
+            $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
+
+            return [
+                'status' => 'conflict',
+                'is_idempotent' => false,
+                'sale' => null,
+                'conflict_reason' => $conflictReason,
+            ];
+        }
+    }
+
+    /**
+     * Record a sync conflict preserving the local operation payload.
+     *
+     * @param array<string, mixed> $payload
+     */
+    protected function recordConflict(string $uuid, int $shiftId, array $payload, string $reason): void
+    {
+        try {
+            PosSyncTransaction::query()->updateOrCreate(
+                ['client_uuid' => $uuid],
+                [
+                    'shift_id' => $shiftId,
+                    'pos_sale_id' => null,
+                    'payload' => $payload,
+                    'status' => PosSyncTransaction::STATUS_CONFLICT,
+                    'conflict_reason' => $reason,
+                    'synced_at' => null,
+                ]
+            );
+        } catch (\Throwable) {
+            // Ignore if concurrent record exists
+        }
+    }
+
+    /**
+     * Get offline bootstrap dataset (products, barcodes, prices, stock, payment methods).
+     *
+     * @return array<string, mixed>
+     */
+    public function getBootstrapData(?int $warehouseId = null): array
+    {
+        $warehouse = $warehouseId
+            ? Warehouse::query()->where('is_active', true)->find($warehouseId)
+            : (Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
+                ?: Warehouse::query()->where('is_active', true)->first());
+
+        $whId = $warehouse?->id;
+
+        $products = Product::query()
+            ->active()
+            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
+                if ($whId) {
+                    $q->where('warehouse_id', $whId);
+                }
+            }])
+            ->get()
+            ->map(function (Product $p) use ($whId): array {
+                $stock = $p->warehouseStocks->firstWhere('warehouse_id', $whId);
+                $available = $stock ? (float) $stock->quantity : 0.0;
+
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'sku' => $p->sku,
+                    'barcode' => $p->barcode,
+                    'selling_price' => (string) $p->selling_price,
+                    'purchase_price' => (string) $p->purchase_price,
+                    'category' => $p->category?->name,
+                    'current_stock' => $available,
+                ];
+            });
+
+        $paymentMethods = PaymentMethod::query()
+            ->active()
+            ->get(['id', 'name']);
+
+        $openShifts = PosShift::query()
+            ->open()
+            ->get(['id', 'shift_number', 'opened_at', 'opened_by']);
+
+        return [
+            'warehouse' => $warehouse ? [
+                'id' => $warehouse->id,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+            ] : null,
+            'products' => $products,
+            'payment_methods' => $paymentMethods,
+            'open_shifts' => $openShifts,
+            'server_time' => Carbon::now()->toIso8601String(),
+        ];
+    }
+}

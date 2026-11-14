@@ -261,7 +261,9 @@ const filteredOptions = computed(() => {
   return normalizedOptions.value.filter((opt) => {
     const label = formatLabel(opt.label).toLowerCase();
     const val = String(opt.value).toLowerCase();
-    return label.includes(q) || val.includes(q);
+    const barcode = opt.barcode ? String(opt.barcode).toLowerCase() : '';
+    const sku = opt.sku ? String(opt.sku).toLowerCase() : '';
+    return label.includes(q) || val.includes(q) || barcode.includes(q) || sku.includes(q);
   });
 });
 

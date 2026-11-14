@@ -56,8 +56,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      ['sarh_token', 'sarh_user'].forEach((key) => {
+    // Only handle global session expiry on 401 when calling protected routes (skip login failures)
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
+      ['sarh_token', 'sarh_user', 'sarh_tenant', 'sarh_permissions', 'sarh_roles'].forEach((key) => {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
       });

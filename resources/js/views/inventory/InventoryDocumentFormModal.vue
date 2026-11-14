@@ -49,7 +49,7 @@
           <!-- Document Header Fields Grid -->
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <!-- Document Type -->
-            <div v-if="!fixedType && !isEdit">
+            <div v-if="!normalizedFixedType && !isEdit">
               <label class="block text-xs font-bold text-[var(--text)] mb-1.5">
                 {{ $t('inventory.fields.type') }} <span class="text-[var(--crimson)]">*</span>
               </label>
@@ -213,20 +213,20 @@
 
             <p v-if="errors.items" class="text-xs text-[var(--crimson)]">{{ errors.items[0] }}</p>
 
-            <div class="rounded-xl border border-[var(--border)] min-h-[280px]">
+            <div class="overflow-x-auto rounded-xl border border-[var(--border)] min-h-[280px]">
               <table class="w-full text-right text-sm">
                 <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
                   <tr>
-                    <th class="w-10 px-3 py-2.5">#</th>
-                    <th class="min-w-[340px] px-3 py-2.5">{{ $t('inventory.fields.product') }}</th>
-                    <th class="w-28 px-3 py-2.5">{{ $t('inventory.fields.quantity') }}</th>
+                    <th class="w-10 px-3 py-2.5 text-center">#</th>
+                    <th class="w-[42%] min-w-[240px] px-3 py-2.5">{{ $t('inventory.fields.product') }}</th>
+                    <th class="w-36 min-w-[140px] px-3 py-2.5 text-center">{{ $t('inventory.fields.quantity') }}</th>
                     <th class="min-w-[160px] px-3 py-2.5">{{ $t('inventory.fields.lineNotes') }}</th>
-                    <th class="w-12 px-3 py-2.5"></th>
+                    <th class="w-14 px-3 py-2.5 text-center">حذف</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--border)]">
                   <tr v-for="(item, idx) in form.items" :key="idx" class="align-top">
-                    <td class="px-3 py-2.5 pt-4 text-xs font-bold text-[var(--muted)]">{{ idx + 1 }}</td>
+                    <td class="px-3 py-2.5 pt-4 text-center text-xs font-bold text-[var(--muted)]">{{ idx + 1 }}</td>
                     <td class="px-3 py-2.5">
                       <!-- SearchableSelect for Line Item Products with 10 pagination -->
                       <SearchableSelect
@@ -241,14 +241,14 @@
                         {{ errors[`items.${idx}.product_id`][0] }}
                       </p>
                     </td>
-                    <td class="px-3 py-2.5">
+                    <td class="px-3 py-2.5 text-center">
                       <input
                         v-model.number="item.quantity"
                         type="number"
-                        step="0.001"
+                        step="any"
                         min="0.001"
                         required
-                        class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-2 text-center text-xs font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                        class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-center text-sm font-black text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson-soft)] shadow-xs"
                       />
                       <p v-if="errors[`items.${idx}.quantity`]" class="mt-1 text-[11px] text-[var(--crimson)]">
                         {{ errors[`items.${idx}.quantity`][0] }}
@@ -262,14 +262,14 @@
                         :placeholder="$t('inventory.fields.lineNotesPlaceholder')"
                       />
                     </td>
-                    <td class="px-3 py-2.5 pt-3">
+                    <td class="px-2 py-2.5 pt-3.5 text-center">
                       <button
                         type="button"
-                        class="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] disabled:opacity-30"
-                        :disabled="form.items.length <= 1"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 transition-colors hover:bg-red-500/20 hover:text-red-700 shadow-xs cursor-pointer"
+                        :title="form.items.length > 1 ? 'حذف هذا السطر' : 'تفريغ السطر'"
                         @click="removeItemRow(idx)"
                       >
-                        <Trash2 class="h-4 w-4" />
+                        <Trash2 class="h-4 w-4 text-red-600" />
                       </button>
                     </td>
                   </tr>
@@ -325,7 +325,14 @@ const props = defineProps({
   products: { type: Array, default: () => [] },
 });
 
+const normalizedFixedType = computed(() => {
+  if (!props.fixedType) return '';
+  return props.fixedType.replace(/-/g, '_');
+});
+
 function typeLabel(type) {
+  if (!type) return 'مستند مخزني';
+  const clean = String(type).replace(/-/g, '_');
   const labels = {
     goods_receipt: 'إذن استلام مخزني',
     goods_delivery: 'إذن تسليم مخزني',
@@ -336,7 +343,7 @@ function typeLabel(type) {
     stock_write_off: 'إذن إتلاف / هالك',
     opening_balance: 'رصيد افتتاحي',
   };
-  return labels[type] || 'مستند مخزني';
+  return labels[clean] || 'مستند مخزني';
 }
 
 const emit = defineEmits(['close', 'saved']);
@@ -480,6 +487,8 @@ function addItemRow() {
 function removeItemRow(index) {
   if (form.items.length > 1) {
     form.items.splice(index, 1);
+  } else {
+    form.items[0] = { product_id: null, quantity: 1, notes: '' };
   }
 }
 
@@ -522,7 +531,7 @@ watch(
           : [{ product_id: null, quantity: 1, notes: '' }];
       } else {
         // Reset to initial new document
-        form.document_type = props.fixedType || 'goods_receipt';
+        form.document_type = normalizedFixedType.value || 'goods_receipt';
         form.document_date = new Date().toISOString().substring(0, 10);
         form.adjustment_direction = 'increase';
         form.return_direction = 'inbound';

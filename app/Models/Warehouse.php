@@ -67,4 +67,40 @@ class Warehouse extends Model
     {
         return $this->hasMany(InventoryDocument::class, 'destination_warehouse_id');
     }
+
+    /**
+     * Stock movements associated with this warehouse.
+     */
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class, 'warehouse_id');
+    }
+
+    /**
+     * Stock balances held in this warehouse.
+     */
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(WarehouseStock::class, 'warehouse_id');
+    }
+
+    /**
+     * Stocktakes performed on this warehouse.
+     */
+    public function stocktakes(): HasMany
+    {
+        return $this->hasMany(Stocktake::class, 'warehouse_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Warehouse $warehouse): void {
+            if ($warehouse->stockMovements()->exists()) {
+                throw new \LogicException('Cannot delete warehouse that has historical stock movements.');
+            }
+            if ($warehouse->stocktakes()->exists()) {
+                throw new \LogicException('Cannot delete warehouse that has associated stocktakes.');
+            }
+        });
+    }
 }

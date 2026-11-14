@@ -4,10 +4,20 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\InventoryDocumentController;
+use App\Http\Controllers\Api\Pos\PosDashboardController;
+use App\Http\Controllers\Api\Pos\PosHeldSaleController;
+use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
+use App\Http\Controllers\Api\Pos\PosReturnController;
+use App\Http\Controllers\Api\Pos\PosSaleController;
+use App\Http\Controllers\Api\Pos\PosShiftController;
+use App\Http\Controllers\Api\Pos\PosSyncController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\StockMovementController;
+use App\Http\Controllers\Api\StocktakeController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WarehouseController;
+use App\Http\Controllers\Api\WarehouseStockController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Books (products) and their categories.
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'store']);
+    Route::get('/products/lookup-barcode/{barcode}', [ProductController::class, 'lookupBarcode']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::put('/products/{product}', [ProductController::class, 'update']);
     Route::delete('/products/{product}', [ProductController::class, 'destroy']);
@@ -75,4 +86,66 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inventory-documents/{inventory_document}/cancel', [InventoryDocumentController::class, 'cancel']);
     Route::post('/inventory-documents/{inventory_document}/post', [InventoryDocumentController::class, 'post']);
     Route::post('/inventory-documents/{inventory_document}/reverse', [InventoryDocumentController::class, 'reverse']);
+
+    // Warehouse Stocks & Stock Movements (Strictly read-only; updated via workflow posting/reversing only)
+    Route::get('/warehouse-stocks', [WarehouseStockController::class, 'index']);
+    Route::get('/stock-movements', [StockMovementController::class, 'index']);
+    Route::get('/stock-movements/stock-card', [StockMovementController::class, 'stockCard']);
+
+    // Stocktaking Management & Workflow
+    Route::get('/stocktakes', [StocktakeController::class, 'index']);
+    Route::post('/stocktakes', [StocktakeController::class, 'store']);
+    Route::get('/stocktakes/{stocktake}', [StocktakeController::class, 'show']);
+    Route::post('/stocktakes/{stocktake}/start', [StocktakeController::class, 'start']);
+    Route::post('/stocktakes/{stocktake}/submit', [StocktakeController::class, 'submit']);
+    Route::post('/stocktakes/{stocktake}/approve', [StocktakeController::class, 'approve']);
+    Route::post('/stocktakes/{stocktake}/reject', [StocktakeController::class, 'reject']);
+    Route::post('/stocktakes/{stocktake}/cancel', [StocktakeController::class, 'cancel']);
+
+    // Stocktake Item Counting
+    Route::post('/stocktake-items/{item}/start-counting', [StocktakeController::class, 'startCounting']);
+    Route::post('/stocktake-items/{item}/record-count', [StocktakeController::class, 'recordCount']);
+    Route::post('/stocktake-items/{item}/cancel-count', [StocktakeController::class, 'cancelCount']);
+    Route::post('/stocktake-items/{item}/recount', [StocktakeController::class, 'recount']);
+
+    // Point of Sale (POS) Module
+    // POS Payment Methods
+    Route::get('/pos/payment-methods', [PosPaymentMethodController::class, 'index']);
+
+    // POS Shifts Management
+    Route::get('/pos/shifts/open', [PosShiftController::class, 'openShifts']);
+    Route::post('/pos/shifts', [PosShiftController::class, 'store']);
+    Route::get('/pos/shifts/{pos_shift}', [PosShiftController::class, 'show']);
+    Route::post('/pos/shifts/{pos_shift}/close', [PosShiftController::class, 'close']);
+    Route::get('/pos/shifts/{pos_shift}/transactions', [PosShiftController::class, 'transactions']);
+    Route::post('/pos/shifts/{pos_shift}/expenses', [PosShiftController::class, 'recordExpense']);
+    Route::post('/pos/shifts/{pos_shift}/withdrawals', [PosShiftController::class, 'recordWithdrawal']);
+
+    // POS Products & Barcode Search
+    Route::get('/pos/products', [PosSaleController::class, 'products']);
+    Route::get('/pos/products/lookup', [PosSaleController::class, 'lookup']);
+
+    // POS Sales
+    Route::post('/pos/sales', [PosSaleController::class, 'store']);
+    Route::get('/pos/sales/by-number/{invoice_number}', [PosSaleController::class, 'byNumber']);
+    Route::get('/pos/sales/{pos_sale}', [PosSaleController::class, 'show']);
+    Route::get('/pos/sales/{pos_sale}/returnable-items', [PosReturnController::class, 'returnableItems']);
+
+    // POS Held Sales (Hold / Resume)
+    Route::get('/pos/held-sales', [PosHeldSaleController::class, 'index']);
+    Route::post('/pos/held-sales', [PosHeldSaleController::class, 'store']);
+    Route::get('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'show']);
+    Route::put('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'update']);
+    Route::delete('/pos/held-sales/{pos_held_sale}', [PosHeldSaleController::class, 'destroy']);
+
+    // POS Returns
+    Route::post('/pos/returns', [PosReturnController::class, 'store']);
+    Route::get('/pos/returns/{pos_return}', [PosReturnController::class, 'show']);
+
+    // POS Dashboard & Statistics
+    Route::get('/pos/dashboard/stats', [PosDashboardController::class, 'stats']);
+
+    // POS Offline Sync & Bootstrap
+    Route::get('/pos/sync/bootstrap', [PosSyncController::class, 'bootstrap']);
+    Route::post('/pos/sync/sales', [PosSyncController::class, 'syncSales']);
 });

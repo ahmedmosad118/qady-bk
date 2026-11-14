@@ -15,13 +15,14 @@ const readKey = (key) => {
 };
 
 const authStorage = () =>
-  typeof window !== 'undefined' && localStorage.getItem('sarh_token') ? localStorage : sessionStorage;
+  typeof window !== 'undefined' ? localStorage : sessionStorage;
 
-const persistSession = (data, remember) => {
-  const target = remember ? localStorage : sessionStorage;
-  const other = remember ? sessionStorage : localStorage;
+const persistSession = (data, remember = true) => {
+  // Always persist in localStorage to share session seamlessly across tabs and prevent sudden logouts on tab close.
+  const target = localStorage;
 
-  AUTH_KEYS.forEach((key) => other.removeItem(key));
+  // Clean up any stale sessionStorage keys
+  AUTH_KEYS.forEach((key) => sessionStorage.removeItem(key));
 
   target.setItem('sarh_token', data.token);
   target.setItem('sarh_user', JSON.stringify(data.user));
@@ -129,7 +130,13 @@ export const useAuthStore = defineStore('auth', {
         storage.setItem('sarh_permissions', JSON.stringify(this.permissions));
         storage.setItem('sarh_roles', JSON.stringify(this.roles));
       } catch (err) {
-        this.logout();
+        // Only log out if backend explicitly rejected the token (401 Unauthorized).
+        // Temporary server hiccups (500), DB disconnects, or network drops should NOT kick the user out.
+        if (err.response?.status === 401) {
+          this.logout();
+        } else {
+          console.warn('Failed to refresh user profile from server:', err);
+        }
       }
     },
 
