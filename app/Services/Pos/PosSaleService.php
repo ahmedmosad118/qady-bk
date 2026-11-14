@@ -354,7 +354,7 @@ class PosSaleService
      *
      * @return Collection<int, Product>
      */
-    public function searchProducts(string $query, ?int $warehouseId = null): Collection
+    public function searchProducts(string $query, ?int $warehouseId = null, ?int $categoryId = null): Collection
     {
         $term = trim($query);
 
@@ -366,6 +366,9 @@ class PosSaleService
 
         return Product::query()
             ->active()
+            ->when($categoryId, function ($q) use ($categoryId): void {
+                $q->where('category_id', $categoryId);
+            })
             ->when($term !== '', function ($q) use ($term): void {
                 $q->where(function ($sub) use ($term): void {
                     $sub->where('name', 'like', "%{$term}%")
@@ -379,7 +382,7 @@ class PosSaleService
                 }
             }])
             ->orderBy('name')
-            ->limit(50)
+            ->limit(100)
             ->get();
     }
 

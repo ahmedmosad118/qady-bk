@@ -14,6 +14,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
   Tags,
   Trash2,
   UsersRound,
@@ -44,6 +45,11 @@ export const navigation = [
     key: 'sales',
     label: 'nav.salesGroup',
     items: [
+      {
+        label: 'nav.pos',
+        to: '/pos',
+        icon: Store,
+      },
       {
         label: 'nav.invoices',
         to: '/invoices',

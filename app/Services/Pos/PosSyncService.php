@@ -70,14 +70,12 @@ class PosSyncService
         }
 
         // 2. Validate shift
-        $shiftId = (int) ($payload['shift_id'] ?? 0);
-        $shift = PosShift::query()->find($shiftId);
-        if (! $shift || $shift->isClosed()) {
-            // Find any currently open shift or fail
-            $openShift = PosShift::query()->open()->first();
-            if (! $openShift) {
-                $conflictReason = 'لا توجد وردية مفتوحة على الخادم لاستقبال المزامنة.';
-                $this->recordConflict($clientUuid, $shiftId ?: 1, $payload, $conflictReason);
+        $shiftId = isset($payload['shift_id']) ? (int) $payload['shift_id'] : null;
+        if ($shiftId) {
+            $shift = PosShift::query()->find($shiftId);
+            if (! $shift) {
+                $conflictReason = "الوردية المحددة للعملية (#{$shiftId}) غير موجودة على الخادم.";
+                $this->recordConflict($clientUuid, null, $payload, $conflictReason);
 
                 return [
                     'status' => 'conflict',
@@ -86,8 +84,33 @@ class PosSyncService
                     'conflict_reason' => $conflictReason,
                 ];
             }
-            $shift = $openShift;
-            $payload['shift_id'] = $openShift->id;
+
+            if ($shift->isClosed()) {
+                $conflictReason = "الوردية المحددة للعملية ({$shift->shift_number}) مغلقة بالفعل على الخادم. لا يمكن ترحيل مبيعات أوفلاين قديمة إلى وردية مغلقة.";
+                $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
+
+                return [
+                    'status' => 'conflict',
+                    'is_idempotent' => false,
+                    'sale' => null,
+                    'conflict_reason' => $conflictReason,
+                ];
+            }
+        } else {
+            // If shift_id was not provided in offline payload, resolve currently open shift
+            $shift = PosShift::query()->open()->first();
+            if (! $shift) {
+                $conflictReason = 'لا توجد وردية مفتوحة على الخادم لاستقبال المزامنة.';
+                $this->recordConflict($clientUuid, null, $payload, $conflictReason);
+
+                return [
+                    'status' => 'conflict',
+                    'is_idempotent' => false,
+                    'sale' => null,
+                    'conflict_reason' => $conflictReason,
+                ];
+            }
+            $payload['shift_id'] = $shift->id;
         }
 
         // 3. Resolve warehouse
@@ -162,6 +185,17 @@ class PosSyncService
                 'conflict_reason' => null,
             ];
         } catch (\Throwable $e) {
+            // Check if concurrent idempotent request already completed the sale
+            $existingSale = PosSale::query()->where('client_uuid', $clientUuid)->first();
+            if ($existingSale) {
+                return [
+                    'status' => 'synced',
+                    'is_idempotent' => true,
+                    'sale' => $existingSale,
+                    'conflict_reason' => null,
+                ];
+            }
+
             $conflictReason = $e->getMessage();
             $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
 
@@ -179,7 +213,7 @@ class PosSyncService
      *
      * @param array<string, mixed> $payload
      */
-    protected function recordConflict(string $uuid, int $shiftId, array $payload, string $reason): void
+    protected function recordConflict(string $uuid, ?int $shiftId, array $payload, string $reason): void
     {
         try {
             PosSyncTransaction::query()->updateOrCreate(
@@ -193,8 +227,11 @@ class PosSyncService
                     'synced_at' => null,
                 ]
             );
-        } catch (\Throwable) {
-            // Ignore if concurrent record exists
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to record POS sync conflict: '.$e->getMessage(), [
+                'client_uuid' => $uuid,
+                'shift_id' => $shiftId,
+            ]);
         }
     }
 
@@ -226,6 +263,7 @@ class PosSyncService
 
                 return [
                     'id' => $p->id,
+                    'category_id' => $p->category_id,
                     'name' => $p->name,
                     'sku' => $p->sku,
                     'barcode' => $p->barcode,
@@ -233,6 +271,7 @@ class PosSyncService
                     'purchase_price' => (string) $p->purchase_price,
                     'category' => $p->category?->name,
                     'current_stock' => $available,
+                    'stock_quantity' => $available,
                 ];
             });
 

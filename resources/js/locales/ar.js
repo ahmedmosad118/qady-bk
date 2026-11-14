@@ -50,6 +50,7 @@ export default {
     main: 'الرئيسية',
     dashboard: 'لوحة التحكم',
     salesGroup: 'المبيعات',
+    pos: 'نقطة البيع (POS)',
     catalogGroup: 'الإصدارات والمخزون',
     adminGroup: 'الإدارة',
     invoices: 'الفواتير',

@@ -14,6 +14,7 @@ import InventoryDocumentsView from '../views/inventory/InventoryDocumentsView.vu
 import WarehouseStocksView from '../views/inventory/WarehouseStocksView.vue';
 import WarehouseEditView from '../views/inventory/WarehouseEditView.vue';
 import StocktakesView from '../views/inventory/StocktakesView.vue';
+import PosView from '../views/pos/PosView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -33,6 +34,13 @@ const routes = [
         component: LoginView,
       },
     ],
+  },
+
+  {
+    path: '/pos',
+    name: 'pos',
+    component: PosView,
+    meta: { requiresAuth: true, titleKey: 'nav.pos' },
   },
 
   {

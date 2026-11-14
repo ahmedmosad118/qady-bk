@@ -24,8 +24,9 @@ class PosSaleController extends Controller
     {
         $query = (string) $request->input('search', '');
         $warehouseId = $request->integer('warehouse_id') ?: null;
+        $categoryId = $request->integer('category_id') ?: null;
 
-        $products = $this->saleService->searchProducts($query, $warehouseId);
+        $products = $this->saleService->searchProducts($query, $warehouseId, $categoryId);
 
         return response()->json([
             'success' => true,

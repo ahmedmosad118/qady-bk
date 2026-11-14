@@ -151,4 +151,39 @@ class PosSyncAndOfflineTest extends TestCase
             ->first();
         $this->assertEquals('5.000', (string) $stock->quantity);
     }
+
+    public function test_offline_sync_to_closed_shift_records_conflict_and_does_not_hijack_open_shift(): void
+    {
+        // 1. Close current shift
+        $this->shiftService->closeShift($this->shift, $this->user, 500.00);
+        $this->assertTrue($this->shift->fresh()->isClosed());
+
+        // 2. Open another brand new shift
+        $newShift = $this->shiftService->openShift($this->user, 200.00);
+        $this->assertTrue($newShift->isOpen());
+
+        $uuid = (string) Str::uuid();
+        $payload = [
+            'client_uuid' => $uuid,
+            'shift_id' => $this->shift->id, // points to old closed shift
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 1],
+            ],
+        ];
+
+        $response = $this->postJson('/api/pos/sync/sales', $payload);
+        $response->assertStatus(409);
+        $response->assertJsonPath('status', 'conflict');
+
+        // Verify sale was NOT created in newShift
+        $this->assertEquals(0, PosSale::query()->count());
+        $this->assertEquals(0, $newShift->sales()->count());
+
+        // Verify conflict recorded preserving original shift_id
+        $syncTx = PosSyncTransaction::query()->where('client_uuid', $uuid)->first();
+        $this->assertNotNull($syncTx);
+        $this->assertEquals(PosSyncTransaction::STATUS_CONFLICT, $syncTx->status);
+        $this->assertStringContainsString('مغلقة', $syncTx->conflict_reason);
+    }
 }

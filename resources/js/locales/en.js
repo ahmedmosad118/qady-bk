@@ -50,6 +50,7 @@ export default {
     main: 'Main',
     dashboard: 'Dashboard',
     salesGroup: 'Sales',
+    pos: 'Point of Sale (POS)',
     catalogGroup: 'Publications & Inventory',
     adminGroup: 'Administration',
     invoices: 'Invoices',

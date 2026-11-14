@@ -114,11 +114,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // POS Shifts Management
     Route::get('/pos/shifts/open', [PosShiftController::class, 'openShifts']);
     Route::post('/pos/shifts', [PosShiftController::class, 'store']);
+    Route::post('/pos/shifts/open', [PosShiftController::class, 'store']);
     Route::get('/pos/shifts/{pos_shift}', [PosShiftController::class, 'show']);
     Route::post('/pos/shifts/{pos_shift}/close', [PosShiftController::class, 'close']);
     Route::get('/pos/shifts/{pos_shift}/transactions', [PosShiftController::class, 'transactions']);
     Route::post('/pos/shifts/{pos_shift}/expenses', [PosShiftController::class, 'recordExpense']);
+    Route::post('/pos/shifts/{pos_shift}/expense', [PosShiftController::class, 'recordExpense']);
     Route::post('/pos/shifts/{pos_shift}/withdrawals', [PosShiftController::class, 'recordWithdrawal']);
+    Route::post('/pos/shifts/{pos_shift}/withdrawal', [PosShiftController::class, 'recordWithdrawal']);
 
     // POS Products & Barcode Search
     Route::get('/pos/products', [PosSaleController::class, 'products']);

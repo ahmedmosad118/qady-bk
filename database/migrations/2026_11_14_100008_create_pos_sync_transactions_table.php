@@ -18,8 +18,9 @@ return new class extends Migration
             $table->string('client_uuid', 36)->unique();
 
             $table->foreignId('shift_id')
+                ->nullable()
                 ->constrained('pos_shifts')
-                ->restrictOnDelete();
+                ->nullOnDelete();
 
             $table->foreignId('pos_sale_id')
                 ->nullable()
