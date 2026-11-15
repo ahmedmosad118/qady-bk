@@ -18,19 +18,54 @@ class PosSaleController extends Controller
     ) {}
 
     /**
-     * Search products for POS catalog lookup (by name, sku, or barcode).
+     * Paginated list of finalized POS sales invoices.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $filters = [
+            'search' => $request->input('search'),
+            'shift_id' => $request->input('shift_id'),
+            'payment_method_id' => $request->input('payment_method_id'),
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
+        ];
+
+        $perPage = $request->integer('per_page', 12);
+        $paginated = $this->saleService->paginateSales($filters, $perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $paginated->items(),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Search and paginate products for POS catalog lookup (by name, sku, or barcode).
      */
     public function products(Request $request): JsonResponse
     {
         $query = (string) $request->input('search', '');
         $warehouseId = $request->integer('warehouse_id') ?: null;
         $categoryId = $request->integer('category_id') ?: null;
+        $perPage = min(100, max(1, $request->integer('per_page', 24)));
 
-        $products = $this->saleService->searchProducts($query, $warehouseId, $categoryId);
+        $paginated = $this->saleService->paginateProducts($query, $warehouseId, $categoryId, $perPage);
 
         return response()->json([
             'success' => true,
-            'data' => $products,
+            'data' => $paginated->items(),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
         ]);
     }
 

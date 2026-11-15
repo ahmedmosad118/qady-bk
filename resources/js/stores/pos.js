@@ -20,6 +20,14 @@ export const usePosStore = defineStore('pos', {
     selectedCategoryId: null,
     searchQuery: '',
     loadingProducts: false,
+    loadingMoreProducts: false,
+    productsMeta: {
+      currentPage: 1,
+      lastPage: 1,
+      perPage: 24,
+      total: 0,
+    },
+    _productsSeq: 0,
     
     // Customers
     customers: [],
@@ -290,6 +298,13 @@ export const usePosStore = defineStore('pos', {
           };
         });
 
+        this.productsMeta = {
+          currentPage: 1,
+          lastPage: 1,
+          perPage: 24,
+          total: this.products.length,
+        };
+
         this.paymentMethods = data.payment_methods || [];
         this.currentWarehouse = data.warehouse || null;
 
@@ -363,18 +378,54 @@ export const usePosStore = defineStore('pos', {
       }
     },
 
-    async reloadProducts(query = '', categoryId = null) {
-      this.loadingProducts = true;
+    async reloadProducts(queryOrOptions = '', categoryId = null, page = 1, append = false) {
+      let query = '';
+      let catId = null;
+      let targetPage = 1;
+      let isAppend = false;
+
+      if (typeof queryOrOptions === 'object' && queryOrOptions !== null) {
+        query = queryOrOptions.query !== undefined ? queryOrOptions.query : this.searchQuery;
+        catId = queryOrOptions.categoryId !== undefined ? queryOrOptions.categoryId : this.selectedCategoryId;
+        targetPage = queryOrOptions.page ?? 1;
+        isAppend = !!queryOrOptions.append;
+      } else {
+        query = queryOrOptions;
+        catId = categoryId;
+        targetPage = page;
+        isAppend = append;
+      }
+
+      if (targetPage === 1) {
+        this.loadingProducts = true;
+      } else {
+        this.loadingMoreProducts = true;
+      }
+
+      const seq = ++this._productsSeq;
+
       try {
-        const params = {};
-        if (query) params.search = query;
-        if (categoryId) params.category_id = categoryId;
+        const params = {
+          page: targetPage,
+          per_page: 24,
+        };
+        const trimmedQuery = String(query || '').trim();
+        if (trimmedQuery) params.search = trimmedQuery;
+        if (catId) params.category_id = catId;
         if (this.currentWarehouse?.id) params.warehouse_id = this.currentWarehouse.id;
 
         const resp = await api.get('/pos/products', { params });
-        const list = resp.data.data || [];
+        if (seq !== this._productsSeq) return;
 
-        this.products = list.map((p) => {
+        const list = resp.data.data || [];
+        const meta = resp.data.meta || {
+          current_page: targetPage,
+          last_page: 1,
+          per_page: 24,
+          total: list.length,
+        };
+
+        const formatted = list.map((p) => {
           const whStock = p.warehouse_stocks && p.warehouse_stocks.length > 0
             ? Number(p.warehouse_stocks[0].quantity || 0)
             : Number(p.stock_quantity || 0);
@@ -385,11 +436,45 @@ export const usePosStore = defineStore('pos', {
             selling_price: Number(p.selling_price || 0),
           };
         });
+
+        if (isAppend && targetPage > 1) {
+          const existingIds = new Set(this.products.map((p) => p.id));
+          for (const item of formatted) {
+            if (!existingIds.has(item.id)) {
+              this.products.push(item);
+              existingIds.add(item.id);
+            }
+          }
+        } else {
+          this.products = formatted;
+        }
+
+        this.productsMeta = {
+          currentPage: Number(meta.current_page || targetPage),
+          lastPage: Number(meta.last_page || 1),
+          perPage: Number(meta.per_page || 24),
+          total: Number(meta.total || this.products.length),
+        };
       } catch (err) {
         console.error('Failed to reload POS products:', err);
       } finally {
-        this.loadingProducts = false;
+        if (seq === this._productsSeq) {
+          this.loadingProducts = false;
+          this.loadingMoreProducts = false;
+        }
       }
+    },
+
+    async loadNextPageProducts() {
+      if (this.loadingProducts || this.loadingMoreProducts) return;
+      if (this.productsMeta.currentPage >= this.productsMeta.lastPage) return;
+
+      await this.reloadProducts({
+        query: this.searchQuery,
+        categoryId: this.selectedCategoryId,
+        page: this.productsMeta.currentPage + 1,
+        append: true,
+      });
     },
 
     /**

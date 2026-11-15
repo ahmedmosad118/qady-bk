@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl" @keydown.esc="$emit('new-sale')">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl" @keydown.esc="handleClose">
     <div class="w-full max-w-[500px] max-h-[95vh] flex flex-col rounded-3xl bg-[var(--card)] p-5 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 mb-2 border-b border-[var(--border)] flex-none">
@@ -8,27 +8,39 @@
           <h3 class="font-black text-lg">إيصال الفاتورة الرسمية</h3>
         </div>
 
-        <!-- Width Toggle -->
-        <div class="flex items-center gap-1 bg-[var(--bar)] p-1 rounded-xl text-xs font-bold">
+        <div class="flex items-center gap-2">
+          <!-- Width Toggle -->
+          <div class="flex items-center gap-1 bg-[var(--bar)] p-1 rounded-xl text-xs font-bold">
+            <button
+              type="button"
+              :class="[
+                'px-2.5 py-1 rounded-lg transition cursor-pointer',
+                paperSize === '80mm' ? 'bg-[var(--card)] text-[var(--crimson)] shadow-sm' : 'text-[var(--muted)]'
+              ]"
+              @click="paperSize = '80mm'"
+            >
+              حراري 80mm
+            </button>
+            <button
+              type="button"
+              :class="[
+                'px-2.5 py-1 rounded-lg transition cursor-pointer',
+                paperSize === '58mm' ? 'bg-[var(--card)] text-[var(--crimson)] shadow-sm' : 'text-[var(--muted)]'
+              ]"
+              @click="paperSize = '58mm'"
+            >
+              حراري 58mm
+            </button>
+          </div>
+
+          <!-- Header Close Button -->
           <button
             type="button"
-            :class="[
-              'px-2.5 py-1 rounded-lg transition cursor-pointer',
-              paperSize === '80mm' ? 'bg-[var(--card)] text-[var(--crimson)] shadow-sm' : 'text-[var(--muted)]'
-            ]"
-            @click="paperSize = '80mm'"
+            class="p-1.5 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer"
+            title="إغلاق (Esc)"
+            @click="handleClose"
           >
-            حراري 80mm
-          </button>
-          <button
-            type="button"
-            :class="[
-              'px-2.5 py-1 rounded-lg transition cursor-pointer',
-              paperSize === '58mm' ? 'bg-[var(--card)] text-[var(--crimson)] shadow-sm' : 'text-[var(--muted)]'
-            ]"
-            @click="paperSize = '58mm'"
-          >
-            حراري 58mm
+            <X class="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -56,8 +68,8 @@
               <rect x="88" y="96" width="24" height="70" rx="4" fill="#A3162B"/>
               <rect x="10" y="174" width="180" height="8" rx="2" fill="#16181D"/>
             </svg>
-            <h2 class="text-base font-black mt-1 text-black tracking-wide">دار القاضي للنشر والتوزيع</h2>
-            <p class="text-[11px] text-neutral-700 font-bold">مكتبة القاضي — للإصدارات والمراجع القانونية</p>
+            <h2 class="text-base font-black mt-1 text-black tracking-wide">مكتبة القاضي</h2>
+            <p class="text-[11px] text-neutral-700 font-bold">للإصدارات والمراجع القانونية</p>
             <p class="text-[10px] text-neutral-600 mt-0.5">القاهرة · جمهورية مصر العربية</p>
             <div class="mt-1">
               <span class="text-[10px] font-bold inline-block bg-neutral-100 px-2 py-0.5 rounded border border-neutral-300">
@@ -171,7 +183,7 @@
             </svg>
             <p class="text-[10px] font-bold font-mono tracking-widest text-neutral-800 mt-0.5">{{ sale.invoice_number }}</p>
 
-            <p class="text-[10px] text-neutral-700 font-bold mt-2">شكرًا لتعاملكم مع دار القاضي</p>
+            <p class="text-[10px] text-neutral-700 font-bold mt-2">شكرًا لتعاملكم مع مكتبة القاضي</p>
             <p class="text-[9px] text-neutral-500 mt-0.5">البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة الأصلية</p>
           </div>
         </div>
@@ -189,11 +201,23 @@
           <span>طباعة الإيصال (Ctrl+P)</span>
         </button>
 
-        <!-- New Sale Button -->
+        <!-- Close Button (Reprint Mode) -->
         <button
+          v-if="isReprint"
+          type="button"
+          class="h-12 px-6 rounded-xl bg-[var(--bar)] hover:bg-[var(--bar-hover)] text-[var(--text)] font-bold text-sm transition flex items-center justify-center gap-2 border border-[var(--border)] cursor-pointer"
+          @click="handleClose"
+        >
+          <X class="w-4 h-4" />
+          <span>إغلاق (Esc)</span>
+        </button>
+
+        <!-- New Sale Button (Checkout Mode) -->
+        <button
+          v-else
           type="button"
           class="h-12 px-6 rounded-xl bg-[var(--crimson)] hover:bg-[var(--crimson-hover)] text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
-          @click="$emit('new-sale')"
+          @click="handleClose"
         >
           <Plus class="w-4 h-4" />
           <span>فاتورة جديدة (Esc)</span>
@@ -205,7 +229,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Printer, Plus } from 'lucide-vue-next';
+import { Printer, Plus, X } from 'lucide-vue-next';
 import { useAuthStore } from '../../../stores/auth';
 
 const props = defineProps({
@@ -213,9 +237,21 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  isReprint: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-defineEmits(['new-sale']);
+const emit = defineEmits(['new-sale', 'close']);
+
+function handleClose() {
+  if (props.isReprint) {
+    emit('close');
+  } else {
+    emit('new-sale');
+  }
+}
 
 const authStore = useAuthStore();
 const paperSize = ref('80mm');
@@ -425,6 +461,9 @@ function onReceiptKeyDown(e) {
   if (e.ctrlKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
     printReceipt();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    handleClose();
   }
 }
 

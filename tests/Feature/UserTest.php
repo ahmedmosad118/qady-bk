@@ -35,12 +35,10 @@ class UserTest extends TestCase
                 'success',
                 'data',
                 'meta' => ['current_page', 'last_page', 'per_page', 'total'],
-                'stats' => ['total', 'active', 'inactive'],
                 'schema',
             ]);
 
         $this->assertCount(5, $response->json('data'));
-        $this->assertSame(8, $response->json('stats.total'));
     }
 
     public function test_can_filter_users_by_search_term(): void

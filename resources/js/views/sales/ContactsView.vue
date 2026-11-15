@@ -3,43 +3,21 @@
     <!-- Page header -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.salesGroup') }}</p>
+        <p class="text-sm font-semibold text-[var(--crimson)]">{{ eyebrowLabel }}</p>
         <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ $t('contacts.title') }}
+          {{ pageTitle }}
         </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">{{ $t('contacts.subtitle') }}</p>
+        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">{{ pageSubtitle }}</p>
       </div>
 
       <button
         type="button"
-        class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
+        class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
         @click="openCreate"
       >
         <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
-        <span>{{ $t('contacts.addContact') }}</span>
+        <span>{{ createButtonText }}</span>
       </button>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-3 gap-2 sm:gap-4">
-      <StatCard
-        :label="$t('contacts.totalContacts')"
-        :short-label="$t('contacts.totalContactsShort')"
-        :value="stats.total"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('contacts.customersCount')"
-        :short-label="$t('contacts.customersShort')"
-        :value="stats.customers"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('contacts.suppliersCount')"
-        :short-label="$t('contacts.suppliersShort')"
-        :value="stats.suppliers"
-        :loading="loading"
-      />
     </div>
 
     <!-- Refresh error (stale data still shown) -->
@@ -52,7 +30,7 @@
         <AlertCircle class="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
         {{ loadError }}
       </span>
-      <button type="button" class="self-start underline underline-offset-4 sm:self-auto" @click="loadContacts">
+      <button type="button" class="self-start underline underline-offset-4 sm:self-auto cursor-pointer" @click="loadContacts">
         {{ $t('contacts.retry') }}
       </button>
     </div>
@@ -71,7 +49,7 @@
               v-model="search"
               type="search"
               class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-              :placeholder="$t('contacts.searchPlaceholder')"
+              :placeholder="searchPlaceholder"
               :aria-label="$t('common.search')"
             />
           </div>
@@ -79,24 +57,22 @@
           <div class="flex flex-wrap items-center gap-2">
             <FilterChip
               :label="$t('contacts.statusAll')"
-              :count="stats.total"
               :active="statusFilter === 'all'"
               @click="statusFilter = 'all'"
             />
             <FilterChip
               :label="$t('contacts.statusActive')"
-              :count="stats.active"
               :active="statusFilter === 'active'"
               @click="statusFilter = 'active'"
             />
             <FilterChip
               :label="$t('contacts.statusInactive')"
-              :count="stats.inactive"
               :active="statusFilter === 'inactive'"
               @click="statusFilter = 'inactive'"
             />
 
-            <div class="relative">
+            <!-- Role filter only shown in general contacts view -->
+            <div v-if="activeRole === 'all'" class="relative">
               <select
                 v-model="roleFilter"
                 class="h-10 min-w-[140px] cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3.5 text-sm font-semibold text-[var(--muted)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
@@ -112,6 +88,7 @@
               />
             </div>
 
+            <!-- Type Filter (Company / Individual) -->
             <div class="relative">
               <select
                 v-model="typeFilter"
@@ -137,7 +114,7 @@
           <thead class="bg-[var(--bg)]">
             <tr>
               <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
-                {{ $t('contacts.contactCol') }}
+                {{ contactColHeader }}
               </th>
               <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] sm:table-cell">
                 {{ $t('contacts.typeCol') }}
@@ -178,55 +155,86 @@
             <tr
               v-for="contact in contacts"
               :key="contact.id"
-              class="border-t border-[var(--border)] transition-colors hover:bg-[var(--bg)]"
+              class="border-t border-[var(--border)] transition-colors hover:bg-[var(--bg)]/40"
             >
               <td class="px-4 py-3.5">
                 <div class="flex items-center gap-3">
                   <span
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--crimson-soft)] text-sm font-extrabold text-[var(--crimson)]"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-transform"
+                    :class="
+                      contact.is_supplier && !contact.is_customer
+                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        : 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+                    "
                     aria-hidden="true"
                   >
                     {{ initials(contact.name) }}
                   </span>
                   <div class="min-w-0">
                     <p class="truncate text-sm font-bold text-[var(--text)]">{{ contact.name }}</p>
-                    <p class="mt-0.5 truncate text-sm text-[var(--muted)]">
-                      {{ contact.company_contact_person || contact.email || '—' }}
+                    <p v-if="contact.company_contact_person" class="truncate text-xs text-[var(--muted)]">
+                      {{ contact.company_contact_person }}
                     </p>
                   </div>
                 </div>
               </td>
 
               <td class="hidden px-4 py-3.5 sm:table-cell">
-                <span class="text-sm text-[var(--muted)]">{{ typeLabel(contact.type) }}</span>
+                <span class="inline-flex rounded-md bg-[var(--bg)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
+                  {{ typeLabel(contact.type) }}
+                </span>
               </td>
 
               <td class="px-4 py-3.5">
                 <div class="flex flex-wrap items-center gap-1.5">
-                  <span
-                    v-if="contact.is_customer"
-                    class="inline-flex items-center rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] px-2.5 py-1 text-sm font-semibold text-[var(--success)]"
-                  >
-                    {{ $t('contacts.customerBadge') }}
-                  </span>
-                  <span
-                    v-if="contact.is_supplier"
-                    class="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-sm font-semibold text-[var(--muted)]"
-                  >
-                    {{ $t('contacts.supplierBadge') }}
-                  </span>
+                  <template v-if="activeRole === 'customer'">
+                    <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      {{ $t('contacts.customerBadge') }}
+                    </span>
+                    <span
+                      v-if="contact.is_supplier"
+                      class="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400"
+                    >
+                      مورد أيضاً
+                    </span>
+                  </template>
+                  <template v-else-if="activeRole === 'supplier'">
+                    <span class="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+                      {{ $t('contacts.supplierBadge') }}
+                    </span>
+                    <span
+                      v-if="contact.is_customer"
+                      class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
+                    >
+                      عميل أيضاً
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span
+                      v-if="contact.is_customer"
+                      class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400"
+                    >
+                      {{ $t('contacts.customerBadge') }}
+                    </span>
+                    <span
+                      v-if="contact.is_supplier"
+                      class="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400"
+                    >
+                      {{ $t('contacts.supplierBadge') }}
+                    </span>
+                  </template>
                 </div>
               </td>
 
               <td class="hidden px-4 py-3.5 lg:table-cell">
-                <span v-if="contact.mobile || contact.phone" dir="ltr" class="inline-block text-sm tabular-nums text-[var(--muted)]">
-                  {{ contact.mobile || contact.phone }}
+                <span v-if="contact.phone || contact.mobile" class="font-mono text-sm text-[var(--muted)]" dir="ltr">
+                  {{ contact.phone || contact.mobile }}
                 </span>
                 <span v-else class="text-sm text-[var(--muted)]">—</span>
               </td>
 
               <td class="hidden px-4 py-3.5 xl:table-cell">
-                <span v-if="contact.email" dir="ltr" class="inline-block text-sm text-[var(--muted)]">{{ contact.email }}</span>
+                <span v-if="contact.email" class="truncate text-sm text-[var(--muted)]">{{ contact.email }}</span>
                 <span v-else class="text-sm text-[var(--muted)]">—</span>
               </td>
 
@@ -238,7 +246,7 @@
                 <div class="flex items-center gap-1.5">
                   <button
                     type="button"
-                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
                     :aria-label="$t('contacts.editContact', { name: contact.name })"
                     :title="$t('common.edit')"
                     @click="openEdit(contact)"
@@ -247,7 +255,7 @@
                   </button>
                   <button
                     type="button"
-                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] cursor-pointer"
                     :aria-label="$t('contacts.deleteContact', { name: contact.name })"
                     :title="$t('common.delete')"
                     @click="deleteContact(contact)"
@@ -270,7 +278,7 @@
         <p class="mt-1.5 max-w-sm text-sm leading-7 text-[var(--muted)]">{{ loadError }}</p>
         <button
           type="button"
-          class="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--crimson-hover)]"
+          class="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
           @click="loadContacts"
         >
           <RotateCw class="h-4 w-4" aria-hidden="true" />
@@ -285,15 +293,15 @@
           <SearchX v-else class="h-6 w-6" aria-hidden="true" />
         </span>
         <h2 class="mt-4 text-base font-bold text-[var(--text)]">
-          {{ hasFilters ? $t('contacts.noResultsTitle') : $t('contacts.emptyTitle') }}
+          {{ hasFilters ? $t('contacts.noResultsTitle') : emptyStateTitle }}
         </h2>
         <p class="mt-1.5 max-w-sm text-sm leading-7 text-[var(--muted)]">
-          {{ hasFilters ? $t('contacts.noResultsDesc') : $t('contacts.emptyDesc') }}
+          {{ hasFilters ? $t('contacts.noResultsDesc') : emptyStateDesc }}
         </p>
         <button
           v-if="hasFilters"
           type="button"
-          class="mt-5 inline-flex h-10 items-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40"
+          class="mt-5 inline-flex h-10 items-center rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 cursor-pointer"
           @click="resetFilters"
         >
           {{ $t('contacts.resetFilters') }}
@@ -301,11 +309,11 @@
         <button
           v-else
           type="button"
-          class="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--crimson-hover)]"
+          class="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
           @click="openCreate"
         >
           <Plus class="h-4 w-4" aria-hidden="true" />
-          {{ $t('contacts.addContact') }}
+          <span>{{ createButtonText }}</span>
         </button>
       </div>
 
@@ -319,7 +327,7 @@
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
             :disabled="page <= 1"
             @click="page -= 1"
           >
@@ -331,7 +339,7 @@
 
           <button
             type="button"
-            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
             :disabled="page >= pageCount"
             @click="page += 1"
           >
@@ -352,13 +360,14 @@
       @close="closeModal"
       @save="saveRecord"
     >
-      <CrudForm :schema="schema" :form-data="formData" :errors="formErrors" />
+      <CrudForm :schema="activeSchema" :form-data="formData" :errors="formErrors" />
     </CrudModal>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
@@ -376,17 +385,91 @@ import {
 import api from '../../services/api';
 import alertService from '../../services/alert';
 import { useNotificationStore } from '../../stores/notification';
-import StatCard from '../../components/ui/StatCard.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
 
+const props = defineProps({
+  role: {
+    type: String,
+    default: '',
+  },
+});
+
+const route = useRoute();
 const { t, locale } = useI18n();
 const notificationStore = useNotificationStore();
 
-const schema = {
-  fields: [
+/**
+ * Determine the active role mode:
+ * 'customer' -> Dedicated customers screen (/customers)
+ * 'supplier' -> Dedicated suppliers screen (/suppliers)
+ * 'all'      -> Comprehensive directory (/contacts)
+ */
+const activeRole = computed(() => {
+  if (props.role === 'customer' || props.role === 'supplier') {
+    return props.role;
+  }
+  const p = route.path.toLowerCase();
+  if (p.includes('/customer')) return 'customer';
+  if (p.includes('/supplier')) return 'supplier';
+  return 'all';
+});
+
+const eyebrowLabel = computed(() => {
+  if (activeRole.value === 'customer') return t('nav.salesGroup');
+  if (activeRole.value === 'supplier') return t('nav.suppliersGroup');
+  return t('nav.salesGroup');
+});
+
+const pageTitle = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.customersTitle');
+  if (activeRole.value === 'supplier') return t('contacts.suppliersTitle');
+  return t('contacts.title');
+});
+
+const pageSubtitle = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.customersSubtitle');
+  if (activeRole.value === 'supplier') return t('contacts.suppliersSubtitle');
+  return t('contacts.subtitle');
+});
+
+const createButtonText = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.addCustomer');
+  if (activeRole.value === 'supplier') return t('contacts.addSupplier');
+  return t('contacts.addContact');
+});
+
+const contactColHeader = computed(() => {
+  if (activeRole.value === 'customer') return 'العميل';
+  if (activeRole.value === 'supplier') return 'المورد / دار النشر';
+  return t('contacts.contactCol');
+});
+
+const searchPlaceholder = computed(() => {
+  if (activeRole.value === 'customer') return 'بحث باسم العميل، الهاتف، البريد أو الرقم الضريبي...';
+  if (activeRole.value === 'supplier') return 'بحث باسم المورد أو دار النشر، الهاتف، السجل التجاري...';
+  return t('contacts.searchPlaceholder');
+});
+
+const emptyStateTitle = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.emptyCustomersTitle');
+  if (activeRole.value === 'supplier') return t('contacts.emptySuppliersTitle');
+  return t('contacts.emptyTitle');
+});
+
+const emptyStateDesc = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.emptyCustomersDesc');
+  if (activeRole.value === 'supplier') return t('contacts.emptySuppliersDesc');
+  return t('contacts.emptyDesc');
+});
+
+// Dynamic Schema: in dedicated customer or supplier screen, we OMIT the confusing boolean toggles!
+const activeSchema = computed(() => {
+  const isDedicated = activeRole.value === 'customer' || activeRole.value === 'supplier';
+
+  const fields = [
     {
       name: 'type',
       label: 'contacts.fields.type',
@@ -398,20 +481,42 @@ const schema = {
         { value: 'company', label: 'contacts.typeCompany' },
       ],
     },
-    { name: 'name', label: 'contacts.fields.name', type: 'text', required: true, col: 6 },
-    { name: 'company_contact_person', label: 'contacts.fields.companyContactPerson', type: 'text', col: 6 },
+    {
+      name: 'name',
+      label: activeRole.value === 'supplier' ? 'اسم المورد / دار النشر' : activeRole.value === 'customer' ? 'اسم العميل' : 'contacts.fields.name',
+      type: 'text',
+      required: true,
+      col: 6,
+    },
+    {
+      name: 'company_contact_person',
+      label: activeRole.value === 'supplier' ? 'مسؤول التوريد / التواصل' : 'contacts.fields.companyContactPerson',
+      type: 'text',
+      col: 6,
+    },
     { name: 'email', label: 'contacts.fields.email', type: 'email', col: 6 },
     { name: 'phone', label: 'contacts.fields.phone', type: 'tel', col: 6 },
     { name: 'mobile', label: 'contacts.fields.mobile', type: 'tel', col: 6 },
     { name: 'tax_number', label: 'contacts.fields.taxNumber', type: 'text', col: 6 },
     { name: 'tax_registration_type', label: 'contacts.fields.taxRegistrationType', type: 'text', col: 6 },
     { name: 'commercial_register', label: 'contacts.fields.commercialRegister', type: 'text', col: 6 },
-    { name: 'is_customer', label: 'contacts.fields.isCustomer', type: 'boolean', col: 6, default: true },
-    { name: 'is_supplier', label: 'contacts.fields.isSupplier', type: 'boolean', col: 6, default: false },
+  ];
+
+  // In dedicated mode, the user knows directly what they are adding - no confusing toggles!
+  if (!isDedicated) {
+    fields.push(
+      { name: 'is_customer', label: 'contacts.fields.isCustomer', type: 'boolean', col: 6, default: true },
+      { name: 'is_supplier', label: 'contacts.fields.isSupplier', type: 'boolean', col: 6, default: false }
+    );
+  }
+
+  fields.push(
     { name: 'is_active', label: 'contacts.fields.isActive', type: 'boolean', col: 12, default: true },
-    { name: 'notes', label: 'contacts.fields.notes', type: 'textarea', col: 12 },
-  ],
-};
+    { name: 'notes', label: 'contacts.fields.notes', type: 'textarea', col: 12 }
+  );
+
+  return { fields };
+});
 
 const contacts = ref([]);
 const stats = ref({ total: 0, customers: 0, suppliers: 0, active: 0, inactive: 0 });
@@ -436,11 +541,62 @@ const activeRecordId = ref(null);
 const formData = ref({});
 const formErrors = ref({});
 
+// Dynamic Stat Cards
+const stat1Label = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.customersCount');
+  if (activeRole.value === 'supplier') return t('contacts.suppliersCount');
+  return t('contacts.totalContacts');
+});
+const stat1Short = computed(() => {
+  if (activeRole.value === 'customer') return t('contacts.customersShort');
+  if (activeRole.value === 'supplier') return t('contacts.suppliersShort');
+  return t('contacts.totalContactsShort');
+});
+const stat1Value = computed(() => {
+  if (activeRole.value === 'customer') return stats.value.customers;
+  if (activeRole.value === 'supplier') return stats.value.suppliers;
+  return stats.value.total;
+});
+
+const stat2Label = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'نشط ومتاح للتعامل';
+  return t('contacts.customersCount');
+});
+const stat2Short = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'نشط';
+  return t('contacts.customersShort');
+});
+const stat2Value = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return stats.value.active;
+  return stats.value.customers;
+});
+
+const stat3Label = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'معطل حالياً';
+  return t('contacts.suppliersCount');
+});
+const stat3Short = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'معطل';
+  return t('contacts.suppliersShort');
+});
+const stat3Value = computed(() => {
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return stats.value.inactive;
+  return stats.value.suppliers;
+});
+
+const statsTotalCount = computed(() => {
+  if (activeRole.value === 'customer') return stats.value.customers;
+  if (activeRole.value === 'supplier') return stats.value.suppliers;
+  return stats.value.total;
+});
+const statsActiveCount = computed(() => stats.value.active);
+const statsInactiveCount = computed(() => stats.value.inactive);
+
 const hasFilters = computed(
   () =>
     search.value.trim() !== '' ||
     statusFilter.value !== 'all' ||
-    roleFilter.value !== 'all' ||
+    (activeRole.value === 'all' && roleFilter.value !== 'all') ||
     typeFilter.value !== 'all'
 );
 
@@ -458,9 +614,16 @@ const pageOfLabel = computed(() => t('contacts.pageOf', { page: page.value, page
 const previousIcon = computed(() => (locale.value === 'ar' ? ArrowRight : ArrowLeft));
 const nextIcon = computed(() => (locale.value === 'ar' ? ArrowLeft : ArrowRight));
 
-const modalTitle = computed(
-  () => (modalMode.value === 'create' ? t('contacts.addContact') : `${t('common.edit')} ${t('contacts.contactCol')}`)
-);
+const modalTitle = computed(() => {
+  if (modalMode.value === 'create') {
+    if (activeRole.value === 'customer') return t('contacts.addCustomer');
+    if (activeRole.value === 'supplier') return t('contacts.addSupplier');
+    return t('contacts.addContact');
+  }
+  if (activeRole.value === 'customer') return t('contacts.editCustomer');
+  if (activeRole.value === 'supplier') return t('contacts.editSupplier');
+  return `${t('common.edit')} ${t('contacts.contactCol')}`;
+});
 
 const typeLabel = (type) => {
   if (type === 'company') return t('contacts.typeCompany');
@@ -481,14 +644,32 @@ const loadContacts = async () => {
   loadError.value = '';
 
   try {
+    const isCustomerParam =
+      activeRole.value === 'customer'
+        ? true
+        : activeRole.value === 'supplier'
+        ? undefined
+        : roleFilter.value === 'customer'
+        ? true
+        : undefined;
+
+    const isSupplierParam =
+      activeRole.value === 'supplier'
+        ? true
+        : activeRole.value === 'customer'
+        ? undefined
+        : roleFilter.value === 'supplier'
+        ? true
+        : undefined;
+
     const response = await api.get('/contacts', {
       params: {
         page: page.value,
         per_page: perPage,
         search: search.value.trim() || undefined,
         type: typeFilter.value !== 'all' ? typeFilter.value : undefined,
-        is_customer: roleFilter.value === 'customer' ? true : undefined,
-        is_supplier: roleFilter.value === 'supplier' ? true : undefined,
+        is_customer: isCustomerParam,
+        is_supplier: isSupplierParam,
         is_active: statusFilter.value === 'all' ? undefined : statusFilter.value === 'active',
         sort_by: 'name',
         sort_order: 'asc',
@@ -524,8 +705,8 @@ const createDefaults = () => ({
   tax_number: null,
   tax_registration_type: null,
   commercial_register: null,
-  is_customer: true,
-  is_supplier: false,
+  is_customer: activeRole.value === 'supplier' ? false : true,
+  is_supplier: activeRole.value === 'supplier' ? true : false,
   is_active: true,
   notes: null,
 });
@@ -570,6 +751,15 @@ const saveRecord = async () => {
   formErrors.value = {};
 
   try {
+    // If in dedicated mode on creation, guarantee correct role flags
+    if (activeRole.value === 'customer' && modalMode.value === 'create') {
+      formData.value.is_customer = true;
+      formData.value.is_supplier = false;
+    } else if (activeRole.value === 'supplier' && modalMode.value === 'create') {
+      formData.value.is_customer = false;
+      formData.value.is_supplier = true;
+    }
+
     const response =
       modalMode.value === 'create'
         ? await api.post('/contacts', formData.value)
@@ -617,22 +807,29 @@ const resetFilters = () => {
   page.value = 1;
 };
 
-let searchDebounce = null;
-watch([search, statusFilter, roleFilter, typeFilter], () => {
-  page.value = 1;
-  clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(() => {
+let searchDebounceTimer = null;
+watch(search, () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    page.value = 1;
     loadContacts();
   }, 300);
 });
 
-watch(page, () => {
+watch([statusFilter, roleFilter, typeFilter, page], () => {
   loadContacts();
 });
 
-watch(pageCount, (count) => {
-  if (page.value > count) page.value = count;
-});
+// React instantly when switching between /customers and /suppliers via navigation
+watch(
+  () => [route.path, props.role],
+  () => {
+    page.value = 1;
+    loadContacts();
+  }
+);
 
-onMounted(loadContacts);
+onMounted(() => {
+  loadContacts();
+});
 </script>

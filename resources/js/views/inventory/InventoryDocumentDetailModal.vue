@@ -354,6 +354,38 @@
         </div>
       </div>
 
+      <!-- Linked POS Sale Reference Box (When document is linked to a POS sale) -->
+      <div
+        v-if="document?.referenceable_type === 'pos_sale' || document?.referenceable"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--crimson)]/30 bg-[var(--crimson)]/5 p-4"
+      >
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-[var(--crimson)]/10 text-[var(--crimson)] flex items-center justify-center font-bold shrink-0">
+            <Receipt class="w-5 h-5" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-[var(--muted)]">مرتبط بفاتورة بيع (POS):</span>
+              <span class="font-mono text-sm font-black text-[var(--crimson)]">
+                {{ document.referenceable?.invoice_number || ('#' + document.referenceable_id) }}
+              </span>
+            </div>
+            <p class="text-[11px] text-[var(--muted)] mt-0.5">
+              صرف مخزني تلقائي صادر عن نقطة البيع
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="h-8 px-3.5 rounded-xl bg-[var(--crimson)] text-white hover:bg-[var(--crimson-hover)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+          @click="emit('open-pos-sale', document.referenceable?.id || document.referenceable_id)"
+        >
+          <ExternalLink class="w-3.5 h-3.5" />
+          <span>فتح تفاصيل الفاتورة</span>
+        </button>
+      </div>
+
       <!-- 2. Conditional Reasons / Alerts -->
       <!-- Rejection Alert -->
       <div
@@ -618,11 +650,13 @@ import {
   CheckCircle,
   Clock,
   Copy,
+  ExternalLink,
   FileText,
   Loader2,
   Package,
   Pencil,
   Printer,
+  Receipt,
   RotateCcw,
   Send,
   User,
@@ -637,7 +671,7 @@ const props = defineProps({
   document: { type: Object, default: null },
 });
 
-const emit = defineEmits(['close', 'updated', 'edit']);
+const emit = defineEmits(['close', 'updated', 'edit', 'open-pos-sale']);
 
 const actionLoading = ref(false);
 const activeAction = ref('');
@@ -676,7 +710,7 @@ function typeLabel(type) {
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     inventory_return: 'إذن مرتجع مخزني',
-    stock_write_off: 'إذن إتلاف / هالك',
+    stock_write_off: 'إذن إهلاك',
     opening_balance: 'رصيد افتتاحي',
   };
   return labels[type] || type;

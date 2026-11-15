@@ -82,6 +82,14 @@ class Product extends Model
         return $this->hasMany(PosReturnItem::class, 'product_id');
     }
 
+    /**
+     * Purchase order items associated with this product.
+     */
+    public function purchaseOrderItems(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderItem::class, 'product_id');
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Product $product): void {
@@ -102,6 +110,9 @@ class Product extends Model
             }
             if ($product->posReturnItems()->exists()) {
                 throw new \LogicException('Cannot delete product that has associated POS returns.');
+            }
+            if ($product->purchaseOrderItems()->exists()) {
+                throw new \LogicException('Cannot delete product that has associated purchase order items.');
             }
         });
     }

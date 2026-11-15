@@ -24,30 +24,6 @@
       </div>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-      <StatCard
-        :label="$t('stocktaking.stats.total')"
-        :value="stats.total"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('stocktaking.stats.inProgress')"
-        :value="stats.in_progress"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('stocktaking.stats.pendingApproval')"
-        :value="stats.pending_approval"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('stocktaking.stats.completed')"
-        :value="stats.completed"
-        :loading="loading"
-      />
-    </div>
-
     <!-- Error Banner -->
     <div
       v-if="loadError"
@@ -264,7 +240,6 @@ import {
   Plus,
   Search,
 } from 'lucide-vue-next';
-import StatCard from '../../components/ui/StatCard.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import StocktakeFormModal from './StocktakeFormModal.vue';
 import StocktakeDetailModal from './StocktakeDetailModal.vue';

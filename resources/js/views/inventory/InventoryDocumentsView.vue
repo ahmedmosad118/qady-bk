@@ -33,30 +33,6 @@
       </div>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-      <StatCard
-        :label="$t('inventory.stats.total')"
-        :value="stats.total"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('inventory.stats.draft')"
-        :value="stats.draft"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('inventory.stats.pendingApproval')"
-        :value="stats.pending_approval"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('inventory.stats.posted')"
-        :value="stats.posted"
-        :loading="loading"
-      />
-    </div>
-
     <!-- Refresh / Load Error banner -->
     <div
       v-if="loadError"
@@ -191,7 +167,18 @@
                 >
                   {{ doc.document_number }}
                 </button>
-                <span v-if="doc.referenceable_type" class="block text-[11px] text-[var(--muted)]">
+                <div v-if="doc.referenceable_type === 'pos_sale'" class="mt-1">
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-[var(--crimson)]/10 text-[var(--crimson)] hover:bg-[var(--crimson)]/20 transition cursor-pointer"
+                    title="فتح تفاصيل فاتورة البيع المرتبطة"
+                    @click.stop="openPosSaleModal(doc.referenceable?.id || doc.referenceable_id)"
+                  >
+                    <Receipt class="w-3 h-3" />
+                    <span>فاتورة: {{ doc.referenceable?.invoice_number || ('#' + doc.referenceable_id) }}</span>
+                  </button>
+                </div>
+                <span v-else-if="doc.referenceable_type" class="block text-[11px] text-[var(--muted)]">
                   {{ doc.referenceable_type }} #{{ doc.referenceable_id }}
                 </span>
               </td>
@@ -321,6 +308,7 @@
       @close="detailModalOpen = false"
       @updated="onDocumentUpdated"
       @edit="openEditModalFromDetail"
+      @open-pos-sale="openPosSaleModal"
     />
 
     <InventoryDocumentFormModal
@@ -331,6 +319,13 @@
       :products="products"
       @close="formModalOpen = false"
       @saved="onDocumentSaved"
+    />
+
+    <!-- POS Sale Detail Modal (Cross-linked from inventory document) -->
+    <PosSaleDetailModal
+      v-if="selectedPosSaleId"
+      :sale-id="selectedPosSaleId"
+      @close="selectedPosSaleId = null"
     />
   </div>
 </template>
@@ -347,18 +342,25 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Receipt,
   RotateCcw,
   Search,
   Trash2,
 } from 'lucide-vue-next';
-import StatCard from '../../components/ui/StatCard.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import InventoryDocumentDetailModal from './InventoryDocumentDetailModal.vue';
 import InventoryDocumentFormModal from './InventoryDocumentFormModal.vue';
+import PosSaleDetailModal from '../pos/management/PosSaleDetailModal.vue';
 import api from '../../services/api';
 
 const route = useRoute();
 const { t } = useI18n();
+
+const selectedPosSaleId = ref(null);
+
+function openPosSaleModal(saleId) {
+  selectedPosSaleId.value = saleId;
+}
 
 const slugToTypeMap = {
   'goods-receipt': 'goods_receipt',
@@ -380,13 +382,13 @@ const activeType = computed(() => {
 const pageTitle = computed(() => {
   if (!activeType.value) return t('inventory.title');
   const titles = {
-    goods_receipt: 'أذونات الاستلام المخزني',
-    goods_delivery: 'أذونات التسليم المخزني',
+    goods_receipt: 'الاستلامات المخزنية',
+    goods_delivery: 'التسليمات المخزنية',
     stock_issue: 'أذونات الصرف الداخلي',
-    warehouse_transfer: 'أذونات التحويل المخزني',
-    stock_adjustment: 'أذونات التسوية الجردية',
-    inventory_return: 'أذونات المرتجع المخزني',
-    stock_write_off: 'أذونات الإتلاف / الهالك',
+    warehouse_transfer: 'التحويلات المخزنية',
+    stock_adjustment: 'التسويات المخزنية',
+    inventory_return: 'المرتجعات المخزنية',
+    stock_write_off: 'الاهلاكات المخزنية',
     opening_balance: 'الأرصدة الافتتاحية للمخزون',
   };
   return titles[activeType.value] || t('inventory.title');
@@ -446,19 +448,13 @@ const hasActiveFilters = computed(() => {
 const typeFilterOptions = computed(() => {
   const options = [
     { value: '', label: 'كل أنواع المستندات' },
-    { value: 'goods_receipt', label: 'إذن استلام مخزني' },
-    { value: 'goods_delivery', label: 'إذن تسليم مخزني' },
-    { value: 'stock_issue', label: 'إذن صرف داخلي' },
-  ];
-  if (warehouses.value.length > 1) {
-    options.push({ value: 'warehouse_transfer', label: 'إذن تحويل مخزني' });
-  }
-  options.push(
-    { value: 'stock_adjustment', label: 'إذن تسوية جردية' },
-    { value: 'inventory_return', label: 'إذن مرتجع مخزني' },
-    { value: 'stock_write_off', label: 'إذن إتلاف / هالك' },
+    { value: 'warehouse_transfer', label: 'التحويلات' },
+    { value: 'goods_receipt', label: 'الاستلامات' },
+    { value: 'goods_delivery', label: 'التسليمات' },
+    { value: 'stock_adjustment', label: 'التسويات' },
+    { value: 'stock_write_off', label: 'الاهلاكات' },
     { value: 'opening_balance', label: 'رصيد افتتاحي' },
-  );
+  ];
   return options;
 });
 
@@ -607,7 +603,7 @@ function typeLabel(type) {
     warehouse_transfer: 'إذن تحويل',
     stock_adjustment: 'إذن تسوية',
     inventory_return: 'إذن مرتجع',
-    stock_write_off: 'إذن إتلاف',
+    stock_write_off: 'إذن إهلاك',
     opening_balance: 'رصيد افتتاحي',
   };
   return labels[clean] || clean;

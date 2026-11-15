@@ -12,6 +12,7 @@
   >
     <span>{{ label }}</span>
     <span
+      v-if="count !== null && count !== undefined"
       class="inline-flex min-w-5 items-center justify-center rounded-md px-1.5 text-sm font-bold tabular-nums"
       :class="
         active
@@ -32,7 +33,7 @@ defineProps({
   },
   count: {
     type: [Number, String],
-    default: 0,
+    default: null,
   },
   active: {
     type: Boolean,

@@ -153,7 +153,7 @@ class PosSaleTest extends TestCase
         $sale = PosSale::query()->where('invoice_number', $invoiceNumber)->firstOrFail();
         $invDoc = $sale->inventoryDocuments()->first();
         $this->assertNotNull($invDoc);
-        $this->assertEquals(InventoryDocumentType::STOCK_ISSUE, $invDoc->document_type);
+        $this->assertEquals(InventoryDocumentType::GOODS_DELIVERY, $invDoc->document_type);
         $this->assertEquals(InventoryDocumentStatus::POSTED, $invDoc->status);
 
         // Verify shift cash transaction created and expected cash increased: 1000 + 400 = 1400
@@ -373,6 +373,16 @@ class PosSaleTest extends TestCase
         $lookupResp = $this->getJson('/api/pos/products/lookup?barcode=6221000000002');
         $lookupResp->assertOk();
         $this->assertEquals('رياض الصالحين', $lookupResp->json('data.name'));
+    }
+
+    public function test_can_paginate_pos_products(): void
+    {
+        $resp = $this->getJson('/api/pos/products?per_page=1&page=1');
+        $resp->assertOk();
+        $this->assertCount(1, $resp->json('data'));
+        $this->assertEquals(1, $resp->json('meta.current_page'));
+        $this->assertEquals(1, $resp->json('meta.per_page'));
+        $this->assertGreaterThanOrEqual(2, $resp->json('meta.total'));
     }
 
     public function test_can_lookup_sale_by_invoice_number(): void

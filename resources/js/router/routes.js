@@ -15,6 +15,9 @@ import WarehouseStocksView from '../views/inventory/WarehouseStocksView.vue';
 import WarehouseEditView from '../views/inventory/WarehouseEditView.vue';
 import StocktakesView from '../views/inventory/StocktakesView.vue';
 import PosView from '../views/pos/PosView.vue';
+import PosSalesView from '../views/pos/management/PosSalesView.vue';
+import PosShiftsView from '../views/pos/management/PosShiftsView.vue';
+import PurchaseOrdersView from '../views/purchases/PurchaseOrdersView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -72,18 +75,45 @@ const routes = [
         path: 'contacts',
         name: 'contacts',
         component: ContactsView,
-      },
-      {
-        path: 'invoices',
-        name: 'invoices',
-        component: ComingSoonView,
-        meta: { titleKey: 'nav.invoices' },
+        meta: { titleKey: 'nav.contactsGroup' },
       },
       {
         path: 'customers',
         name: 'customers',
-        component: ComingSoonView,
+        component: ContactsView,
+        props: { role: 'customer' },
         meta: { titleKey: 'nav.customers' },
+      },
+      {
+        path: 'suppliers',
+        name: 'suppliers',
+        component: ContactsView,
+        props: { role: 'supplier' },
+        meta: { titleKey: 'nav.suppliers' },
+      },
+      {
+        path: 'purchase-orders',
+        name: 'purchase-orders',
+        component: PurchaseOrdersView,
+        meta: { titleKey: 'nav.purchaseOrders' },
+      },
+      {
+        path: 'invoices',
+        name: 'invoices',
+        component: PosSalesView,
+        meta: { titleKey: 'nav.invoices' },
+      },
+      {
+        path: 'pos/sales',
+        name: 'pos.sales',
+        component: PosSalesView,
+        meta: { titleKey: 'nav.invoices' },
+      },
+      {
+        path: 'pos/shifts',
+        name: 'pos.shifts',
+        component: PosShiftsView,
+        meta: { titleKey: 'nav.posShifts' },
       },
       {
         path: 'publications',

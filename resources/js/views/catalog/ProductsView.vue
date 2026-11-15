@@ -20,28 +20,6 @@
       </button>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-3 gap-2 sm:gap-4">
-      <StatCard
-        :label="$t('products.totalProducts')"
-        :short-label="$t('products.totalProductsShort')"
-        :value="stats.total"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('products.activeProducts')"
-        :short-label="$t('products.activeProductsShort')"
-        :value="stats.active"
-        :loading="loading"
-      />
-      <StatCard
-        :label="$t('products.inactiveProducts')"
-        :short-label="$t('products.inactiveProductsShort')"
-        :value="stats.inactive"
-        :loading="loading"
-      />
-    </div>
-
     <!-- Refresh error (stale data still shown) -->
     <div
       v-if="loadError && products.length"
@@ -79,19 +57,16 @@
           <div class="flex flex-wrap items-center gap-2">
             <FilterChip
               :label="$t('products.statusAll')"
-              :count="stats.total"
               :active="statusFilter === 'all'"
               @click="statusFilter = 'all'"
             />
             <FilterChip
               :label="$t('products.statusActive')"
-              :count="stats.active"
               :active="statusFilter === 'active'"
               @click="statusFilter = 'active'"
             />
             <FilterChip
               :label="$t('products.statusInactive')"
-              :count="stats.inactive"
               :active="statusFilter === 'inactive'"
               @click="statusFilter = 'inactive'"
             />
@@ -387,7 +362,6 @@ import {
 import api from '../../services/api';
 import alertService from '../../services/alert';
 import { useNotificationStore } from '../../stores/notification';
-import StatCard from '../../components/ui/StatCard.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';

@@ -251,22 +251,22 @@ class PosReturnService
                     ]);
                 }
 
-                // 8. Create Inventory Return document and post it
-                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::INVENTORY_RETURN);
+                // 8. Create Goods Receipt document and post it
+                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::GOODS_RECEIPT);
 
                 /** @var InventoryDocument $invDoc */
                 $invDoc = InventoryDocument::query()->create([
                     'document_number' => $docNumber,
-                    'document_type' => InventoryDocumentType::INVENTORY_RETURN,
+                    'document_type' => InventoryDocumentType::GOODS_RECEIPT,
                     'referenceable_type' => 'pos_return',
                     'referenceable_id' => $posReturn->id,
                     'source_warehouse_id' => null,
                     'destination_warehouse_id' => $warehouse->id,
                     'adjustment_direction' => null,
-                    'return_direction' => InventoryReturnDirection::INBOUND,
+                    'return_direction' => null,
                     'status' => InventoryDocumentStatus::APPROVED,
                     'document_date' => Carbon::now()->toDateString(),
-                    'notes' => "إرجاع مخزني تلقائي لمرتجع نقطة البيع رقم: {$posReturn->return_number}",
+                    'notes' => "إذن استلام مخزني تلقائي لمرتجع نقطة البيع رقم: {$posReturn->return_number}",
                     'created_by' => $user->id,
                     'approved_by' => $user->id,
                     'approved_at' => Carbon::now(),

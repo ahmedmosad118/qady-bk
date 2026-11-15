@@ -15,11 +15,13 @@ use App\Models\PosSaleItem;
 use App\Models\PosShift;
 use App\Models\PosShiftTransaction;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentNumberService;
 use App\Services\InventoryDocumentWorkflowService;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -340,13 +342,13 @@ class PosSaleService
                     ]);
                 }
 
-                // 11. Create Stock Issue inventory document and post it
-                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::STOCK_ISSUE);
+                // 11. Create Goods Delivery inventory document and post it
+                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::GOODS_DELIVERY);
 
                 /** @var InventoryDocument $invDoc */
                 $invDoc = InventoryDocument::query()->create([
                     'document_number' => $docNumber,
-                    'document_type' => InventoryDocumentType::STOCK_ISSUE,
+                    'document_type' => InventoryDocumentType::GOODS_DELIVERY,
                     'referenceable_type' => 'pos_sale',
                     'referenceable_id' => $sale->id,
                     'source_warehouse_id' => $warehouse->id,
@@ -355,7 +357,7 @@ class PosSaleService
                     'return_direction' => null,
                     'status' => InventoryDocumentStatus::APPROVED,
                     'document_date' => Carbon::now()->toDateString(),
-                    'notes' => "صرف مخزني تلقائي لفاتورة بيع نقطة البيع رقم: {$sale->invoice_number}",
+                    'notes' => "إذن تسليم مخزني تلقائي لفاتورة بيع نقطة البيع رقم: {$sale->invoice_number}",
                     'created_by' => $user->id,
                     'approved_by' => $user->id,
                     'approved_at' => Carbon::now(),
@@ -404,11 +406,103 @@ class PosSaleService
     }
 
     /**
+     * Paginate POS sales invoices with filters.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function paginateSales(array $filters, int $perPage = 15): LengthAwarePaginator
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+        $shiftId = $filters['shift_id'] ?? null;
+        $paymentMethodId = $filters['payment_method_id'] ?? null;
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        return PosSale::query()
+            ->with([
+                'customer:id,name,phone',
+                'creator:id,name',
+                'paymentMethod:id,name',
+                'shift:id,shift_number',
+                'inventoryDocuments:id,document_number,referenceable_type,referenceable_id',
+            ])
+            ->withCount('items')
+            ->when($search !== '', function ($q) use ($search): void {
+                $q->where(function ($sub) use ($search): void {
+                    $sub->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('customer', fn ($cq) => $cq->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))
+                        ->orWhereHas('creator', fn ($uq) => $uq->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($shiftId, fn ($q) => $q->where('shift_id', $shiftId))
+            ->when($paymentMethodId, fn ($q) => $q->where('payment_method_id', $paymentMethodId))
+            ->when($dateFrom, fn ($q) => $q->whereDate('sold_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('sold_at', '<=', $dateTo))
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
+    /**
      * Get sale by ID with full relations.
      */
     public function getSaleDetails(PosSale $sale): PosSale
     {
-        return $sale->load(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'returns.items']);
+        return $sale->load([
+            'items.product',
+            'paymentMethod',
+            'customer',
+            'shift.openedBy:id,name',
+            'shift.closedBy:id,name',
+            'creator:id,name,email',
+            'returns.items',
+            'inventoryDocuments.sourceWarehouse:id,name,code',
+            'inventoryDocuments.destinationWarehouse:id,name,code',
+            'inventoryDocuments.items.product:id,name,sku,barcode',
+            'inventoryDocuments.creator:id,name',
+        ]);
+    }
+
+    /**
+     * Paginate active products for POS catalog with search and category filtering.
+     */
+    public function paginateProducts(string $query, ?int $warehouseId = null, ?int $categoryId = null, int $perPage = 24): LengthAwarePaginator
+    {
+        $term = trim($query);
+
+        $whId = $warehouseId;
+        if (! $whId) {
+            $whId = Warehouse::query()->where('is_default', true)->value('id')
+                ?: Warehouse::query()->where('is_active', true)->value('id');
+        }
+
+        $categoryIds = null;
+        if ($categoryId) {
+            $categoryIds = [$categoryId];
+            $childIds = ProductCategory::query()->where('parent_id', $categoryId)->pluck('id')->all();
+            if (! empty($childIds)) {
+                $categoryIds = array_merge($categoryIds, $childIds);
+            }
+        }
+
+        return Product::query()
+            ->active()
+            ->when($categoryIds, function ($q) use ($categoryIds): void {
+                $q->whereIn('category_id', $categoryIds);
+            })
+            ->when($term !== '', function ($q) use ($term): void {
+                $q->where(function ($sub) use ($term): void {
+                    $sub->where('name', 'like', "%{$term}%")
+                        ->orWhere('sku', 'like', "%{$term}%")
+                        ->orWhere('barcode', 'like', "%{$term}%");
+                });
+            })
+            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
+                if ($whId) {
+                    $q->where('warehouse_id', $whId);
+                }
+            }])
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
     /**

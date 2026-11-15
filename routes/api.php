@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Pos\PosShiftController;
 use App\Http\Controllers\Api\Pos\PosSyncController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\Purchase\PurchaseOrderController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\StocktakeController;
 use App\Http\Controllers\Api\UserController;
@@ -67,6 +68,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/contacts/{contact}/addresses/{address}', [ContactAddressController::class, 'destroy']);
     Route::patch('/contacts/{contact}/addresses/{address}/default', [ContactAddressController::class, 'setDefault']);
 
+    // Purchase Orders (أوامر الشراء)
+    Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
+    Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
+    Route::get('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
+    Route::put('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'update']);
+    Route::delete('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy']);
+    Route::post('/purchase-orders/{purchase_order}/confirm', [PurchaseOrderController::class, 'confirm']);
+    Route::post('/purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel']);
+
     // Warehouses (Strictly view & update only; no create, no delete)
     Route::get('/warehouses', [WarehouseController::class, 'index']);
     Route::get('/warehouses/default', [WarehouseController::class, 'defaultWarehouse']);
@@ -112,11 +122,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/payment-methods', [PosPaymentMethodController::class, 'index']);
 
     // POS Shifts Management
+    Route::get('/pos/shifts', [PosShiftController::class, 'index']);
     Route::get('/pos/shifts/open', [PosShiftController::class, 'openShifts']);
     Route::post('/pos/shifts', [PosShiftController::class, 'store']);
     Route::get('/pos/shifts/{pos_shift}', [PosShiftController::class, 'show']);
     Route::post('/pos/shifts/{pos_shift}/close', [PosShiftController::class, 'close']);
     Route::get('/pos/shifts/{pos_shift}/transactions', [PosShiftController::class, 'transactions']);
+    Route::get('/pos/shifts/{pos_shift}/sales', [PosShiftController::class, 'sales']);
     Route::post('/pos/shifts/{pos_shift}/expenses', [PosShiftController::class, 'recordExpense']);
     Route::post('/pos/shifts/{pos_shift}/withdrawals', [PosShiftController::class, 'recordWithdrawal']);
 
@@ -125,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/products/lookup', [PosSaleController::class, 'lookup']);
 
     // POS Sales
+    Route::get('/pos/sales', [PosSaleController::class, 'index']);
     Route::post('/pos/sales', [PosSaleController::class, 'store']);
     Route::get('/pos/sales/by-number/{invoice_number}', [PosSaleController::class, 'byNumber']);
     Route::get('/pos/sales/{pos_sale}', [PosSaleController::class, 'show']);

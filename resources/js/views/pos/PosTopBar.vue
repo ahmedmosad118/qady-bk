@@ -23,33 +23,6 @@
 
     <!-- Status Chips -->
     <div class="flex items-center gap-2 mr-2">
-      <!-- Shift Status -->
-      <button
-        type="button"
-        :class="[
-          'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition',
-          posStore.isOpenShift
-            ? 'bg-[var(--okbg)] text-[var(--ok)]'
-            : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400'
-        ]"
-        @click="onShiftChipClick"
-      >
-        <span
-          class="w-2 h-2 rounded-full"
-          :class="posStore.isOpenShift ? 'bg-[var(--ok)] animate-pulse' : 'bg-red-500'"
-        ></span>
-        <span>{{ posStore.isOpenShift ? `وردية مفتوحة (${posStore.activeShift?.shift_number})` : 'الوردية مغلقة' }}</span>
-      </button>
-
-      <!-- Warehouse & Cashier -->
-      <span class="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--bar)] text-[var(--text)]">
-        <Store class="w-3.5 h-3.5 text-[var(--muted)]" />
-        <span>{{ posStore.currentWarehouse?.name || 'المخزن الرئيسي' }}</span>
-        <span class="text-[var(--muted)]">·</span>
-        <User class="w-3.5 h-3.5 text-[var(--muted)]" />
-        <span>{{ authStore.user?.name || 'كاشير' }}</span>
-      </span>
-
       <!-- Online / Offline -->
       <span
         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
@@ -172,8 +145,6 @@
 
 <script setup>
 import {
-  Store,
-  User,
   Wifi,
   WifiOff,
   Search,
@@ -187,7 +158,6 @@ import {
   RefreshCw,
 } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
-import { useAuthStore } from '../../stores/auth';
 
 const emit = defineEmits([
   'open-returns',
@@ -199,13 +169,4 @@ const emit = defineEmits([
 ]);
 
 const posStore = usePosStore();
-const authStore = useAuthStore();
-
-function onShiftChipClick() {
-  if (posStore.isOpenShift) {
-    emit('open-close-shift');
-  } else {
-    emit('open-open-shift');
-  }
-}
 </script>

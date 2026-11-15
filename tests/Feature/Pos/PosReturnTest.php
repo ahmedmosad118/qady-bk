@@ -150,7 +150,7 @@ class PosReturnTest extends TestCase
         $posReturn = PosReturn::query()->where('return_number', $returnNumber)->firstOrFail();
         $invDoc = $posReturn->inventoryDocuments()->first();
         $this->assertNotNull($invDoc);
-        $this->assertEquals(InventoryDocumentType::INVENTORY_RETURN, $invDoc->document_type);
+        $this->assertEquals(InventoryDocumentType::GOODS_RECEIPT, $invDoc->document_type);
         $this->assertEquals(InventoryDocumentStatus::POSTED, $invDoc->status);
 
         // Verify cash_return recorded in shift and cash deducted: 2250 - 500 = 1750

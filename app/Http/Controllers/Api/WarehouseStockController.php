@@ -46,9 +46,6 @@ class WarehouseStockController extends Controller
                 });
             });
 
-        $totalStockedProducts = (clone $statsQuery)->where('quantity', '>', 0)->count();
-        $totalQuantitySum = (clone $statsQuery)->sum('quantity');
-
         return response()->json([
             'success' => true,
             'data' => $paginated->items(),
@@ -57,11 +54,6 @@ class WarehouseStockController extends Controller
                 'last_page' => $paginated->lastPage(),
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
-            ],
-            'stats' => [
-                'total_tracked' => $paginated->total(),
-                'total_in_stock' => $totalStockedProducts,
-                'total_quantity' => number_format((float) $totalQuantitySum, 3, '.', ''),
             ],
         ]);
     }

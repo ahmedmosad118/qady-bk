@@ -53,7 +53,6 @@ class UserController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
-            'stats' => $this->userRepository->getStats(),
             'schema' => $this->schemaProvider->getSchema(),
         ]);
     }

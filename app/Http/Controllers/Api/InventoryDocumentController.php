@@ -53,7 +53,6 @@ class InventoryDocumentController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
-            'stats' => $this->repository->stats($filters),
         ]);
     }
 

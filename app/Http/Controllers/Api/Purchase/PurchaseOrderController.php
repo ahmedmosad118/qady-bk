@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\Purchase;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
+use App\Http\Requests\Purchase\UpdatePurchaseOrderRequest;
+use App\Models\PurchaseOrder;
+use App\Services\Purchase\PurchaseOrderService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class PurchaseOrderController extends Controller
+{
+    public function __construct(
+        protected PurchaseOrderService $purchaseOrderService,
+    ) {}
+
+    /**
+     * Display a paginated listing of purchase orders.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $filters = [
+            'search' => $request->input('search'),
+            'supplier_id' => $request->input('supplier_id'),
+            'status' => $request->input('status'),
+            'order_date_from' => $request->input('order_date_from'),
+            'order_date_to' => $request->input('order_date_to'),
+            'delivery_date_from' => $request->input('delivery_date_from'),
+            'delivery_date_to' => $request->input('delivery_date_to'),
+            'sort_by' => $request->input('sort_by'),
+            'sort_order' => $request->input('sort_order'),
+        ];
+
+        $perPage = $request->integer('per_page', 15);
+        $paginated = $this->purchaseOrderService->paginateOrders($filters, $perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $paginated->items(),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Store a newly created purchase order.
+     */
+    public function store(StorePurchaseOrderRequest $request): JsonResponse
+    {
+        $order = $this->purchaseOrderService->createOrder(
+            $request->validated(),
+            $request->user()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إنشاء أمر الشراء بنجاح.',
+            'data' => $order,
+        ], 201);
+    }
+
+    /**
+     * Display the specified purchase order with details.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $order = $this->purchaseOrderService->getOrder($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $order,
+        ]);
+    }
+
+    /**
+     * Update the specified purchase order in storage.
+     */
+    public function update(UpdatePurchaseOrderRequest $request, PurchaseOrder $purchase_order): JsonResponse
+    {
+        $order = $this->purchaseOrderService->updateOrder(
+            $purchase_order,
+            $request->validated(),
+            $request->user()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تحديث أمر الشراء بنجاح.',
+            'data' => $order,
+        ]);
+    }
+
+    /**
+     * Remove the specified draft purchase order from storage.
+     */
+    public function destroy(PurchaseOrder $purchase_order): JsonResponse
+    {
+        $this->purchaseOrderService->deleteOrder($purchase_order);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم حذف أمر الشراء بنجاح.',
+        ]);
+    }
+
+    /**
+     * Confirm / convert the purchase order.
+     */
+    public function confirm(Request $request, PurchaseOrder $purchase_order): JsonResponse
+    {
+        $order = $this->purchaseOrderService->confirmOrder(
+            $purchase_order,
+            $request->user()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تأكيد أمر الشراء وتحويله بنجاح.',
+            'data' => $order,
+        ]);
+    }
+
+    /**
+     * Cancel the purchase order.
+     */
+    public function cancel(Request $request, PurchaseOrder $purchase_order): JsonResponse
+    {
+        $reason = $request->input('reason');
+        $order = $this->purchaseOrderService->cancelOrder(
+            $purchase_order,
+            $request->user(),
+            is_string($reason) ? $reason : null
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إلغاء أمر الشراء بنجاح.',
+            'data' => $order,
+        ]);
+    }
+}

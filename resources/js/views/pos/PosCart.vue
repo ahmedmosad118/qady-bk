@@ -63,44 +63,43 @@
             <h4 class="text-xs font-bold text-[var(--text)] leading-snug line-clamp-2">
               {{ item.name }}
             </h4>
-            <div class="text-[10px] text-[var(--muted)] font-mono">
-              {{ item.barcode || item.sku || 'بدون كود' }}
-            </div>
           </div>
-          <span class="text-sm font-black text-[var(--text)] flex-none">
-            {{ formatMoney(item.total) }} <small class="text-[10px] font-normal text-[var(--muted)]">ج.م</small>
+          <span class="text-sm font-black text-[var(--text)] flex-none font-mono">
+            {{ formatMoney(item.total) }} <small class="text-[10px] font-normal text-[var(--muted)] font-sans">ج.م</small>
           </span>
         </div>
 
-        <!-- Price Override & Unit Price -->
+        <!-- Individual Price Input & Override -->
         <div class="flex items-center gap-2 text-xs">
-          <span class="text-[11px] text-[var(--muted)]">سعر الوحدة:</span>
-          
-          <!-- Editable price input if user has permission, otherwise static -->
-          <input
-            v-if="canOverridePrice"
-            :value="item.unit_price"
-            type="number"
-            min="0"
-            step="any"
-            class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
-            title="تعديل سعر البيع"
-            @change="posStore.updateCartItemPrice(item.product_id, $event.target.value)"
-          />
-          <b v-else class="font-bold text-[var(--text)]">{{ formatMoney(item.unit_price) }} ج.م</b>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] font-bold text-[var(--muted)]">السعر:</span>
+            <div class="relative flex items-center">
+              <input
+                :value="item.unit_price"
+                type="number"
+                min="0"
+                step="any"
+                class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] pr-1 pl-6 font-mono"
+                title="تعديل سعر الوحدة للقطعة"
+                @change="posStore.updateCartItemPrice(item.product_id, $event.target.value)"
+                @keyup.enter="$event.target.blur()"
+              />
+              <span class="absolute left-1.5 text-[10px] font-bold text-[var(--muted)] pointer-events-none">ج.م</span>
+            </div>
+          </div>
 
-          <!-- Discount badge or price difference tag -->
+          <!-- Savings / Price Difference Tag -->
           <span
             v-if="item.unit_price < item.original_unit_price"
-            class="text-[10px] font-bold text-[var(--ok)] bg-[var(--okbg)] px-1.5 py-0.5 rounded"
+            class="text-[10px] font-bold text-[var(--ok)] bg-[var(--okbg)] px-1.5 py-0.5 rounded whitespace-nowrap"
           >
-            وفر {{ formatMoney(item.original_unit_price - item.unit_price) }} ج.م/ق
+            وفر {{ formatMoney(item.original_unit_price - item.unit_price) }} ج.م
           </span>
           <span
             v-else-if="item.unit_price > item.original_unit_price"
-            class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded"
+            class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap"
           >
-            تجاوز السعر (+{{ formatMoney(item.unit_price - item.original_unit_price) }})
+            +{{ formatMoney(item.unit_price - item.original_unit_price) }}
           </span>
         </div>
 
@@ -184,11 +183,12 @@
             <button
               type="button"
               :class="[
-                'px-2 py-0.5 transition',
+                'px-2.5 py-1 transition cursor-pointer',
                 posStore.cart.invoice_discount_type === 'fixed'
                   ? 'bg-[var(--text)] text-[var(--card)]'
                   : 'text-[var(--muted)] hover:bg-[var(--border)]'
               ]"
+              title="خصم بمبلغ ثابت (جنيه)"
               @click="posStore.setInvoiceDiscount('fixed', posStore.cart.invoice_discount_value)"
             >
               ج.م
@@ -196,11 +196,12 @@
             <button
               type="button"
               :class="[
-                'px-2 py-0.5 transition',
+                'px-2.5 py-1 transition cursor-pointer',
                 posStore.cart.invoice_discount_type === 'percentage'
                   ? 'bg-[var(--text)] text-[var(--card)]'
                   : 'text-[var(--muted)] hover:bg-[var(--border)]'
               ]"
+              title="خصم بنسبة مئوية (%)"
               @click="posStore.setInvoiceDiscount('percentage', posStore.cart.invoice_discount_value)"
             >
               %
@@ -214,8 +215,9 @@
             min="0"
             step="any"
             placeholder="0"
-            :disabled="!canApplyInvoiceDiscount"
-            class="w-16 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] disabled:opacity-50"
+            class="w-16 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+            title="قيمة الخصم"
+            @input="posStore.setInvoiceDiscount(posStore.cart.invoice_discount_type, $event.target.value)"
             @change="posStore.setInvoiceDiscount(posStore.cart.invoice_discount_type, $event.target.value)"
           />
         </div>

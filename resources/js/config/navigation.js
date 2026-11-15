@@ -1,10 +1,12 @@
 import {
   ArrowDownToLine,
+  ArrowLeftRight,
   ArrowUpFromLine,
   BarChart3,
   BookOpen,
   Boxes,
   ClipboardCheck,
+  Clock,
   FileOutput,
   Layers,
   LayoutDashboard,
@@ -13,10 +15,12 @@ import {
   RotateCcw,
   Settings,
   ShieldCheck,
+  ShoppingBag,
   SlidersHorizontal,
   Store,
   Tags,
   Trash2,
+  Truck,
   UsersRound,
 } from 'lucide-vue-next';
 
@@ -54,12 +58,32 @@ export const navigation = [
         label: 'nav.invoices',
         to: '/invoices',
         icon: Receipt,
-        badge: 7,
+      },
+      {
+        label: 'nav.posShifts',
+        to: '/pos/shifts',
+        icon: Clock,
       },
       {
         label: 'nav.customers',
-        to: '/contacts',
+        to: '/customers',
         icon: UsersRound,
+      },
+    ],
+  },
+  {
+    key: 'suppliers',
+    label: 'nav.suppliersGroup',
+    items: [
+      {
+        label: 'nav.purchaseOrders',
+        to: '/purchase-orders',
+        icon: ShoppingBag,
+      },
+      {
+        label: 'nav.suppliers',
+        to: '/suppliers',
+        icon: Truck,
       },
     ],
   },
@@ -68,14 +92,14 @@ export const navigation = [
     label: 'nav.catalogGroup',
     items: [
       {
-        label: 'nav.products',
-        to: '/products',
-        icon: BookOpen,
-      },
-      {
         label: 'nav.productCategories',
         to: '/product-categories',
         icon: Tags,
+      },
+      {
+        label: 'nav.products',
+        to: '/products',
+        icon: BookOpen,
       },
     ],
   },
@@ -84,9 +108,9 @@ export const navigation = [
     label: 'nav.inventoryGroup',
     children: [
       {
-        label: 'nav.allInventory',
-        to: '/inventory',
-        icon: Package,
+        label: 'nav.warehouseTransfer',
+        to: '/inventory/warehouse-transfer',
+        icon: ArrowLeftRight,
       },
       {
         label: 'nav.goodsReceipt',
@@ -99,29 +123,14 @@ export const navigation = [
         icon: ArrowUpFromLine,
       },
       {
-        label: 'nav.stockIssue',
-        to: '/inventory/stock-issue',
-        icon: FileOutput,
-      },
-      {
         label: 'nav.stockAdjustment',
         to: '/inventory/stock-adjustment',
         icon: SlidersHorizontal,
       },
       {
-        label: 'nav.inventoryReturn',
-        to: '/inventory/inventory-return',
-        icon: RotateCcw,
-      },
-      {
         label: 'nav.stockWriteOff',
         to: '/inventory/stock-write-off',
         icon: Trash2,
-      },
-      {
-        label: 'nav.openingBalance',
-        to: '/inventory/opening-balance',
-        icon: Layers,
       },
       {
         label: 'nav.warehouseStocks',

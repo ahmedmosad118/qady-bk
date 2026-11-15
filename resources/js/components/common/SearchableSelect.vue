@@ -1,11 +1,11 @@
 <template>
-  <div class="relative w-full" ref="containerRef" :class="isOpen ? 'z-40' : 'z-0'">
+  <div class="relative w-full min-w-0" ref="containerRef" :class="isOpen ? 'z-50' : 'z-0'">
     <!-- Trigger Button -->
     <button
       type="button"
       :disabled="disabled"
       @click="toggleDropdown"
-      class="w-full flex items-center justify-between rounded-xl border bg-gray-50 py-2.5 px-3.5 text-xs font-medium transition-all outline-hidden text-left"
+      class="w-full min-w-0 flex items-center justify-between rounded-xl border bg-gray-50 py-2.5 px-3.5 text-xs font-medium transition-all outline-hidden text-left"
       :class="[
         $i18n.locale === 'ar' ? 'text-right' : 'text-left',
         isOpen
@@ -16,18 +16,19 @@
     >
       <span
         v-if="selectedOption"
-        class="truncate font-semibold text-gray-900 dark:text-white"
+        class="truncate min-w-0 flex-1 font-semibold text-gray-900 dark:text-white"
+        :title="formatLabel(selectedOption.label)"
       >
         {{ formatLabel(selectedOption.label) }}
       </span>
       <span
         v-else
-        class="truncate text-gray-400 dark:text-gray-500"
+        class="truncate min-w-0 flex-1 text-gray-400 dark:text-gray-500"
       >
         {{ formatLabel(placeholder) || $t('common.searchPlaceholder') }}
       </span>
 
-      <div class="flex items-center gap-1.5 ml-2">
+      <div class="flex items-center gap-1.5 ml-2 shrink-0">
         <!-- Clear Selection Button -->
         <span
           v-if="clearable && selectedOption && !disabled"
@@ -49,15 +50,16 @@
     <!-- Dropdown Menu -->
     <Transition
       enter-active-class="transition duration-150 ease-out"
-      enter-from-class="transform scale-95 opacity-0 -translate-y-1"
+      :enter-from-class="actualPlacement === 'top' ? 'transform scale-95 opacity-0 translate-y-1' : 'transform scale-95 opacity-0 -translate-y-1'"
       enter-to-class="transform scale-100 opacity-100 translate-y-0"
       leave-active-class="transition duration-100 ease-in"
       leave-from-class="transform scale-100 opacity-100 translate-y-0"
-      leave-to-class="transform scale-95 opacity-0 -translate-y-1"
+      :leave-to-class="actualPlacement === 'top' ? 'transform scale-95 opacity-0 translate-y-1' : 'transform scale-95 opacity-0 -translate-y-1'"
     >
       <div
         v-if="isOpen"
-        class="absolute left-0 right-0 z-50 mt-1.5 max-h-72 w-full rounded-2xl border border-gray-100 bg-white p-2 shadow-2xl dark:border-gray-700 dark:bg-gray-800 flex flex-col"
+        class="absolute left-0 right-0 z-50 max-h-72 w-full rounded-2xl border border-gray-100 bg-white p-2 shadow-2xl dark:border-gray-700 dark:bg-gray-800 flex flex-col"
+        :class="actualPlacement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'"
         :dir="$i18n.locale === 'ar' ? 'rtl' : 'ltr'"
       >
         <!-- Search Box inside Dropdown -->
@@ -215,6 +217,10 @@ const props = defineProps({
     type: [Boolean, Number],
     default: false,
   },
+  placement: {
+    type: String,
+    default: 'auto', // 'bottom', 'top', or 'auto'
+  },
 });
 
 const emit = defineEmits(['update:modelValue', 'change', 'action']);
@@ -293,8 +299,35 @@ const paginatedOptions = computed(() => {
   return filteredOptions.value.slice(start, start + perPageLimit.value);
 });
 
+const actualPlacement = ref(props.placement === 'top' ? 'top' : 'bottom');
+
+const updatePlacement = () => {
+  if (props.placement === 'top') {
+    actualPlacement.value = 'top';
+    return;
+  }
+  if (props.placement === 'bottom') {
+    actualPlacement.value = 'bottom';
+    return;
+  }
+  // Auto mode: check available space below
+  if (containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+      actualPlacement.value = 'top';
+    } else {
+      actualPlacement.value = 'bottom';
+    }
+  }
+};
+
 const toggleDropdown = () => {
   if (props.disabled) return;
+  if (!isOpen.value) {
+    updatePlacement();
+  }
   isOpen.value = !isOpen.value;
   if (isOpen.value) {
     searchQuery.value = '';

@@ -460,7 +460,5 @@ class StockMovementTest extends TestCase
         $res = $this->getJson("/api/warehouse-stocks?warehouse_id={$this->warehouse->id}");
         $res->assertStatus(200);
         $res->assertJsonCount(2, 'data');
-        $this->assertEquals(2, $res->json('stats.total_in_stock'));
-        $this->assertEquals('19.000', $res->json('stats.total_quantity'));
     }
 }

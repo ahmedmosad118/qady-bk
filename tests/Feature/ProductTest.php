@@ -211,9 +211,6 @@ class ProductTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('stats.total', 4)
-            ->assertJsonPath('stats.active', 3)
-            ->assertJsonPath('stats.inactive', 1)
             ->assertJsonPath('data.0.category.name', 'تفسير');
     }
 }

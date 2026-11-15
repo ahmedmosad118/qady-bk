@@ -251,10 +251,7 @@ class ContactTest extends TestCase
         $this->getJson('/api/contacts?per_page=2')
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('meta.total', 4)
-            ->assertJsonPath('stats.total', 4)
-            ->assertJsonPath('stats.customers', 3)
-            ->assertJsonPath('stats.suppliers', 2);
+            ->assertJsonPath('meta.total', 4);
 
         $this->getJson('/api/contacts?is_supplier=1')
             ->assertOk()

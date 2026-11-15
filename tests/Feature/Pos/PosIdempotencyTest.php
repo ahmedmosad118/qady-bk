@@ -103,7 +103,7 @@ class PosIdempotencyTest extends TestCase
 
         // Verify counts after first request
         $this->assertEquals(1, PosSale::query()->count());
-        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::STOCK_ISSUE)->count());
+        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::GOODS_DELIVERY)->count());
         $this->assertEquals(1, StockMovement::query()->count());
         $this->assertEquals(1, PosShiftTransaction::query()->where('type', PosShiftTransaction::TYPE_CASH_SALE)->count());
 
@@ -115,7 +115,7 @@ class PosIdempotencyTest extends TestCase
 
         // Verify NO duplicate records created
         $this->assertEquals(1, PosSale::query()->count(), 'PosSale must not duplicate');
-        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::STOCK_ISSUE)->count(), 'InventoryDocument must not duplicate');
+        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::GOODS_DELIVERY)->count(), 'InventoryDocument must not duplicate');
         $this->assertEquals(1, StockMovement::query()->count(), 'StockMovements must not duplicate');
         $this->assertEquals(1, PosShiftTransaction::query()->where('type', PosShiftTransaction::TYPE_CASH_SALE)->count(), 'Shift transaction must not duplicate');
 
@@ -158,7 +158,7 @@ class PosIdempotencyTest extends TestCase
 
         $this->assertEquals(1, PosReturn::query()->count());
         $this->assertEquals(1, PosShiftTransaction::query()->where('type', PosShiftTransaction::TYPE_CASH_RETURN)->count());
-        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::INVENTORY_RETURN)->count());
+        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::GOODS_RECEIPT)->count());
 
         // Stock was 18, returned 1 -> 19
         $stockAfterReturn = WarehouseStock::query()
@@ -175,7 +175,7 @@ class PosIdempotencyTest extends TestCase
         // Verify NO duplicate return, NO duplicate cash refund, NO duplicate stock increment
         $this->assertEquals(1, PosReturn::query()->count());
         $this->assertEquals(1, PosShiftTransaction::query()->where('type', PosShiftTransaction::TYPE_CASH_RETURN)->count());
-        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::INVENTORY_RETURN)->count());
+        $this->assertEquals(1, InventoryDocument::query()->where('document_type', InventoryDocumentType::GOODS_RECEIPT)->count());
 
         $finalStock = WarehouseStock::query()
             ->where('warehouse_id', $this->warehouse->id)

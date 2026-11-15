@@ -45,7 +45,6 @@ class ContactController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
-            'stats' => $this->contactRepository->stats(),
         ]);
     }
 

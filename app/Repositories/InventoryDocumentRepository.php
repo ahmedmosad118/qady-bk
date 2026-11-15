@@ -25,6 +25,7 @@ class InventoryDocumentRepository
                 'creator:id,name',
                 'approver:id,name',
                 'poster:id,name',
+                'referenceable',
             ])
             ->withCount('items')
             ->orderBy($filters['sort_by'] ?? 'id', $filters['sort_order'] ?? 'desc')

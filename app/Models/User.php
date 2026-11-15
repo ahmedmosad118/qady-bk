@@ -55,4 +55,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(PosShift::class, 'closed_by');
     }
+
+    public function purchaseOrdersCreated(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'created_by');
+    }
+
+    public function purchaseOrdersConfirmed(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'confirmed_by');
+    }
 }

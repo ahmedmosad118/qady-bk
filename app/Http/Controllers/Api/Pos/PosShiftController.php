@@ -21,6 +21,33 @@ class PosShiftController extends Controller
     ) {}
 
     /**
+     * Paginated list of all POS shifts.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $filters = [
+            'status' => $request->input('status'),
+            'search' => $request->input('search'),
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
+        ];
+
+        $perPage = $request->integer('per_page', 12);
+        $paginated = $this->shiftService->paginateShifts($filters, $perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $paginated->items(),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+        ]);
+    }
+
+    /**
      * List currently open shifts.
      */
     public function openShifts(): JsonResponse
@@ -145,5 +172,29 @@ class PosShiftController extends Controller
             'message' => 'تم تسجيل السحب النقدي بنجاح.',
             'data' => $tx,
         ], 201);
+    }
+
+    /**
+     * List all sales belonging to this shift with pagination.
+     */
+    public function sales(PosShift $posShift, Request $request): JsonResponse
+    {
+        $perPage = $request->integer('per_page', 20);
+
+        $paginated = $posShift->sales()
+            ->with(['customer:id,name,phone', 'creator:id,name', 'paymentMethod:id,name'])
+            ->orderByDesc('id')
+            ->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $paginated->items(),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ],
+        ]);
     }
 }

@@ -11,12 +11,14 @@
         autocomplete="off"
         class="flex-1 bg-transparent border-0 outline-none text-[var(--text)] font-bold text-base placeholder:text-[var(--muted)]/70"
         @keydown.enter="handleBarcodeOrEnter"
+        @input="onSearchInput"
       />
       <button
         v-if="posStore.searchQuery"
         type="button"
         class="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--bar)] transition"
-        @click="posStore.searchQuery = ''"
+        title="مسح البحث"
+        @click="clearSearch"
       >
         <X class="w-4 h-4" />
       </button>
@@ -35,7 +37,7 @@
             ? 'bg-[var(--text)] text-[var(--card)] border-[var(--text)] shadow-sm'
             : 'bg-[var(--card)] text-[var(--text)] border-[var(--border)] hover:border-[var(--muted)]'
         ]"
-        @click="posStore.selectedCategoryId = null"
+        @click="onSelectCategory(null)"
       >
         الكل
       </button>
@@ -49,16 +51,26 @@
             ? 'bg-[var(--text)] text-[var(--card)] border-[var(--text)] shadow-sm'
             : 'bg-[var(--card)] text-[var(--text)] border-[var(--border)] hover:border-[var(--muted)]'
         ]"
-        @click="posStore.selectedCategoryId = cat.id"
+        @click="onSelectCategory(cat.id)"
       >
         {{ cat.name }}
       </button>
     </div>
 
-    <!-- Products Grid -->
-    <div class="flex-1 overflow-y-auto pr-1">
+    <!-- Products Grid with Infinite Scroll on Down Scroll -->
+    <div
+      ref="scrollContainerRef"
+      class="flex-1 overflow-y-auto pr-1"
+      @scroll="handleScroll"
+    >
+      <!-- Initial / Search Loading State -->
+      <div v-if="posStore.loadingProducts && posStore.products.length === 0" class="py-20 text-center text-[var(--muted)]">
+        <Loader2 class="w-8 h-8 animate-spin mx-auto mb-2 text-[var(--crimson)]" />
+        <p class="text-xs font-bold">جاري تحميل الكتب...</p>
+      </div>
+
       <div
-        v-if="posStore.filteredProducts.length > 0"
+        v-else-if="posStore.filteredProducts.length > 0"
         class="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-3.5 pb-4 items-start"
       >
         <button
@@ -106,6 +118,15 @@
             </span>
           </div>
         </button>
+
+        <!-- Loading More on Scroll Indicator -->
+        <div
+          v-if="posStore.loadingMoreProducts"
+          class="col-span-full py-4 flex items-center justify-center gap-2 text-xs font-bold text-[var(--muted)]"
+        >
+          <Loader2 class="w-4 h-4 animate-spin text-[var(--crimson)]" />
+          <span>جاري تحميل المزيد من الكتب...</span>
+        </div>
       </div>
 
       <!-- Empty State -->
@@ -119,12 +140,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { Barcode, X, BookOpen } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
+import { Barcode, X, BookOpen, Loader2 } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
 
 const posStore = usePosStore();
 const searchInputRef = ref(null);
+const scrollContainerRef = ref(null);
 
 // Curated Al-Qadi book mockup palette
 const bookColors = [
@@ -143,6 +165,68 @@ function getCoverBackground(product) {
   return `linear-gradient(to left, rgba(0,0,0,0.3) 0 6%, transparent 6%), ${col}`;
 }
 
+let searchDebounceTimer = null;
+function onSearchInput() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    if (scrollContainerRef.value) {
+      scrollContainerRef.value.scrollTop = 0;
+    }
+    if (posStore.isOnline) {
+      posStore.reloadProducts({
+        query: posStore.searchQuery,
+        categoryId: posStore.selectedCategoryId,
+        page: 1,
+        append: false,
+      });
+    }
+  }, 300);
+}
+
+function clearSearch() {
+  posStore.searchQuery = '';
+  if (scrollContainerRef.value) {
+    scrollContainerRef.value.scrollTop = 0;
+  }
+  if (posStore.isOnline) {
+    posStore.reloadProducts({
+      query: '',
+      categoryId: posStore.selectedCategoryId,
+      page: 1,
+      append: false,
+    });
+  }
+}
+
+function onSelectCategory(catId) {
+  posStore.selectedCategoryId = catId;
+  if (scrollContainerRef.value) {
+    scrollContainerRef.value.scrollTop = 0;
+  }
+  if (posStore.isOnline) {
+    posStore.reloadProducts({
+      query: posStore.searchQuery,
+      categoryId: catId,
+      page: 1,
+      append: false,
+    });
+  }
+}
+
+function handleScroll(e) {
+  const el = e.target;
+  if (!el) return;
+
+  // If user scrolled near the bottom (within 160px)
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) {
+    if (posStore.isOnline && !posStore.loadingMoreProducts && !posStore.loadingProducts) {
+      if (posStore.productsMeta.currentPage < posStore.productsMeta.lastPage) {
+        posStore.loadNextPageProducts();
+      }
+    }
+  }
+}
+
 async function handleBarcodeOrEnter() {
   const query = posStore.searchQuery.trim();
   if (!query) return;
@@ -151,27 +235,39 @@ async function handleBarcodeOrEnter() {
   const exactBarcodeProduct = posStore.products.find((p) => p.barcode === query);
   if (exactBarcodeProduct) {
     posStore.addToCart(exactBarcodeProduct);
-    posStore.searchQuery = '';
+    clearSearch();
     return;
   }
 
   // 2. If filtered list has exactly 1 match on Enter, add it directly
   if (posStore.filteredProducts.length === 1) {
     posStore.addToCart(posStore.filteredProducts[0]);
-    posStore.searchQuery = '';
+    clearSearch();
     return;
   }
 
   // 3. Otherwise try server lookup
   const res = await posStore.lookupBarcode(query);
   if (res) {
-    posStore.searchQuery = '';
+    clearSearch();
   }
 }
 
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
+
+onMounted(() => {
+  // If online, reload page 1 to ensure paginated metadata is up-to-date
+  if (posStore.isOnline) {
+    posStore.reloadProducts({
+      query: posStore.searchQuery,
+      categoryId: posStore.selectedCategoryId,
+      page: 1,
+      append: false,
+    });
+  }
+});
 
 defineExpose({
   focusSearch: () => {

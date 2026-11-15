@@ -340,7 +340,7 @@ function typeLabel(type) {
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     inventory_return: 'إذن مرتجع مخزني',
-    stock_write_off: 'إذن إتلاف / هالك',
+    stock_write_off: 'إذن إهلاك',
     opening_balance: 'رصيد افتتاحي',
   };
   return labels[clean] || 'مستند مخزني';

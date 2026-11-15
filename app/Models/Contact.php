@@ -132,4 +132,12 @@ class Contact extends Model
     {
         return $this->type === ContactType::COMPANY;
     }
+
+    /**
+     * Purchase orders placed with this supplier.
+     */
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'supplier_id');
+    }
 }

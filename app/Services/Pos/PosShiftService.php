@@ -10,6 +10,7 @@ use App\Models\PosShift;
 use App\Models\PosShiftTransaction;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -228,13 +229,52 @@ class PosShiftService
     }
 
     /**
+     * Paginate POS shifts with filters.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function paginateShifts(array $filters, int $perPage = 15): LengthAwarePaginator
+    {
+        $status = $filters['status'] ?? null;
+        $search = trim((string) ($filters['search'] ?? ''));
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        return PosShift::query()
+            ->with(['openedBy:id,name', 'closedBy:id,name'])
+            ->withSum('sales', 'grand_total')
+            ->when($status === 'open', fn ($q) => $q->open())
+            ->when($status === 'closed', fn ($q) => $q->closed())
+            ->when($search !== '', function ($q) use ($search): void {
+                $q->where(function ($sub) use ($search): void {
+                    $sub->where('shift_number', 'like', "%{$search}%")
+                        ->orWhereHas('openedBy', fn ($uq) => $uq->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('closedBy', fn ($uq) => $uq->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($dateFrom, fn ($q) => $q->whereDate('opened_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('opened_at', '<=', $dateTo))
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
+    /**
      * Get full details and summary for a shift.
      *
      * @return array<string, mixed>
      */
     public function getShiftSummary(PosShift $shift): array
     {
-        $shift->load(['openedBy', 'closedBy', 'transactions.creator', 'transactions.sale', 'transactions.return']);
+        $shift->load([
+            'openedBy:id,name,email',
+            'closedBy:id,name,email',
+            'transactions.creator:id,name',
+            'transactions.sale:id,invoice_number,grand_total',
+            'transactions.return:id,return_number,refund_amount',
+            'sales.customer:id,name,phone',
+            'sales.paymentMethod:id,name',
+            'sales.creator:id,name',
+        ]);
 
         $expectedCash = $shift->isClosed()
             ? (string) $shift->expected_cash
@@ -257,10 +297,7 @@ class PosShiftService
             ->sum('amount');
 
         // Non-cash sales totals
-        $nonCashSales = PosSale::query()
-            ->where('shift_id', $shift->id)
-            ->with('paymentMethod')
-            ->get();
+        $nonCashSales = $shift->sales->filter(fn ($s) => $s->payment_method_id !== 1);
 
         $visaTotal = '0.00';
         $bankTransferTotal = '0.00';
@@ -274,7 +311,8 @@ class PosShiftService
             }
         }
 
-        $totalSalesCount = $shift->sales()->count();
+        $totalSalesSum = (string) $shift->sales->sum('grand_total');
+        $totalSalesCount = $shift->sales->count();
         $totalReturnsCount = $shift->returns()->count();
 
         return [
@@ -288,6 +326,7 @@ class PosShiftService
             'expected_cash' => $expectedCash,
             'actual_cash' => $shift->actual_cash ? (string) $shift->actual_cash : null,
             'difference' => $shift->difference ? (string) $shift->difference : null,
+            'total_sales_amount' => $totalSalesSum,
             'visa_sales' => $visaTotal,
             'bank_transfer_sales' => $bankTransferTotal,
             'sales_count' => $totalSalesCount,

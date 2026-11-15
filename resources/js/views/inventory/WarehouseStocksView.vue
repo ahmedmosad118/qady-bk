@@ -23,25 +23,6 @@
       </div>
     </div>
 
-    <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-      <StatCard
-        label="أصناف مسجلة بالمخازن"
-        :value="stats.total_tracked"
-        :loading="loading"
-      />
-      <StatCard
-        label="أصناف متوفر منها رصيد"
-        :value="stats.total_in_stock"
-        :loading="loading"
-      />
-      <StatCard
-        label="إجمالي كميات المخزون المتوفرة"
-        :value="Number(stats.total_quantity).toLocaleString() + ' وحدة'"
-        :loading="loading"
-      />
-    </div>
-
     <!-- Main Stock Table Card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs">
       <!-- Toolbar & Filters -->
@@ -441,7 +422,6 @@ import {
 import api from '../../services/api';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
-import StatCard from '../../components/ui/StatCard.vue';
 
 const loading = ref(false);
 const stocks = ref([]);

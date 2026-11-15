@@ -285,20 +285,16 @@ class InventoryDocumentTest extends TestCase
         $res->assertStatus(200);
         $res->assertJsonCount(1, 'data');
         $this->assertEquals('goods_delivery', $res->json('data.0.document_type'));
-        $this->assertEquals(1, $res->json('stats.total'));
-        $this->assertEquals(1, $res->json('stats.draft'));
 
         // Filter by stock_write_off
         $res2 = $this->getJson('/api/inventory-documents?document_type=stock_write_off');
         $res2->assertStatus(200);
         $res2->assertJsonCount(1, 'data');
         $this->assertEquals('stock_write_off', $res2->json('data.0.document_type'));
-        $this->assertEquals(1, $res2->json('stats.total'));
 
         // All documents (no filter)
         $resAll = $this->getJson('/api/inventory-documents');
         $resAll->assertStatus(200);
         $resAll->assertJsonCount(2, 'data');
-        $this->assertEquals(2, $resAll->json('stats.total'));
     }
 }
