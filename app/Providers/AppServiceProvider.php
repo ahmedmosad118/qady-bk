@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
         InventoryDocument::observe(InventoryDocumentObserver::class);
 
         // POS Authorization Gates (Integration points with current/future permission systems)
+        Gate::define('pos.sell', fn (User $user) => true);
         Gate::define('pos.override_price', fn (User $user) => true);
         Gate::define('pos.apply_item_discount', fn (User $user) => true);
         Gate::define('pos.apply_invoice_discount', fn (User $user) => true);

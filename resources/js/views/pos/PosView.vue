@@ -8,6 +8,7 @@
       @open-held="showHeldModal = true"
       @open-close-shift="handleOpenCloseShift"
       @open-open-shift="showOpenShiftModal = true"
+      @open-offline-queue="showOfflineQueueModal = true"
     />
 
     <!-- Main Workspace (Catalog + Cart) -->
@@ -56,6 +57,14 @@
       v-if="showOpenShiftModal"
       :loading="openingShift"
       @open="handleConfirmOpenShift"
+      @select="handleSelectShift"
+      @close="showOpenShiftModal = false"
+    />
+
+    <!-- Offline Queue Modal -->
+    <OfflineQueueModal
+      v-if="showOfflineQueueModal"
+      @close="showOfflineQueueModal = false"
     />
 
     <!-- Close Shift Modal -->
@@ -108,6 +117,7 @@ import CloseShiftModal from './modals/CloseShiftModal.vue';
 import ExpenseModal from './modals/ExpenseModal.vue';
 import ReturnsModal from './modals/ReturnsModal.vue';
 import AddCustomerModal from './modals/AddCustomerModal.vue';
+import OfflineQueueModal from './modals/OfflineQueueModal.vue';
 
 import { usePosStore } from '../../stores/pos';
 import { useNotificationStore } from '../../stores/notification';
@@ -126,6 +136,7 @@ const showCloseShiftModal = ref(false);
 const showExpenseModal = ref(false);
 const showReturnsModal = ref(false);
 const showCustomerModal = ref(false);
+const showOfflineQueueModal = ref(false);
 
 const openingShift = ref(false);
 const closingSummary = ref(null);
@@ -182,6 +193,14 @@ function handleResumeHeld(heldId) {
 
 function handleDeleteHeld(heldId) {
   posStore.deleteHeldCart(heldId);
+}
+
+function handleSelectShift(shiftId) {
+  const ok = posStore.selectShift(shiftId);
+  if (ok) {
+    showOpenShiftModal.value = false;
+    notify.success('تم اختيار الوردية بنجاح.');
+  }
 }
 
 async function handleConfirmOpenShift({ opening_balance, notes }) {
@@ -287,6 +306,7 @@ function onGlobalKeyDown(e) {
     else if (showExpenseModal.value) showExpenseModal.value = false;
     else if (showReturnsModal.value) showReturnsModal.value = false;
     else if (showCustomerModal.value) showCustomerModal.value = false;
+    else if (showOfflineQueueModal.value) showOfflineQueueModal.value = false;
   }
 }
 

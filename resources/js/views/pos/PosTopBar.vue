@@ -66,6 +66,25 @@
 
     <!-- Top Action Buttons -->
     <div class="flex items-center gap-2">
+      <!-- Offline Queue Indicator (when has pending or conflict items) -->
+      <button
+        v-if="posStore.offlineQueue.length > 0"
+        type="button"
+        class="h-9 px-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 transition flex items-center gap-1.5 relative"
+        title="عمليات أوفلاين تنتظر المزامنة مع السيرفر"
+        @click="$emit('open-offline-queue')"
+      >
+        <RefreshCw v-if="posStore.syncingQueue" class="w-4 h-4 text-amber-600 animate-spin" />
+        <CloudOff v-else class="w-4 h-4 text-amber-600" />
+        <span class="hidden sm:inline">طابور الأوفلاين</span>
+        <span
+          class="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-white text-[11px] font-black"
+          :class="posStore.conflictOfflineCount > 0 ? 'bg-red-600' : 'bg-amber-600'"
+        >
+          {{ posStore.offlineQueue.length }}
+        </span>
+      </button>
+
       <!-- Search Invoice / Returns -->
       <button
         type="button"
@@ -164,6 +183,8 @@ import {
   LockKeyhole,
   LockKeyholeOpen,
   LayoutDashboard,
+  CloudOff,
+  RefreshCw,
 } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
 import { useAuthStore } from '../../stores/auth';
@@ -174,6 +195,7 @@ const emit = defineEmits([
   'open-held',
   'open-close-shift',
   'open-open-shift',
+  'open-offline-queue',
 ]);
 
 const posStore = usePosStore();

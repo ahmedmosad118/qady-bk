@@ -233,8 +233,13 @@ async function confirmReturn() {
   }
 
   submittingReturn.value = true;
+  const returnClientUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : ('ret_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10));
+
   try {
     const res = await posStore.submitReturn({
+      client_uuid: returnClientUuid,
       pos_sale_id: activeInvoice.value.id,
       items: itemsToReturn,
       notes: returnNotes.value,

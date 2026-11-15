@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
-import api from '../services/api';
-import { useAuthStore } from './auth';
-import { useNotificationStore } from './notification';
+import api from '../services/api.js';
+import { useAuthStore } from './auth.js';
+import { useNotificationStore } from './notification.js';
 
 const HELD_SALES_KEY = 'qady_pos_held_sales';
 const OFFLINE_QUEUE_KEY = 'qady_pos_offline_queue';
@@ -10,6 +10,7 @@ export const usePosStore = defineStore('pos', {
   state: () => ({
     // Session & Shift
     activeShift: null,
+    availableOpenShifts: [],
     currentWarehouse: null,
     paymentMethods: [],
     
@@ -26,6 +27,7 @@ export const usePosStore = defineStore('pos', {
 
     // Current Cart
     cart: {
+      held_id: null,
       customer: null, // null = Walk-in customer
       items: {}, // key: productId => item details
       invoice_discount_type: 'fixed', // 'fixed' | 'percentage'
@@ -39,11 +41,13 @@ export const usePosStore = defineStore('pos', {
 
     // Offline sales queue
     offlineQueue: [],
+    syncingQueue: false,
 
     // UI & Status
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     submittingSale: false,
     lastCompletedSale: null,
+    networkListenersAttached: false,
   }),
 
   getters: {
@@ -56,6 +60,10 @@ export const usePosStore = defineStore('pos', {
     },
 
     cartLinesCount: (state) => Object.keys(state.cart.items).length,
+
+    pendingOfflineCount: (state) => state.offlineQueue.filter((q) => q.sync_status !== 'conflict').length,
+
+    conflictOfflineCount: (state) => state.offlineQueue.filter((q) => q.sync_status === 'conflict').length,
 
     cartSubtotal: (state) => {
       return Object.values(state.cart.items).reduce((acc, item) => {
@@ -166,12 +174,17 @@ export const usePosStore = defineStore('pos', {
 
   actions: {
     /**
-     * Initialize Local Storage state for Held Sales and Offline queue.
+     * Initialize Local Storage state for Held Sales and Offline queue safely.
+     * Guaranteed safe against malformed JSON or corrupted entries.
+     * Network listeners attached strictly once.
      */
     initLocalState() {
       try {
         const rawHeld = localStorage.getItem(HELD_SALES_KEY);
-        this.heldSales = rawHeld ? JSON.parse(rawHeld) : [];
+        const parsedHeld = rawHeld ? JSON.parse(rawHeld) : [];
+        this.heldSales = Array.isArray(parsedHeld)
+          ? parsedHeld.filter((h) => h && typeof h === 'object' && h.id && h.items)
+          : [];
       } catch (e) {
         console.error('Error loading held sales from localStorage:', e);
         this.heldSales = [];
@@ -179,44 +192,80 @@ export const usePosStore = defineStore('pos', {
 
       try {
         const rawQueue = localStorage.getItem(OFFLINE_QUEUE_KEY);
-        this.offlineQueue = rawQueue ? JSON.parse(rawQueue) : [];
+        const parsedQueue = rawQueue ? JSON.parse(rawQueue) : [];
+        this.offlineQueue = Array.isArray(parsedQueue)
+          ? parsedQueue.filter((q) => q && typeof q === 'object' && q.client_uuid && Array.isArray(q.items) && q.items.length > 0)
+          : [];
       } catch (e) {
         console.error('Error loading offline queue from localStorage:', e);
         this.offlineQueue = [];
       }
 
-      // Online/Offline listener
-      if (typeof window !== 'undefined') {
-        window.addEventListener('online', () => {
+      // Online/Offline listeners: registered strictly once
+      if (typeof window !== 'undefined' && !this.networkListenersAttached) {
+        this._onlineHandler = () => {
           this.isOnline = true;
           this.syncOfflineQueue();
-        });
-        window.addEventListener('offline', () => {
+        };
+        this._offlineHandler = () => {
           this.isOnline = false;
-        });
+        };
+
+        window.addEventListener('online', this._onlineHandler);
+        window.addEventListener('offline', this._offlineHandler);
+        this.networkListenersAttached = true;
+      }
+    },
+
+    cleanupNetworkListeners() {
+      if (typeof window !== 'undefined' && this.networkListenersAttached) {
+        if (this._onlineHandler) {
+          window.removeEventListener('online', this._onlineHandler);
+          this._onlineHandler = null;
+        }
+        if (this._offlineHandler) {
+          window.removeEventListener('offline', this._offlineHandler);
+          this._offlineHandler = null;
+        }
+        this.networkListenersAttached = false;
       }
     },
 
     /**
      * Save held sales array strictly to localStorage.
+     * Returns true on verified physical storage write, false on error/quota.
      */
     persistHeldSales() {
       try {
         localStorage.setItem(HELD_SALES_KEY, JSON.stringify(this.heldSales));
+        return true;
       } catch (e) {
         console.error('Failed to persist held sales in localStorage:', e);
-        useNotificationStore().error('تعذر حفظ الفواتير المعلقة في التخزين المحلي للمتصفح. تحقق من المساحة المتاحة.');
+        const isQuota = e?.name === 'QuotaExceededError' || e?.code === 22 || e?.number === -2147024882;
+        const msg = isQuota
+          ? 'تعذر تعليق الفاتورة: نفدت مساحة التخزين المحلي (Local Storage) في المتصفح. يرجى حذف الفواتير القديمة غير الضرورية.'
+          : 'تعذر حفظ الفواتير المعلقة في التخزين المحلي للمتصفح. لم يتم تفريغ السلة.';
+        useNotificationStore().error(msg);
+        return false;
       }
     },
 
     /**
      * Save offline queue to localStorage.
+     * Returns true on verified write, false on failure.
      */
     persistOfflineQueue() {
       try {
         localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(this.offlineQueue));
+        return true;
       } catch (e) {
         console.error('Failed to persist offline queue in localStorage:', e);
+        const isQuota = e?.name === 'QuotaExceededError' || e?.code === 22 || e?.number === -2147024882;
+        const msg = isQuota
+          ? 'تعذر حفظ العملية في قائمة الأوفلاين: نفدت مساحة التخزين المحلي (Local Storage) في المتصفح.'
+          : 'فشل حفظ العملية في التخزين المحلي للمتصفح. لم يتم تفريغ السلة.';
+        useNotificationStore().error(msg);
+        return false;
       }
     },
 
@@ -244,14 +293,20 @@ export const usePosStore = defineStore('pos', {
         this.paymentMethods = data.payment_methods || [];
         this.currentWarehouse = data.warehouse || null;
 
-        // Check if there is an active shift
+        // Shift Selection: strictly load available open shifts and resolve user's shift
         const openShifts = data.open_shifts || [];
-        if (openShifts.length > 0) {
-          // If current user opened a shift, pick it; otherwise pick the first open shift
-          const authStore = useAuthStore();
-          const userShift = openShifts.find((s) => s.opened_by === authStore.user?.id);
-          this.activeShift = userShift || openShifts[0];
+        this.availableOpenShifts = openShifts;
+
+        const authStore = useAuthStore();
+        const currentUserId = authStore.user?.id;
+
+        // Only auto-select if current user has exactly one open shift
+        const myShifts = openShifts.filter((s) => s.opened_by === currentUserId);
+        if (myShifts.length === 1) {
+          this.activeShift = myShifts[0];
         } else {
+          // If current user has 0 open shifts or multiple open shifts,
+          // NEVER automatically hijack another user's shift!
           this.activeShift = null;
         }
 
@@ -262,7 +317,7 @@ export const usePosStore = defineStore('pos', {
         this.fetchCustomers();
 
         // 4. Try syncing any pending offline sales if online
-        if (this.isOnline && this.offlineQueue.length > 0) {
+        if (this.isOnline && this.offlineQueue.length > 0 && !this.syncingQueue) {
           this.syncOfflineQueue();
         }
 
@@ -272,6 +327,19 @@ export const usePosStore = defineStore('pos', {
         // If network failed, try fallback to cached bootstrap data
         return { success: false, error: err };
       }
+    },
+
+    /**
+     * Explicitly select an active shift by user choice.
+     */
+    selectShift(shiftId) {
+      const shift = this.availableOpenShifts.find((s) => s.id === shiftId);
+      if (shift) {
+        this.activeShift = shift;
+        useNotificationStore().success(`تم اختيار الوردية رقم ${shift.shift_number} بنجاح.`);
+        return true;
+      }
+      return false;
     },
 
     async fetchCategories() {
@@ -525,10 +593,11 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
-     * Clear entire cart.
+     * Clear entire cart and reset transaction state.
      */
     clearCart() {
       this.cart = {
+        held_id: null,
         customer: null,
         items: {},
         invoice_discount_type: 'fixed',
@@ -564,6 +633,7 @@ export const usePosStore = defineStore('pos', {
      * HOLD CART:
      * Saves the cart strictly to Local Storage.
      * Zero backend calls, no inventory reservations, no stock impact.
+     * Safe against QuotaExceededError/SecurityError: Cart is NEVER cleared if storage fails.
      */
     holdCurrentCart(referenceNote = '') {
       const notify = useNotificationStore();
@@ -577,7 +647,7 @@ export const usePosStore = defineStore('pos', {
         id: 'hold_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         created_at: new Date().toISOString(),
         reference_note: referenceNote.trim() || `فاتورة معلقة #${this.heldSales.length + 1}`,
-        customer: this.cart.customer,
+        customer: this.cart.customer ? { ...this.cart.customer } : null,
         items: JSON.parse(JSON.stringify(this.cart.items)),
         invoice_discount_type: this.cart.invoice_discount_type,
         invoice_discount_value: this.cart.invoice_discount_value,
@@ -587,9 +657,17 @@ export const usePosStore = defineStore('pos', {
         lines_count: this.cartLinesCount,
       };
 
+      const backup = [...this.heldSales];
       this.heldSales.unshift(heldEntry);
-      this.persistHeldSales();
+      const saved = this.persistHeldSales();
 
+      if (!saved) {
+        // Rollback in-memory state so it matches physical storage
+        this.heldSales = backup;
+        return false;
+      }
+
+      // ONLY clear cart after successful, verified physical persistence
       this.clearCart();
       notify.success(`تم تعليق الفاتورة بنجاح في المتصفح (${heldEntry.reference_note})`);
       return true;
@@ -597,63 +675,107 @@ export const usePosStore = defineStore('pos', {
 
     /**
      * RESUME HELD CART:
-     * Restores cart from Local Storage, verifies product availability and current prices.
+     * Restores cart from Local Storage without silent mutation.
+     * 1. Preserves original held copy untouched in localStorage.
+     * 2. Inspects availability, prices, and permissions.
+     * 3. Does NOT silently reduce quantity, does NOT silently drop missing items,
+     *    and does NOT silently change prices or discounts.
+     * 4. Reports any discrepancies clearly to the cashier.
      */
     resumeHeldCart(heldId) {
       const notify = useNotificationStore();
 
       if (this.cartLinesCount > 0) {
-        notify.error('يوجد أصناف في السلة الحالية. يرجى إتمامها أو تفريغها أو تعليقها أولاً.');
-        return false;
+        notify.error('يوجد أصناف في السلة الحالية. يرجى إتمامها أو تفريغها أو تعليقها أولاً قبل استرجاع فاتورة معلقة.');
+        return { success: false, reason: 'cart_not_empty' };
       }
 
-      const index = this.heldSales.findIndex((h) => h.id === heldId);
-      if (index === -1) {
+      const held = this.heldSales.find((h) => h.id === heldId);
+      if (!held) {
         notify.error('لم يتم العثور على الفاتورة المعلقة المحددة.');
-        return false;
+        return { success: false, reason: 'not_found' };
       }
 
-      const held = this.heldSales[index];
-
-      // Verify availability against current catalog
-      const warnings = [];
-      const restoredItems = {};
+      const authStore = useAuthStore();
+      const discrepancies = [];
 
       for (const [pId, rawItem] of Object.entries(held.items)) {
         const prod = this.products.find((p) => p.id === Number(pId));
         if (!prod) {
-          warnings.push(`المنتج '${rawItem.name}' لم يعد متوفراً في الكتالوج الحالي.`);
+          discrepancies.push({
+            type: 'missing_product',
+            name: rawItem.name,
+            message: `المنتج '${rawItem.name}' لم يعد متوفراً في الكتالوج الحالي.`,
+          });
           continue;
         }
 
         const availStock = Number(prod.stock_quantity ?? 0);
-        let qty = Number(rawItem.quantity);
+        const reqQty = Number(rawItem.quantity || 0);
 
-        if (availStock < qty) {
-          if (availStock <= 0) {
-            warnings.push(`المنتج '${prod.name}' نفد رصيده من المخزن.`);
-            continue;
-          } else {
-            warnings.push(`تم تخفيض كمية '${prod.name}' من ${qty} إلى الرصيد المتاح (${availStock}).`);
-            qty = availStock;
-          }
+        if (availStock < reqQty) {
+          discrepancies.push({
+            type: 'stock_deficit',
+            name: rawItem.name,
+            heldQty: reqQty,
+            availableStock: availStock,
+            message: `الكمية المعلقة من '${rawItem.name}' هي ${reqQty}، بينما الرصيد المتاح بالمخزن حالياً هو ${availStock}.`,
+          });
         }
 
-        // Keep saved unit price and discounts from the held cart
+        if (Number(prod.selling_price || 0) !== Number(rawItem.original_unit_price || 0)) {
+          discrepancies.push({
+            type: 'price_changed',
+            name: rawItem.name,
+            oldPrice: rawItem.original_unit_price,
+            newPrice: prod.selling_price,
+            message: `سعر الكتالوج للمنتج '${rawItem.name}' تغيّر من ${rawItem.original_unit_price} إلى ${prod.selling_price} ج.م.`,
+          });
+        }
+
+        // Permissions check
+        if (rawItem.unit_price !== rawItem.original_unit_price && !authStore.hasPermission('pos.override_price')) {
+          discrepancies.push({
+            type: 'permission_override_price',
+            name: rawItem.name,
+            message: `الصنف '${rawItem.name}' يتضمن سعراً معدلاً (${rawItem.unit_price} ج.م) ولا تملك صلاحية تعديل السعر.`,
+          });
+        }
+
+        if (rawItem.discount_amount > 0 && !authStore.hasPermission('pos.apply_item_discount')) {
+          discrepancies.push({
+            type: 'permission_item_discount',
+            name: rawItem.name,
+            message: `الصنف '${rawItem.name}' يتضمن خصماً ولا تملك صلاحية خصم الأصناف.`,
+          });
+        }
+      }
+
+      if (Number(held.invoice_discount_value || 0) > 0 && !authStore.hasPermission('pos.apply_invoice_discount')) {
+        discrepancies.push({
+          type: 'permission_invoice_discount',
+          message: 'الفاتورة تتضمن خصم إجمالي ولا تملك صلاحية تطبيق خصم الفاتورة.',
+        });
+      }
+
+      // DO NOT silently reduce quantity!
+      // DO NOT silently delete missing items!
+      // DO NOT silently alter price or discount!
+      // DO NOT delete held sale from localStorage on resume!
+
+      // Restore cart with original held data intact
+      const restoredItems = {};
+      for (const [pId, rawItem] of Object.entries(held.items)) {
+        const prod = this.products.find((p) => p.id === Number(pId));
         restoredItems[pId] = {
           ...rawItem,
-          quantity: qty,
-          product: prod,
+          product: prod || { id: Number(pId), name: rawItem.name, stock_quantity: 0 },
         };
       }
 
-      if (Object.keys(restoredItems).length === 0) {
-        notify.error('تعذر استرجاع الفاتورة المعلقة لأن جميع أصنافها لم تعد متوفرة.');
-        return false;
-      }
-
       this.cart = {
-        customer: held.customer,
+        held_id: held.id,
+        customer: held.customer ? { ...held.customer } : null,
         items: restoredItems,
         invoice_discount_type: held.invoice_discount_type || 'fixed',
         invoice_discount_value: Number(held.invoice_discount_value || 0),
@@ -661,22 +783,18 @@ export const usePosStore = defineStore('pos', {
         client_uuid: null,
       };
 
-      // Recalculate all lines
       for (const pId of Object.keys(restoredItems)) {
         this.recalcItemTotals(pId);
       }
 
-      // Remove from held list
-      this.heldSales.splice(index, 1);
-      this.persistHeldSales();
-
-      if (warnings.length > 0) {
-        notify.info(`تنبيهات استكمال الفاتورة:\n• ${warnings.join('\n• ')}`, 'تنبيه استكمال الفاتورة');
+      if (discrepancies.length > 0) {
+        const bullets = discrepancies.map((d) => `• ${d.message}`).join('\n');
+        notify.info(`تنبيهات استكمال الفاتورة:\n${bullets}`, 'تنبيه استكمال الفاتورة');
       } else {
-        notify.success('تم استرجاع الفاتورة المعلقة بنجاح.');
+        notify.success('تم استرجاع الفاتورة المعلقة بنجاح دون أي تعديل على بياناتها.');
       }
 
-      return true;
+      return { success: true, discrepancies };
     },
 
     /**
@@ -690,9 +808,17 @@ export const usePosStore = defineStore('pos', {
 
     /**
      * Finalize and submit official sale to Backend.
+     * Enforces frontend idempotency:
+     * - Prevents double clicking / parallel checkout calls.
+     * - Retains stable client_uuid during retry or timeouts.
+     * - Safely queues offline sales with confirmed storage write before clearing cart.
      */
     async checkout({ payment_method_id, paid_amount = 0, notes = '' }) {
       const notify = useNotificationStore();
+
+      if (this.submittingSale) {
+        return { success: false, message: 'عملية البيع قيد المعالجة حالياً.' };
+      }
 
       if (!this.isOpenShift) {
         notify.error('لا يمكن إتمام البيع. الوردية مغلقة حالياً.');
@@ -704,7 +830,13 @@ export const usePosStore = defineStore('pos', {
         return { success: false, message: 'السلة فارغة.' };
       }
 
-      const clientUuid = this.cart.client_uuid || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : ('pos_' + Date.now() + '_' + Math.random().toString(36).substring(2)));
+      // Maintain stable client_uuid on the cart during retries
+      if (!this.cart.client_uuid) {
+        this.cart.client_uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : ('pos_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10));
+      }
+      const clientUuid = this.cart.client_uuid;
 
       const payload = {
         client_uuid: clientUuid,
@@ -745,6 +877,11 @@ export const usePosStore = defineStore('pos', {
             }
           }
 
+          // If cart came from a held sale, clean it up only upon confirmed successful checkout
+          if (this.cart.held_id) {
+            this.deleteHeldCart(this.cart.held_id);
+          }
+
           // Clear cart on successful sale confirmation from server
           this.clearCart();
           notify.success(`تم حفظ وترحيل الفاتورة رقم ${sale.invoice_number} بنجاح.`);
@@ -752,13 +889,44 @@ export const usePosStore = defineStore('pos', {
           return { success: true, sale: this.lastCompletedSale };
         } else {
           // Offline mode: queue in localStorage
-          this.offlineQueue.push({
+          const offlineRecord = {
             ...payload,
             created_at: new Date().toISOString(),
             grand_total: this.cartGrandTotal,
             paid_amount: Number(paid_amount) || this.cartGrandTotal,
-          });
-          this.persistOfflineQueue();
+            sync_status: 'pending',
+            conflict_reason: null,
+            customer: this.cart.customer ? { ...this.cart.customer } : null,
+            items_snapshot: Object.values(this.cart.items).map((it) => ({
+              product_id: it.product_id,
+              name: it.name,
+              sku: it.sku,
+              barcode: it.barcode,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+              total: it.total,
+            })),
+          };
+
+          const backupQueue = [...this.offlineQueue];
+          const existingIdx = this.offlineQueue.findIndex((q) => q.client_uuid === clientUuid);
+          if (existingIdx >= 0) {
+            this.offlineQueue[existingIdx] = offlineRecord;
+          } else {
+            this.offlineQueue.push(offlineRecord);
+          }
+
+          const saved = this.persistOfflineQueue();
+          if (!saved) {
+            // Rollback in-memory queue so it matches physical storage
+            this.offlineQueue = backupQueue;
+            return { success: false, message: 'فشل حفظ الفاتورة في التخزين المحلي للأوفلاين.' };
+          }
+
+          // If cart came from held sale, delete it now that offline persistence succeeded
+          if (this.cart.held_id) {
+            this.deleteHeldCart(this.cart.held_id);
+          }
 
           const offlineSaleFake = {
             id: 'offline_' + Date.now(),
@@ -796,32 +964,64 @@ export const usePosStore = defineStore('pos', {
 
     /**
      * Process pending offline queue to server.
+     * Prevents concurrent sync loops via syncingQueue guard.
+     * Preserves conflicting or errored transactions without deleting them.
      */
     async syncOfflineQueue() {
-      if (!this.isOnline || this.offlineQueue.length === 0) return;
+      if (this.syncingQueue || !this.isOnline || this.offlineQueue.length === 0) return;
+      this.syncingQueue = true;
 
       const remaining = [];
       let syncedCount = 0;
+      let conflictCount = 0;
 
-      for (const item of this.offlineQueue) {
-        try {
-          const resp = await api.post('/pos/sync/sales', item);
-          if (resp.data.status === 'synced') {
-            syncedCount++;
-          } else {
-            remaining.push(item);
+      try {
+        for (const item of this.offlineQueue) {
+          try {
+            const resp = await api.post('/pos/sync/sales', item);
+            if (resp.data.status === 'synced' || resp.data.success) {
+              syncedCount++;
+              // Successfully synced -> omit from remaining
+            } else {
+              remaining.push({
+                ...item,
+                sync_status: 'conflict',
+                conflict_reason: resp.data.conflict_reason || resp.data.message || 'تعارض في المزامنة',
+              });
+              conflictCount++;
+            }
+          } catch (err) {
+            const isConflict = err.response?.status === 409 || err.response?.data?.status === 'conflict';
+            const reason = err.response?.data?.conflict_reason || err.response?.data?.message || err.message;
+            if (isConflict) {
+              remaining.push({
+                ...item,
+                sync_status: 'conflict',
+                conflict_reason: reason,
+              });
+              conflictCount++;
+            } else {
+              // Network or transient server error: keep as pending
+              remaining.push({
+                ...item,
+                sync_status: 'pending',
+                last_error: reason,
+              });
+            }
           }
-        } catch (err) {
-          console.warn('Offline sync item conflict/error:', err);
-          remaining.push(item);
         }
-      }
 
-      this.offlineQueue = remaining;
-      this.persistOfflineQueue();
+        this.offlineQueue = remaining;
+        this.persistOfflineQueue();
 
-      if (syncedCount > 0) {
-        useNotificationStore().success(`تمت مزامنة ${syncedCount} فاتورة أوفلاين مع الخادم بنجاح.`);
+        if (syncedCount > 0) {
+          useNotificationStore().success(`تمت مزامنة ${syncedCount} فاتورة أوفلاين مع الخادم بنجاح.`);
+        }
+        if (conflictCount > 0) {
+          useNotificationStore().error(`يوجد ${conflictCount} فاتورة أوفلاين متعارضة تتطلب المراجعة.`);
+        }
+      } finally {
+        this.syncingQueue = false;
       }
     },
 
@@ -972,9 +1172,9 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
-     * Submit partial/full return.
+     * Submit partial/full return with idempotency support.
      */
-    async submitReturn({ pos_sale_id, items, notes = '' }) {
+    async submitReturn({ pos_sale_id, items, notes = '', client_uuid = null }) {
       const notify = useNotificationStore();
 
       if (!this.isOpenShift) {
@@ -982,8 +1182,13 @@ export const usePosStore = defineStore('pos', {
         return { success: false };
       }
 
+      const clientUuid = client_uuid || ((typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : ('ret_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10)));
+
       try {
         const resp = await api.post('/pos/returns', {
+          client_uuid: clientUuid,
           shift_id: this.activeShift.id,
           pos_sale_id: pos_sale_id,
           warehouse_id: this.currentWarehouse?.id,

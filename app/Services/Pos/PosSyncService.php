@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -43,30 +44,45 @@ class PosSyncService
             ]);
         }
 
-        // 1. Idempotency Check: check if already processed
-        $existing = PosSyncTransaction::query()
+        // 1. Idempotency Check: check if sale already exists in official pos_sales
+        $existingSale = PosSale::query()
             ->where('client_uuid', $clientUuid)
-            ->with(['sale.items.product', 'sale.paymentMethod', 'sale.customer'])
+            ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments'])
             ->first();
 
-        if ($existing) {
-            if ($existing->status === PosSyncTransaction::STATUS_SYNCED && $existing->sale) {
-                return [
-                    'status' => 'synced',
-                    'is_idempotent' => true,
-                    'sale' => $existing->sale,
+        if ($existingSale) {
+            PosSyncTransaction::query()->updateOrCreate(
+                ['client_uuid' => $clientUuid],
+                [
+                    'shift_id' => $existingSale->shift_id,
+                    'pos_sale_id' => $existingSale->id,
+                    'payload' => $payload,
+                    'status' => PosSyncTransaction::STATUS_SYNCED,
                     'conflict_reason' => null,
-                ];
-            }
+                    'synced_at' => Carbon::now(),
+                ]
+            );
 
-            if ($existing->status === PosSyncTransaction::STATUS_CONFLICT) {
-                return [
-                    'status' => 'conflict',
-                    'is_idempotent' => true,
-                    'sale' => null,
-                    'conflict_reason' => $existing->conflict_reason,
-                ];
-            }
+            return [
+                'status' => 'synced',
+                'is_idempotent' => true,
+                'sale' => $existingSale,
+                'conflict_reason' => null,
+            ];
+        }
+
+        // Check if already recorded as conflict
+        $existingSync = PosSyncTransaction::query()
+            ->where('client_uuid', $clientUuid)
+            ->first();
+
+        if ($existingSync && $existingSync->status === PosSyncTransaction::STATUS_CONFLICT) {
+            return [
+                'status' => 'conflict',
+                'is_idempotent' => true,
+                'sale' => null,
+                'conflict_reason' => $existingSync->conflict_reason,
+            ];
         }
 
         // 2. Validate shift
@@ -163,20 +179,22 @@ class PosSyncService
             }
         }
 
-        // 5. Attempt official sale creation
+        // 5. Attempt official sale creation (createSale is internally locked atomically on client_uuid)
         try {
             $sale = $this->saleService->createSale($payload, $user);
 
             // Record successful sync
-            PosSyncTransaction::query()->create([
-                'client_uuid' => $clientUuid,
-                'shift_id' => $shift->id,
-                'pos_sale_id' => $sale->id,
-                'payload' => $payload,
-                'status' => PosSyncTransaction::STATUS_SYNCED,
-                'conflict_reason' => null,
-                'synced_at' => Carbon::now(),
-            ]);
+            PosSyncTransaction::query()->updateOrCreate(
+                ['client_uuid' => $clientUuid],
+                [
+                    'shift_id' => $shift->id,
+                    'pos_sale_id' => $sale->id,
+                    'payload' => $payload,
+                    'status' => PosSyncTransaction::STATUS_SYNCED,
+                    'conflict_reason' => null,
+                    'synced_at' => Carbon::now(),
+                ]
+            );
 
             return [
                 'status' => 'synced',
@@ -281,7 +299,16 @@ class PosSyncService
 
         $openShifts = PosShift::query()
             ->open()
-            ->get(['id', 'shift_number', 'opened_at', 'opened_by']);
+            ->with('openedBy:id,name')
+            ->get(['id', 'shift_number', 'opened_at', 'opened_by', 'opening_balance'])
+            ->map(fn (PosShift $s): array => [
+                'id' => $s->id,
+                'shift_number' => $s->shift_number,
+                'opened_at' => $s->opened_at?->toIso8601String(),
+                'opened_by' => $s->opened_by,
+                'opened_by_name' => $s->openedBy?->name ?? 'غير محدد',
+                'opening_balance' => (string) $s->opening_balance,
+            ]);
 
         return [
             'warehouse' => $warehouse ? [

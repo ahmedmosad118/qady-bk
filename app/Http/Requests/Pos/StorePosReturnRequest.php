@@ -24,6 +24,7 @@ class StorePosReturnRequest extends FormRequest
             'pos_sale_id' => ['required', 'integer', 'exists:pos_sales,id'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'client_uuid' => ['nullable', 'string', 'max:36'],
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.pos_sale_item_id' => ['required', 'integer', 'exists:pos_sale_items,id'],

@@ -14,7 +14,12 @@ class StorePosSaleRequest extends FormRequest
     {
         $user = $this->user();
 
-        // 1. Check invoice discount authorization
+        // 1. Check basic POS selling permission
+        if (! Gate::allows('pos.sell', $user)) {
+            return false;
+        }
+
+        // 2. Check invoice discount authorization
         $invDiscVal = $this->input('invoice_discount_value');
         if ($invDiscVal !== null && (float) $invDiscVal > 0) {
             if (! Gate::allows('pos.apply_invoice_discount', $user)) {

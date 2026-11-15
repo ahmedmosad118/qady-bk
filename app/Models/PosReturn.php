@@ -22,6 +22,7 @@ use LogicException;
     'notes',
     'created_by',
     'returned_at',
+    'client_uuid',
 ])]
 class PosReturn extends Model
 {
