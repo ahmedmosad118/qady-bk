@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Expense;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+
+class StoreExpenseRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return Gate::forUser($this->user())->allows('expenses.create');
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('contact_id') && $this->input('contact_id') === '') {
+            $this->merge(['contact_id' => null]);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'expense_category_id' => [
+                'required',
+                'integer',
+                Rule::exists('expense_categories', 'id'),
+            ],
+            'contact_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('contacts', 'id')->whereNull('deleted_at'),
+            ],
+            'expense_date' => ['required', 'date'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.name' => ['required', 'string', 'max:255'],
+            'items.*.description' => ['nullable', 'string', 'max:2000'],
+            'items.*.amount' => ['required', 'numeric', 'gt:0'],
+            'items.*.attachments' => ['nullable', 'array', 'max:20'],
+            'items.*.attachments.*' => [
+                'required',
+                'file',
+                'mimes:jpeg,jpg,png,gif,webp,pdf',
+                'max:4096',
+            ],
+        ];
+    }
+}

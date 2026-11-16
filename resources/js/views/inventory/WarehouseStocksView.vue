@@ -1,84 +1,58 @@
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.inventoryGroup') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          أرصدة المخازن وحركات المنتجات
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">
-          متابعة الأرصدة الحالية الدقيقة لكل منتج في كل مخزن، واستعراض سجل الحركات وبطاقة الصنف التاريخية.
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader
+      title="أرصدة المخازن وحركات المنتجات"
+      subtitle="متابعة الأرصدة الحالية الدقيقة لكل منتج في كل مخزن، واستعراض سجل الحركات وبطاقة الصنف التاريخية."
+    >
+      <template #actions>
         <router-link
           to="/inventory"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
         >
-          <FileText class="h-[18px] w-[18px] text-[var(--crimson)]" />
+          <FileText class="h-[18px] w-[18px] text-[var(--muted)]" />
           <span>{{ $t('nav.allInventory') }}</span>
         </router-link>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Main Stock Table Card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs">
-      <!-- Toolbar & Filters -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <!-- Search by Name / SKU / Barcode -->
-          <div class="relative">
-            <Search
-              class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-            />
-            <input
-              v-model="filters.search"
-              type="search"
-              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-              placeholder="بحث بالاسم أو SKU أو الباركود..."
-              @input="debouncedSearch"
-            />
-          </div>
-
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="filters.search"
+        search-placeholder="بحث بالاسم أو الباركود..."
+        :active-filters-count="activeFiltersCount"
+        @search="debouncedSearch"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
           <!-- Warehouse Selector -->
           <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('warehouses.title') }}</label>
             <SearchableSelect
               v-model="filters.warehouse_id"
               :options="warehouseOptions"
               placeholder="كل المخازن"
               search-placeholder="بحث في المخازن..."
               allow-empty
-              @change="loadStocks"
+              @change="filters.page = 1; loadStocks()"
             />
           </div>
 
           <!-- Stock Availability Filter -->
           <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">حالة التوفر</label>
             <SearchableSelect
               v-model="filters.has_stock"
               :options="stockStatusOptions"
               placeholder="حالة التوفر"
               allow-empty
-              @change="loadStocks"
+              @change="filters.page = 1; loadStocks()"
             />
           </div>
-
-          <!-- Reset Filters -->
-          <div class="flex items-center gap-2">
-            <button
-              v-if="hasActiveFilters"
-              type="button"
-              class="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] px-4 text-xs font-bold text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
-              @click="resetFilters"
-            >
-              <RotateCcw class="h-4 w-4" />
-              <span>إعادة تعيين الفلاتر</span>
-            </button>
-          </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Table -->
       <div class="overflow-x-auto">
@@ -86,8 +60,8 @@
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="w-12 px-4 py-3.5 text-center">#</th>
-              <th class="px-4 py-3.5">المنتج / الإصدار</th>
-              <th class="px-4 py-3.5">رمز الصنف (SKU)</th>
+              <th class="px-4 py-3.5">اسم المنتج</th>
+              <th class="px-4 py-3.5">الباركود</th>
               <th class="px-4 py-3.5">المخزن</th>
               <th class="px-4 py-3.5 text-center">الرصيد الحالي</th>
               <th class="px-4 py-3.5 text-center">آخر تحديث</th>
@@ -98,7 +72,7 @@
             <!-- Loading -->
             <tr v-if="loading && stocks.length === 0">
               <td colspan="7" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
-                <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--crimson)]" />
+                <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--muted)]" />
                 <span class="mt-2 block">جاري تحميل الأرصدة...</span>
               </td>
             </tr>
@@ -135,10 +109,10 @@
                 </div>
               </td>
 
-              <!-- SKU -->
+              <!-- Barcode -->
               <td class="px-4 py-3.5">
                 <span class="rounded-md bg-[var(--bg)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--text)]" dir="ltr">
-                  {{ stock.product?.sku || '—' }}
+                  {{ stock.product?.barcode || '—' }}
                 </span>
               </td>
 
@@ -175,11 +149,11 @@
               <td class="px-4 py-3.5 text-left">
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:border-[var(--crimson)] hover:text-[var(--crimson)]"
+                  class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:bg-[var(--bg)] cursor-pointer"
                   title="عرض بطاقة حركة الصنف"
                   @click="openStockCard(stock)"
                 >
-                  <Receipt class="h-3.5 w-3.5 text-[var(--crimson)]" />
+                  <Receipt class="h-3.5 w-3.5 text-[var(--muted)]" />
                   <span>بطاقة الصنف</span>
                 </button>
               </td>
@@ -229,7 +203,7 @@
         <div class="flex items-start justify-between gap-4">
           <div class="flex items-start gap-3">
             <div
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--crimson)]/20 bg-[var(--crimson-soft)] text-[var(--crimson)] shadow-xs"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] shadow-xs"
             >
               <Receipt class="h-6 w-6" />
             </div>
@@ -239,8 +213,8 @@
                 <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl">
                   {{ activeStockRow?.product?.name }}
                 </h2>
-                <span class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--muted)]" dir="ltr">
-                  {{ activeStockRow?.product?.sku }}
+                <span v-if="activeStockRow?.product?.barcode" class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--muted)]" dir="ltr">
+                  {{ activeStockRow.product.barcode }}
                 </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-600 border border-emerald-500/20">
                   الرصيد الحالي: {{ Number(stockCardData?.current_stock ?? activeStockRow?.quantity ?? 0).toLocaleString() }} وحدة
@@ -415,12 +389,12 @@ import {
   Loader2,
   Printer,
   Receipt,
-  RotateCcw,
-  Search,
   X,
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 
 const loading = ref(false);
@@ -447,9 +421,14 @@ const filters = reactive({
   page: 1,
 });
 
-const hasActiveFilters = computed(() => {
-  return !!filters.search || !!filters.warehouse_id || filters.has_stock !== '';
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (filters.warehouse_id) count++;
+  if (filters.has_stock !== '') count++;
+  return count;
 });
+
+const hasActiveFilters = computed(() => Boolean(filters.search) || activeFiltersCount.value > 0);
 
 const warehouseOptions = computed(() => {
   return warehouses.value.map((w) => ({
@@ -588,7 +567,6 @@ function typeLabel(type) {
   const labels = {
     goods_receipt: 'إذن استلام مخزني',
     goods_delivery: 'إذن تسليم مخزني',
-    stock_issue: 'إذن صرف داخلي',
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     inventory_return: 'إذن مرتجع مخزني',

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\ProductSkuGenerator;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,19 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'category_id', 'name', 'sku', 'barcode', 'author', 'publisher',
+    'category_id', 'name', 'barcode', 'author', 'publisher',
     'edition', 'publication_year', 'cover_image',
     'purchase_price', 'selling_price', 'is_active',
 ])]
 class Product extends Model
 {
     use HasFactory, SoftDeletes;
-
-    /**
-     * The "products" table holds the SKU column and uses it as a regular
-     * (non-incrementing) attribute; keep the primary key on "id".
-     */
-    public const SKU_PREFIX = 'LBK-';
 
     /**
      * The book category this edition belongs to (may be uncategorized).
@@ -90,14 +83,16 @@ class Product extends Model
         return $this->hasMany(PurchaseOrderItem::class, 'product_id');
     }
 
+    /**
+     * Purchase invoice items associated with this product.
+     */
+    public function purchaseInvoiceItems(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoiceItem::class, 'product_id');
+    }
+
     protected static function booted(): void
     {
-        static::creating(function (Product $product): void {
-            if (blank($product->sku)) {
-                $product->sku = ProductSkuGenerator::next();
-            }
-        });
-
         static::deleting(function (Product $product): void {
             if ($product->stockMovements()->exists()) {
                 throw new \LogicException('Cannot delete product that has historical stock movements.');
@@ -113,6 +108,9 @@ class Product extends Model
             }
             if ($product->purchaseOrderItems()->exists()) {
                 throw new \LogicException('Cannot delete product that has associated purchase order items.');
+            }
+            if ($product->purchaseInvoiceItems()->exists()) {
+                throw new \LogicException('Cannot delete product that has associated purchase invoice items.');
             }
         });
     }

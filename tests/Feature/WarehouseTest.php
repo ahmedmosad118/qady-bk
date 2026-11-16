@@ -142,5 +142,6 @@ class WarehouseTest extends TestCase
 
         $this->assertStringNotContainsString("to: '/warehouses'", $navContent);
         $this->assertStringNotContainsString("path: 'warehouses'", $navContent);
+        $this->assertStringNotContainsString("to: '/inventory/warehouse-transfer'", $navContent);
     }
 }

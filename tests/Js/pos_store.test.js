@@ -61,7 +61,6 @@ describe('POS Store Hardening & Safety Tests', () => {
   const sampleProduct1 = {
     id: 1,
     name: 'Book A',
-    sku: 'BK-001',
     barcode: '123456789',
     selling_price: 50,
     stock_quantity: 10,
@@ -71,7 +70,6 @@ describe('POS Store Hardening & Safety Tests', () => {
   const sampleProduct2 = {
     id: 2,
     name: 'Book B',
-    sku: 'BK-002',
     barcode: '987654321',
     selling_price: 30,
     stock_quantity: 15,
@@ -155,7 +153,7 @@ describe('POS Store Hardening & Safety Tests', () => {
           1: {
             product_id: 1,
             name: 'Book A',
-            sku: 'BK-001',
+            barcode: '123456789',
             quantity: 2,
             original_unit_price: 50,
             unit_price: 50,

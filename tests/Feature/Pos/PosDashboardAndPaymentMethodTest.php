@@ -58,7 +58,6 @@ class PosDashboardAndPaymentMethodTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'حلية طالب العلم',
-            'sku' => 'BK-HILYA-001',
             'selling_price' => 100.00,
             'is_active' => true,
         ]);

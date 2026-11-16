@@ -17,13 +17,14 @@ class ProductRepository
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $query = Product::query()->with('category:id,name,parent_id');
+        $query = Product::query()
+            ->with('category:id,name,parent_id')
+            ->withSum('warehouseStocks', 'quantity');
 
         if (!empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function (Builder $q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
                     ->orWhere('author', 'like', "%{$search}%")
                     ->orWhere('publisher', 'like', "%{$search}%");
@@ -38,7 +39,7 @@ class ProductRepository
             $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
         }
 
-        $sortBy = in_array($filters['sort_by'] ?? null, ['name', 'sku', 'selling_price', 'purchase_price', 'created_at'], true)
+        $sortBy = in_array($filters['sort_by'] ?? null, ['name', 'barcode', 'selling_price', 'purchase_price', 'created_at'], true)
             ? (string) $filters['sort_by']
             : 'id';
 

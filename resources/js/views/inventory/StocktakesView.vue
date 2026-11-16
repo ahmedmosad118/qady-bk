@@ -1,18 +1,8 @@
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.inventoryGroup') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ $t('stocktaking.title') }}
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">
-          {{ $t('stocktaking.subtitle') }}
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader :title="$t('stocktaking.title')" :subtitle="$t('stocktaking.subtitle')">
+      <template #actions>
         <button
           type="button"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
@@ -21,8 +11,8 @@
           <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
           <span>{{ $t('stocktaking.createButton') }}</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Error Banner -->
     <div
@@ -41,61 +31,55 @@
 
     <!-- Main Table Container -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Filters Toolbar -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <!-- Search input -->
-          <div class="relative">
-            <Search
-              class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-              aria-hidden="true"
-            />
-            <input
-              v-model="filters.search"
-              type="search"
-              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-              :placeholder="$t('stocktaking.searchPlaceholder')"
-              @input="debouncedSearch"
-            />
-          </div>
-
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="filters.search"
+        :search-placeholder="$t('stocktaking.searchPlaceholder')"
+        :active-filters-count="activeFiltersCount"
+        @search="debouncedSearch"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
           <!-- Warehouse filter (Only show if multiple warehouses exist) -->
           <div v-if="warehouses.length > 1">
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('stocktaking.fields.warehouse') }}</label>
             <SearchableSelect
               v-model="filters.warehouse_id"
               :options="warehouseFilterOptions"
               placeholder="كل المخازن"
               search-placeholder="بحث بالمخزن..."
               :clearable="true"
-              @update:model-value="loadStocktakes"
+              @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
           </div>
 
           <!-- Status filter -->
           <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('stocktaking.fields.status') }}</label>
             <SearchableSelect
               v-model="filters.status"
               :options="statusFilterOptions"
               placeholder="كل الحالات"
               search-placeholder="بحث بالحالة..."
               :clearable="true"
-              @update:model-value="loadStocktakes"
+              @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
           </div>
 
           <!-- Scope filter -->
           <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('stocktaking.fields.scope') }}</label>
             <SearchableSelect
               v-model="filters.scope"
               :options="scopeFilterOptions"
               placeholder="كل النطاقات"
               search-placeholder="بحث بالنطاق..."
               :clearable="true"
-              @update:model-value="loadStocktakes"
+              @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
           </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Table Section -->
       <div class="overflow-x-auto">
@@ -233,18 +217,21 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   AlertCircle,
   ClipboardCheck,
   Eye,
   Plus,
-  Search,
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import StocktakeFormModal from './StocktakeFormModal.vue';
 import StocktakeDetailModal from './StocktakeDetailModal.vue';
 import api from '../../services/api';
 
+const route = useRoute();
 const loading = ref(false);
 const loadError = ref('');
 const stocktakes = ref([]);
@@ -275,6 +262,23 @@ const filters = reactive({
   status: null,
   scope: null,
 });
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (filters.warehouse_id) count++;
+  if (filters.status) count++;
+  if (filters.scope) count++;
+  return count;
+});
+
+function resetFilters() {
+  filters.search = '';
+  filters.warehouse_id = null;
+  filters.status = null;
+  filters.scope = null;
+  meta.current_page = 1;
+  loadStocktakes();
+}
 
 let searchTimeout = null;
 function debouncedSearch() {
@@ -413,5 +417,8 @@ function formatDate(val) {
 onMounted(() => {
   loadInitialData();
   loadStocktakes();
+  if (route.query.open) {
+    openStocktakeDrawer(Number(route.query.open));
+  }
 });
 </script>

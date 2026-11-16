@@ -10,7 +10,7 @@
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-start gap-3">
           <div
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--crimson)]/20 bg-[var(--crimson-soft)] text-[var(--crimson)] shadow-xs"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] shadow-xs"
           >
             <ShoppingBag class="h-6 w-6" />
           </div>
@@ -82,6 +82,18 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Open Linked Purchase Invoice -->
+          <button
+            v-if="linkedInvoice"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:bg-[var(--bg)] cursor-pointer"
+            @click="goToPurchaseInvoice(linkedInvoice.id)"
+          >
+            <Receipt class="h-3.5 w-3.5 text-[var(--muted)]" />
+            <span>فتح الفاتورة ({{ linkedInvoice.invoice_number }})</span>
+            <ExternalLink class="h-3 w-3 text-[var(--muted)]" />
+          </button>
+
           <!-- Print -->
           <button
             type="button"
@@ -138,7 +150,7 @@
         <!-- Supplier Card -->
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <Truck class="h-4 w-4 text-[var(--crimson)]" />
+            <Truck class="h-4 w-4 text-[var(--muted)]" />
             <span>{{ $t('purchaseOrders.supplier') }}</span>
           </div>
           <p class="mt-2 text-base font-extrabold text-[var(--text)] truncate">{{ order.supplier?.name || '—' }}</p>
@@ -153,7 +165,7 @@
         <!-- Dates Card -->
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <Calendar class="h-4 w-4 text-[var(--crimson)]" />
+            <Calendar class="h-4 w-4 text-[var(--muted)]" />
             <span>التواريخ</span>
           </div>
           <div class="mt-2 space-y-1">
@@ -171,7 +183,7 @@
         <!-- Audit & Tracking Card -->
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <UserCheck class="h-4 w-4 text-[var(--crimson)]" />
+            <UserCheck class="h-4 w-4 text-[var(--muted)]" />
             <span>المسؤول والاعتماد</span>
           </div>
           <div class="mt-2 space-y-1">
@@ -225,8 +237,8 @@
                   <div class="font-bold text-[var(--text)]">
                     {{ item.product_snapshot?.name || item.product?.name || '—' }}
                   </div>
-                  <div class="text-[11px] text-[var(--muted)] font-mono" dir="ltr">
-                    {{ item.product_snapshot?.sku || item.product?.sku }}
+                  <div v-if="item.product_snapshot?.barcode || item.product?.barcode" class="text-[11px] text-[var(--muted)] font-mono" dir="ltr">
+                    {{ item.product_snapshot?.barcode || item.product?.barcode }}
                   </div>
                 </td>
                 <td class="py-3 px-4 text-center font-bold text-[var(--text)]">
@@ -239,7 +251,7 @@
                   {{ formatMoney(item.unit_price) }}
                 </td>
                 <td class="py-3 px-4 text-center">
-                  <span v-if="Number(item.discount_amount) > 0" class="font-bold text-amber-600 dark:text-amber-400">
+                  <span v-if="Number(item.discount_amount) > 0" class="font-bold text-[var(--muted)]">
                     -{{ formatMoney(item.discount_amount) }}
                     <span v-if="item.discount_type === 'percentage'" class="text-[10px]">
                       ({{ Number(item.discount_value) }}%)
@@ -259,9 +271,9 @@
       <!-- Notes Banner (Moved to end) -->
       <div
         v-if="order.notes"
-        class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-relaxed text-[var(--text)]"
+        class="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/60 p-4 text-xs leading-relaxed text-[var(--text)]"
       >
-        <div class="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400 mb-1">
+        <div class="flex items-center gap-1.5 font-bold text-[var(--muted)] mb-1">
           <FileText class="h-4 w-4" />
           <span>{{ $t('purchaseOrders.notes') }}</span>
         </div>
@@ -278,7 +290,7 @@
 
           <div
             v-if="Number(order.discount_amount) > 0"
-            class="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400"
+            class="flex items-center justify-between text-xs text-[var(--muted)]"
           >
             <span class="font-bold">
               {{ $t('purchaseOrders.orderDiscount') }}
@@ -313,6 +325,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import {
@@ -326,6 +339,8 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  Receipt,
+  ExternalLink,
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -336,6 +351,18 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'edit', 'confirm', 'cancel']);
 const { t } = useI18n();
+const router = useRouter();
+
+const linkedInvoice = computed(() => {
+  const list = props.order?.purchase_invoices || [];
+  if (list.length === 0) return null;
+  return list.find((inv) => inv.status !== 'cancelled') || list[0];
+});
+
+function goToPurchaseInvoice(invoiceId) {
+  emit('close');
+  router.push({ name: 'purchase-invoices', query: { open: invoiceId } });
+}
 
 const totalOrderSavings = computed(() => {
   if (!props.order) return 0;

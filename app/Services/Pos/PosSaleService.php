@@ -215,7 +215,6 @@ class PosSaleService
 
                     $snapshot = [
                         'name' => $product->name,
-                        'sku' => $product->sku,
                         'barcode' => $product->barcode,
                         'unit_name' => 'قطعة',
                     ];
@@ -426,7 +425,8 @@ class PosSaleService
                 'shift:id,shift_number',
                 'inventoryDocuments:id,document_number,referenceable_type,referenceable_id',
             ])
-            ->withCount('items')
+            ->withCount(['items', 'returns'])
+            ->withSum('returns as returns_total_amount', 'total_returned')
             ->when($search !== '', function ($q) use ($search): void {
                 $q->where(function ($sub) use ($search): void {
                     $sub->where('invoice_number', 'like', "%{$search}%")
@@ -454,10 +454,12 @@ class PosSaleService
             'shift.openedBy:id,name',
             'shift.closedBy:id,name',
             'creator:id,name,email',
-            'returns.items',
+            'returns.items.product:id,name,barcode',
+            'returns.creator:id,name',
+            'returns.paymentMethod:id,name',
             'inventoryDocuments.sourceWarehouse:id,name,code',
             'inventoryDocuments.destinationWarehouse:id,name,code',
-            'inventoryDocuments.items.product:id,name,sku,barcode',
+            'inventoryDocuments.items.product:id,name,barcode',
             'inventoryDocuments.creator:id,name',
         ]);
     }
@@ -492,7 +494,6 @@ class PosSaleService
             ->when($term !== '', function ($q) use ($term): void {
                 $q->where(function ($sub) use ($term): void {
                     $sub->where('name', 'like', "%{$term}%")
-                        ->orWhere('sku', 'like', "%{$term}%")
                         ->orWhere('barcode', 'like', "%{$term}%");
                 });
             })
@@ -528,7 +529,6 @@ class PosSaleService
             ->when($term !== '', function ($q) use ($term): void {
                 $q->where(function ($sub) use ($term): void {
                     $sub->where('name', 'like', "%{$term}%")
-                        ->orWhere('sku', 'like', "%{$term}%")
                         ->orWhere('barcode', 'like', "%{$term}%");
                 });
             })

@@ -64,7 +64,6 @@ class PosReturnTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'تفسير ابن كثير',
-            'sku' => 'BK-TAFSIR-001',
             'barcode' => '6221000000003',
             'purchase_price' => 150.00,
             'selling_price' => 250.00,
@@ -277,5 +276,102 @@ class PosReturnTest extends TestCase
 
         $this->expectException(LogicException::class);
         $return->delete();
+    }
+
+    public function test_can_paginate_and_filter_pos_returns(): void
+    {
+        $sale = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 3],
+            ],
+        ], $this->user);
+
+        $saleItem = $sale->items()->first();
+
+        $return = $this->returnService->processReturn([
+            'shift_id' => $this->shift->id,
+            'pos_sale_id' => $sale->id,
+            'items' => [
+                ['pos_sale_item_id' => $saleItem->id, 'quantity' => 1],
+            ],
+        ], $this->user);
+
+        $response = $this->getJson('/api/pos/returns?search=' . urlencode($return->return_number));
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $return->id)
+            ->assertJsonPath('data.0.sale.invoice_number', $sale->invoice_number)
+            ->assertJsonPath('data.0.items_count', 1);
+
+        $filteredByPayment = $this->getJson('/api/pos/returns?payment_method_id=' . $this->visaMethod->id);
+        $filteredByPayment->assertOk()
+            ->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_can_show_pos_return_with_sale_items_and_inventory_documents(): void
+    {
+        $sale = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 2],
+            ],
+        ], $this->user);
+
+        $saleItem = $sale->items()->first();
+
+        $return = $this->returnService->processReturn([
+            'shift_id' => $this->shift->id,
+            'pos_sale_id' => $sale->id,
+            'items' => [
+                ['pos_sale_item_id' => $saleItem->id, 'quantity' => 1],
+            ],
+        ], $this->user);
+
+        $response = $this->getJson("/api/pos/returns/{$return->id}");
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.id', $return->id)
+            ->assertJsonPath('data.sale.invoice_number', $sale->invoice_number)
+            ->assertJsonPath('data.shift.shift_number', $this->shift->shift_number)
+            ->assertJsonPath('data.items.0.product.name', $this->product->name)
+            ->assertJsonPath('data.items.0.sale_item.sale_id', $sale->id)
+            ->assertJsonCount(1, 'data.inventory_documents')
+            ->assertJsonPath('data.inventory_documents.0.referenceable_type', 'pos_return');
+    }
+
+    public function test_pos_sales_index_and_show_include_return_summary_and_returned_products(): void
+    {
+        $sale = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 2],
+            ],
+        ], $this->user);
+
+        $saleItem = $sale->items()->first();
+
+        $return = $this->returnService->processReturn([
+            'shift_id' => $this->shift->id,
+            'pos_sale_id' => $sale->id,
+            'items' => [
+                ['pos_sale_item_id' => $saleItem->id, 'quantity' => 1],
+            ],
+        ], $this->user);
+
+        $indexResponse = $this->getJson('/api/pos/sales?search=' . urlencode($sale->invoice_number));
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.0.returns_count', 1);
+        $this->assertEquals(250.0, (float) $indexResponse->json('data.0.returns_total_amount'));
+
+        $showResponse = $this->getJson("/api/pos/sales/{$sale->id}");
+        $showResponse->assertOk()
+            ->assertJsonPath('data.returns.0.id', $return->id)
+            ->assertJsonPath('data.returns.0.items.0.product.name', $this->product->name)
+            ->assertJsonPath('data.returns.0.creator.id', $this->user->id);
     }
 }

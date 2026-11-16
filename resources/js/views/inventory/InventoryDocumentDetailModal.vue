@@ -11,7 +11,7 @@
         <!-- Document Identifiers -->
         <div class="flex items-start gap-3">
           <div
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--crimson)]/20 bg-[var(--crimson-soft)] text-[var(--crimson)] shadow-xs"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] shadow-xs"
           >
             <FileText class="h-6 w-6" />
           </div>
@@ -123,9 +123,9 @@
 
           <!-- Action Buttons Group -->
           <div class="flex flex-wrap items-center gap-2">
-            <!-- Edit button for Draft / Rejected -->
+            <!-- Edit button for Draft / Rejected (Disabled/Hidden for Purchase Invoice linked GRs) -->
             <button
-              v-if="document?.status === 'draft' || document?.status === 'rejected'"
+              v-if="document?.referenceable_type !== 'purchase_invoice' && (document?.status === 'draft' || document?.status === 'rejected')"
               type="button"
               class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:bg-[var(--bg)]"
               @click="emit('edit', document)"
@@ -177,7 +177,7 @@
               v-if="document?.status === 'approved'"
               type="button"
               :disabled="actionLoading"
-              class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--crimson)] px-4 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-[var(--crimson-hover)] disabled:opacity-60"
+              class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--text)] px-4 py-1.5 text-xs font-bold text-[var(--card)] shadow-xs transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer"
               @click="performAction('post')"
             >
               <Loader2 v-if="actionLoading && activeAction === 'post'" class="h-3.5 w-3.5 animate-spin" />
@@ -190,16 +190,16 @@
               v-if="document?.status === 'posted'"
               type="button"
               :disabled="actionLoading"
-              class="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-xs font-bold text-amber-600 shadow-xs transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:bg-[var(--bg)] cursor-pointer"
               @click="openReasonPrompt('reverse')"
             >
-              <RotateCcw class="h-3.5 w-3.5" />
+              <RotateCcw class="h-3.5 w-3.5 text-[var(--muted)]" />
               <span>{{ $t('inventory.workflow.reverse') }}</span>
             </button>
 
-            <!-- Cancel (Draft or Pending) -->
+            <!-- Cancel (Draft or Pending, hidden for Purchase Invoice linked GRs) -->
             <button
-              v-if="document?.status === 'draft' || document?.status === 'pending_approval'"
+              v-if="document?.referenceable_type !== 'purchase_invoice' && (document?.status === 'draft' || document?.status === 'pending_approval')"
               type="button"
               :disabled="actionLoading"
               class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-bold text-zinc-500 transition-colors hover:bg-[var(--bg)] disabled:opacity-60"
@@ -209,6 +209,14 @@
               <Ban v-else class="h-3.5 w-3.5" />
               <span>{{ $t('common.cancel') }}</span>
             </button>
+
+            <span
+              v-if="document?.referenceable_type === 'purchase_invoice' && (document?.status === 'draft' || document?.status === 'pending_approval' || document?.status === 'rejected')"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]"
+            >
+              <AlertCircle class="h-3.5 w-3.5 text-[var(--muted)]" />
+              <span>{{ $t('inventory.workflow.linkedGrEditCancelHint') }}</span>
+            </span>
           </div>
         </div>
 
@@ -339,11 +347,11 @@
         <!-- Total Items & Quantities Card -->
         <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <FileText class="h-4 w-4 text-emerald-600" />
+            <FileText class="h-4 w-4 text-[var(--muted)]" />
             <span>ملخص الكميات</span>
           </div>
           <div class="mt-1 flex items-baseline gap-2">
-            <span class="text-xl font-black text-[var(--crimson)]">
+            <span class="text-xl font-black text-[var(--text)]">
               {{ totalQuantity.toLocaleString() }}
             </span>
             <span class="text-xs font-semibold text-[var(--muted)]">وحدة مطلوبة</span>
@@ -354,35 +362,44 @@
         </div>
       </div>
 
-      <!-- Linked POS Sale Reference Box (When document is linked to a POS sale) -->
+      <!-- Linked Reference Box (Purchase Invoice, POS Return, POS Sale, or Stocktake) -->
       <div
-        v-if="document?.referenceable_type === 'pos_sale' || document?.referenceable"
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--crimson)]/30 bg-[var(--crimson)]/5 p-4"
+        v-if="linkedReference"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/60 p-4"
       >
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-[var(--crimson)]/10 text-[var(--crimson)] flex items-center justify-center font-bold shrink-0">
-            <Receipt class="w-5 h-5" />
+          <div
+            class="w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 bg-[var(--card)] border border-[var(--border)] text-[var(--muted)]"
+          >
+            <RotateCcw v-if="linkedReference.type === 'pos_return'" class="w-5 h-5" />
+            <ClipboardCheck v-else-if="linkedReference.type === 'stocktake'" class="w-5 h-5" />
+            <Receipt v-else class="w-5 h-5" />
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-xs font-bold text-[var(--muted)]">مرتبط بفاتورة بيع (POS):</span>
-              <span class="font-mono text-sm font-black text-[var(--crimson)]">
-                {{ document.referenceable?.invoice_number || ('#' + document.referenceable_id) }}
+              <span class="text-xs font-bold text-[var(--muted)]">
+                {{ linkedReference.label }}
+              </span>
+              <span
+                class="font-mono text-sm font-black text-[var(--text)]"
+                dir="ltr"
+              >
+                {{ linkedReference.number }}
               </span>
             </div>
             <p class="text-[11px] text-[var(--muted)] mt-0.5">
-              صرف مخزني تلقائي صادر عن نقطة البيع
+              {{ linkedReference.hint }}
             </p>
           </div>
         </div>
 
         <button
           type="button"
-          class="h-8 px-3.5 rounded-xl bg-[var(--crimson)] text-white hover:bg-[var(--crimson-hover)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-          @click="emit('open-pos-sale', document.referenceable?.id || document.referenceable_id)"
+          class="h-8 px-3.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--bg)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+          @click="linkedReference.action()"
         >
-          <ExternalLink class="w-3.5 h-3.5" />
-          <span>فتح تفاصيل الفاتورة</span>
+          <ExternalLink class="w-3.5 h-3.5 text-[var(--muted)]" />
+          <span>{{ linkedReference.actionLabel }}</span>
         </button>
       </div>
 
@@ -390,31 +407,31 @@
       <!-- Rejection Alert -->
       <div
         v-if="document?.rejection_reason"
-        class="flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-600 dark:text-red-400"
+        class="flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/5 p-4 text-rose-700 dark:text-rose-400"
       >
         <XCircle class="mt-0.5 h-5 w-5 shrink-0" />
         <div>
           <span class="block text-xs font-bold">{{ $t('inventory.fields.rejectionReason') }}</span>
-          <p class="mt-1 text-sm font-semibold">{{ document.rejection_reason }}</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--text)]">{{ document.rejection_reason }}</p>
         </div>
       </div>
 
       <!-- Reversal Alert -->
       <div
         v-if="document?.reversal_reason"
-        class="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400"
+        class="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-amber-700 dark:text-amber-400"
       >
         <RotateCcw class="mt-0.5 h-5 w-5 shrink-0" />
         <div>
           <span class="block text-xs font-bold">{{ $t('inventory.fields.reversalReason') }}</span>
-          <p class="mt-1 text-sm font-semibold">{{ document.reversal_reason }}</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--text)]">{{ document.reversal_reason }}</p>
         </div>
       </div>
 
       <!-- Write Off Reason -->
       <div
         v-if="document?.write_off_reason"
-        class="flex items-start gap-3 rounded-2xl border border-[var(--crimson)]/30 bg-[var(--crimson-soft)] p-4 text-[var(--crimson)]"
+        class="flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/5 p-4 text-rose-700 dark:text-rose-400"
       >
         <AlertCircle class="mt-0.5 h-5 w-5 shrink-0" />
         <div>
@@ -439,7 +456,7 @@
             <h3 class="text-sm font-extrabold text-[var(--text)]">
               {{ $t('inventory.fields.itemsList') }}
             </h3>
-            <span class="rounded-full bg-[var(--crimson-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--crimson)]">
+            <span class="rounded-full bg-[var(--bg)] border border-[var(--border)] px-2.5 py-0.5 text-xs font-bold text-[var(--text)]">
               {{ document?.items?.length || 0 }} {{ $t('inventory.fields.items') }}
             </span>
           </div>
@@ -455,7 +472,7 @@
               <tr>
                 <th class="w-12 px-4 py-3 text-center">#</th>
                 <th class="px-4 py-3">{{ $t('inventory.fields.product') }}</th>
-                <th class="px-4 py-3">{{ $t('inventory.fields.sku') }}</th>
+                <th class="px-4 py-3">{{ $t('inventory.fields.barcode') }}</th>
                 <th class="px-4 py-3 text-center">{{ $t('inventory.fields.quantity') }}</th>
                 <th class="px-4 py-3">{{ $t('inventory.fields.lineNotes') }}</th>
               </tr>
@@ -476,11 +493,11 @@
                 </td>
                 <td class="px-4 py-3">
                   <span class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--muted)]" dir="ltr">
-                    {{ item.product?.sku || '—' }}
+                    {{ item.product?.barcode || '—' }}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-center">
-                  <span class="inline-flex min-w-10 items-center justify-center rounded-lg bg-[var(--crimson-soft)] px-2.5 py-1 text-sm font-black text-[var(--crimson)]">
+                  <span class="inline-flex min-w-10 items-center justify-center rounded-lg bg-[var(--bg)] border border-[var(--border)] px-2.5 py-1 text-sm font-black text-[var(--text)]">
                     {{ Number(item.quantity).toLocaleString() }}
                   </span>
                 </td>
@@ -499,7 +516,7 @@
                 <td colspan="3" class="px-4 py-3 text-[var(--muted)] text-end">
                   الإجمالي الكلي للكميات:
                 </td>
-                <td class="px-4 py-3 text-center font-black text-sm text-[var(--crimson)]">
+                <td class="px-4 py-3 text-center font-black text-sm text-[var(--text)]">
                   {{ totalQuantity.toLocaleString() }}
                 </td>
                 <td></td>
@@ -640,6 +657,8 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   Ban,
@@ -648,6 +667,7 @@ import {
   Check,
   CheckCheck,
   CheckCircle,
+  ClipboardCheck,
   Clock,
   Copy,
   ExternalLink,
@@ -671,7 +691,9 @@ const props = defineProps({
   document: { type: Object, default: null },
 });
 
-const emit = defineEmits(['close', 'updated', 'edit', 'open-pos-sale']);
+const emit = defineEmits(['close', 'updated', 'edit', 'open-pos-sale', 'open-pos-return']);
+const router = useRouter();
+const { t } = useI18n();
 
 const actionLoading = ref(false);
 const activeAction = ref('');
@@ -680,6 +702,62 @@ const showReasonDialog = ref(false);
 const reasonDialogType = ref('reject');
 const actionReason = ref('');
 const copied = ref(false);
+
+const normalizedReferenceType = computed(() => {
+  const raw = props.document?.referenceable_type;
+  if (!raw) return null;
+  if (raw === 'purchase_invoice' || raw === 'App\\Models\\PurchaseInvoice') return 'purchase_invoice';
+  if (raw === 'pos_sale' || raw === 'App\\Models\\PosSale') return 'pos_sale';
+  if (raw === 'pos_return' || raw === 'App\\Models\\PosReturn') return 'pos_return';
+  if (raw === 'stocktake' || raw === 'App\\Models\\Stocktake') return 'stocktake';
+  return raw;
+});
+
+const linkedReference = computed(() => {
+  const doc = props.document;
+  const type = normalizedReferenceType.value;
+  if (!doc || !type) return null;
+
+  const refId = doc.referenceable?.id || doc.referenceable_id;
+  if (!refId && !doc.referenceable) return null;
+
+  const map = {
+    purchase_invoice: {
+      type: 'purchase_invoice',
+      label: t('inventory.fields.linkedPurchaseInvoice'),
+      number: doc.referenceable?.invoice_number || `#${refId}`,
+      hint: t('inventory.fields.linkedPurchaseInvoiceHint'),
+      actionLabel: t('purchaseInvoices.viewPurchaseInvoice'),
+      action: () => goToPurchaseInvoice(refId),
+    },
+    pos_sale: {
+      type: 'pos_sale',
+      label: t('inventory.fields.linkedPosSale'),
+      number: doc.referenceable?.invoice_number || `#${refId}`,
+      hint: t('inventory.fields.linkedPosSaleHint'),
+      actionLabel: t('inventory.fields.openInvoiceDetails'),
+      action: () => emit('open-pos-sale', refId),
+    },
+    pos_return: {
+      type: 'pos_return',
+      label: `${t('posReturns.linkedReceipt')} / ${t('posReturns.title')}`,
+      number: doc.referenceable?.return_number || `#${refId}`,
+      hint: t('posReturns.linkedReturnHint'),
+      actionLabel: t('posReturns.openReturnDetails'),
+      action: () => emit('open-pos-return', refId),
+    },
+    stocktake: {
+      type: 'stocktake',
+      label: 'مرتبط بجرد مخزني:',
+      number: doc.referenceable?.stocktake_number || `#${refId}`,
+      hint: 'تسوية جردية ناتجة عن اعتماد عملية الجرد المخزني',
+      actionLabel: 'فتح مستند الجرد',
+      action: () => goToStocktake(refId),
+    },
+  };
+
+  return map[type] || null;
+});
 
 const totalQuantity = computed(() => {
   if (!props.document?.items) return 0;
@@ -701,12 +779,29 @@ function printDocument() {
   window.print();
 }
 
+function goToPurchaseInvoice(invoiceId) {
+  if (!invoiceId) return;
+  emit('close');
+  router.push({
+    path: '/purchase-invoices',
+    query: { open: String(invoiceId) },
+  });
+}
+
+function goToStocktake(stocktakeId) {
+  if (!stocktakeId) return;
+  emit('close');
+  router.push({
+    path: '/inventory/stocktakes',
+    query: { open: String(stocktakeId) },
+  });
+}
+
 function typeLabel(type) {
   if (!type) return '—';
   const labels = {
     goods_receipt: 'إذن استلام مخزني',
     goods_delivery: 'إذن تسليم مخزني',
-    stock_issue: 'إذن صرف داخلي',
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     inventory_return: 'إذن مرتجع مخزني',

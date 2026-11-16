@@ -80,7 +80,7 @@
                 >
                   <td class="p-2.5 font-bold">
                     <div>{{ item.product_name }}</div>
-                    <small class="text-[var(--muted)] font-mono">{{ item.barcode || item.sku }}</small>
+                    <small v-if="item.barcode" class="text-[var(--muted)] font-mono">{{ item.barcode }}</small>
                   </td>
                   <td class="p-2.5 text-center font-semibold">{{ item.sold_quantity }}</td>
                   <td class="p-2.5 text-center font-semibold">{{ item.already_returned_quantity }}</td>

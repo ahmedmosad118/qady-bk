@@ -93,7 +93,6 @@ class StoreInventoryDocumentRequest extends FormRequest
                     break;
 
                 case InventoryDocumentType::GOODS_DELIVERY->value:
-                case InventoryDocumentType::STOCK_ISSUE->value:
                     if (! $sourceId) {
                         $v->errors()->add('source_warehouse_id', __('inventory.errors.source_warehouse_required'));
                     }

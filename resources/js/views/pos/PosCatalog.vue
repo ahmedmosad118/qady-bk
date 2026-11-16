@@ -7,7 +7,7 @@
         ref="searchInputRef"
         v-model="posStore.searchQuery"
         type="text"
-        placeholder="امسح الباركود أو ابحث بالاسم أو SKU…"
+        placeholder="امسح الباركود أو ابحث بالاسم…"
         autocomplete="off"
         class="flex-1 bg-transparent border-0 outline-none text-[var(--text)] font-bold text-base placeholder:text-[var(--muted)]/70"
         @keydown.enter="handleBarcodeOrEnter"

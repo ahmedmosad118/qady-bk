@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 class ProductService
 {
     /**
-     * Create a new product. SKU is auto-generated if blank.
+     * Create a new product.
      *
      * @param array<string, mixed> $data
      */

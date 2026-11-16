@@ -196,7 +196,7 @@ class PurchaseOrderTest extends TestCase
         ]);
         $order->items()->create([
             'product_id' => $product1->id,
-            'product_snapshot' => ['name' => $product1->name, 'sku' => $product1->sku],
+            'product_snapshot' => ['name' => $product1->name, 'barcode' => $product1->barcode],
             'quantity' => 1,
             'unit_price' => 100.00,
             'line_total' => 100.00,
@@ -275,7 +275,7 @@ class PurchaseOrderTest extends TestCase
         ]);
         $order->items()->create([
             'product_id' => $product->id,
-            'product_snapshot' => ['name' => $product->name, 'sku' => $product->sku],
+            'product_snapshot' => ['name' => $product->name, 'barcode' => $product->barcode],
             'quantity' => 2,
             'unit_price' => 200.00,
             'line_total' => 400.00,
@@ -401,5 +401,35 @@ class PurchaseOrderTest extends TestCase
         $this->deleteJson("/api/purchase-orders/{$convertedOrder->id}")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_can_list_purchase_orders_with_item_and_order_discount_sums(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'discount_type' => 'fixed',
+            'discount_value' => 20,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_price' => 100,
+                    'discount_type' => 'fixed',
+                    'discount_value' => 15,
+                ],
+            ],
+        ])->assertCreated();
+
+        $response = $this->getJson('/api/purchase-orders')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $this->assertEquals(15.0, (float) $response->json('data.0.items_sum_discount_amount'));
+        $this->assertEquals(20.0, (float) $response->json('data.0.discount_amount'));
     }
 }

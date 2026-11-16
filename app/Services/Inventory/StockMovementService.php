@@ -7,6 +7,7 @@ namespace App\Services\Inventory;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\InventoryReturnDirection;
+use App\Enums\PurchaseInvoiceStatus;
 use App\Enums\StockAdjustmentDirection;
 use App\Enums\StockMovementDirection;
 use App\Enums\StocktakeItemStatus;
@@ -14,6 +15,7 @@ use App\Enums\StocktakeStatus;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\StockMovement;
 use App\Models\StocktakeItem;
 use App\Models\Warehouse;
@@ -64,11 +66,76 @@ class StockMovementService
         // 4. Validate warehouses are active
         $this->validateWarehousesActive($document);
 
+        // 4b. Validate Purchase Invoice Goods Receipt completeness & status
+        if (in_array($document->referenceable_type, ['purchase_invoice', PurchaseInvoice::class], true)) {
+            $this->validatePurchaseInvoiceGoodsReceipt($document, $items);
+        }
+
         // 5. Build planned movements
         $plannedMovements = $this->buildPlannedMovementsForDocument($document, $items, $userId);
 
         // 6. Lock and update stocks within the outer transaction
         return $this->applyMovements($plannedMovements);
+    }
+
+    /**
+     * Ensure a Goods Receipt linked to a Purchase Invoice receives the complete invoice quantities in one operation.
+     *
+     * @param Collection<int, InventoryDocumentItem> $docItems
+     */
+    protected function validatePurchaseInvoiceGoodsReceipt(InventoryDocument $document, Collection $docItems): void
+    {
+        if (! $document->referenceable_id) {
+            throw ValidationException::withMessages([
+                'referenceable_id' => ['Goods receipt is not linked to a valid purchase invoice.'],
+            ]);
+        }
+
+        /** @var PurchaseInvoice|null $invoice */
+        $invoice = PurchaseInvoice::query()
+            ->with('items')
+            ->lockForUpdate()
+            ->find($document->referenceable_id);
+
+        if (! $invoice) {
+            throw ValidationException::withMessages([
+                'referenceable_id' => ['Linked purchase invoice could not be found.'],
+            ]);
+        }
+
+        if ($invoice->status === PurchaseInvoiceStatus::CANCELLED) {
+            throw ValidationException::withMessages([
+                'status' => ['Cannot post a goods receipt for a cancelled purchase invoice.'],
+            ]);
+        }
+
+        $invoiceQtyByProduct = [];
+        foreach ($invoice->items as $invItem) {
+            $invoiceQtyByProduct[(int) $invItem->product_id] = number_format((float) $invItem->quantity, 3, '.', '');
+        }
+
+        $docQtyByProduct = [];
+        foreach ($docItems as $docItem) {
+            $pid = (int) $docItem->product_id;
+            $qty = number_format((float) $docItem->quantity, 3, '.', '');
+            $docQtyByProduct[$pid] = isset($docQtyByProduct[$pid])
+                ? bcadd($docQtyByProduct[$pid], $qty, 3)
+                : $qty;
+        }
+
+        if (count($invoiceQtyByProduct) !== count($docQtyByProduct)) {
+            throw ValidationException::withMessages([
+                'items' => ['Partial goods receipt is not supported; all purchase invoice items and quantities must be received together.'],
+            ]);
+        }
+
+        foreach ($invoiceQtyByProduct as $productId => $expectedQty) {
+            if (! isset($docQtyByProduct[$productId]) || bccomp($docQtyByProduct[$productId], $expectedQty, 3) !== 0) {
+                throw ValidationException::withMessages([
+                    'items' => ['Partial goods receipt is not supported; goods receipt quantities must match purchase invoice quantities.'],
+                ]);
+            }
+        }
     }
 
     /**
@@ -360,7 +427,6 @@ class StockMovementService
                     break;
 
                 case InventoryDocumentType::GOODS_DELIVERY:
-                case InventoryDocumentType::STOCK_ISSUE:
                 case InventoryDocumentType::STOCK_WRITE_OFF:
                     $planned[] = $this->makeMovementPlan(
                         $document, $item, (int) $document->source_warehouse_id,
@@ -559,7 +625,7 @@ class StockMovementService
         return WarehouseStock::query()
             ->with([
                 'warehouse:id,code,name,is_default,is_active',
-                'product:id,category_id,name,sku,barcode,purchase_price,selling_price,is_active',
+                'product:id,category_id,name,barcode,purchase_price,selling_price,is_active',
                 'product.category:id,name',
             ])
             ->when(! empty($filters['warehouse_id']), function (Builder $q, $whId): void {
@@ -571,7 +637,6 @@ class StockMovementService
             ->when(! empty($filters['search']), function (Builder $q, $search): void {
                 $q->whereHas('product', function (Builder $sub) use ($search): void {
                     $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('sku', 'like', "%{$search}%")
                         ->orWhere('barcode', 'like', "%{$search}%");
                 });
             })
@@ -596,7 +661,7 @@ class StockMovementService
         return StockMovement::query()
             ->with([
                 'warehouse:id,code,name',
-                'product:id,name,sku,barcode',
+                'product:id,name,barcode',
                 'inventoryDocument:id,document_number,document_type,document_date,status',
                 'creator:id,name',
             ])
@@ -618,7 +683,7 @@ class StockMovementService
                         $d->where('document_number', 'like', "%{$search}%");
                     })->orWhereHas('product', function (Builder $p) use ($search): void {
                         $p->where('name', 'like', "%{$search}%")
-                            ->orWhere('sku', 'like', "%{$search}%");
+                            ->orWhere('barcode', 'like', "%{$search}%");
                     });
                 });
             })

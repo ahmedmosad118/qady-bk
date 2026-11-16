@@ -12,7 +12,11 @@ use App\Http\Controllers\Api\Pos\PosShiftController;
 use App\Http\Controllers\Api\Pos\PosSyncController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\Purchase\PurchaseInvoiceController;
+use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
+use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\Purchase\PurchaseOrderController;
+use App\Http\Controllers\Api\Purchase\PurchaseSettingController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\StocktakeController;
 use App\Http\Controllers\Api\UserController;
@@ -76,6 +80,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy']);
     Route::post('/purchase-orders/{purchase_order}/confirm', [PurchaseOrderController::class, 'confirm']);
     Route::post('/purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel']);
+
+    // Purchase Invoices
+    Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
+    Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
+    Route::post('/purchase-invoices/from-purchase-order/{purchase_order}', [PurchaseInvoiceController::class, 'storeFromPurchaseOrder']);
+    Route::get('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'show']);
+    Route::put('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'update']);
+    Route::delete('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'destroy']);
+    Route::post('/purchase-invoices/{purchase_invoice}/cancel', [PurchaseInvoiceController::class, 'cancel']);
+
+    // Settings (Purchase Settings)
+    Route::get('/settings/purchase', [PurchaseSettingController::class, 'show']);
+    Route::put('/settings/purchase', [PurchaseSettingController::class, 'update']);
 
     // Warehouses (Strictly view & update only; no create, no delete)
     Route::get('/warehouses', [WarehouseController::class, 'index']);
@@ -144,6 +161,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/sales/{pos_sale}/returnable-items', [PosReturnController::class, 'returnableItems']);
 
     // POS Returns
+    Route::get('/pos/returns', [PosReturnController::class, 'index']);
     Route::post('/pos/returns', [PosReturnController::class, 'store']);
     Route::get('/pos/returns/{pos_return}', [PosReturnController::class, 'show']);
 
@@ -153,4 +171,26 @@ Route::middleware('auth:sanctum')->group(function () {
     // POS Offline Sync & Bootstrap
     Route::get('/pos/sync/bootstrap', [PosSyncController::class, 'bootstrap']);
     Route::post('/pos/sync/sales', [PosSyncController::class, 'syncSales']);
+
+    // General Expenses & Expense Categories
+    Route::prefix('expense-categories')->group(function () {
+        Route::get('/', [ExpenseCategoryController::class, 'index']);
+        Route::post('/', [ExpenseCategoryController::class, 'store']);
+        Route::get('/{expenseCategory}', [ExpenseCategoryController::class, 'show']);
+        Route::put('/{expenseCategory}', [ExpenseCategoryController::class, 'update']);
+        Route::delete('/{expenseCategory}', [ExpenseCategoryController::class, 'destroy']);
+    });
+
+    Route::prefix('expenses')->group(function () {
+        Route::get('/', [ExpenseController::class, 'index']);
+        Route::post('/', [ExpenseController::class, 'store']);
+        Route::get('/{expense}', [ExpenseController::class, 'show']);
+        Route::put('/{expense}', [ExpenseController::class, 'update']);
+        Route::delete('/{expense}', [ExpenseController::class, 'destroy']);
+
+        Route::post('/{expense}/items/{item}/attachments', [ExpenseController::class, 'uploadAttachments']);
+        Route::get('/{expense}/items/{item}/attachments/{attachment}/view', [ExpenseController::class, 'viewAttachment']);
+        Route::get('/{expense}/items/{item}/attachments/{attachment}/download', [ExpenseController::class, 'downloadAttachment']);
+        Route::delete('/{expense}/items/{item}/attachments/{attachment}', [ExpenseController::class, 'destroyAttachment']);
+    });
 });

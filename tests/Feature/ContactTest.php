@@ -261,4 +261,68 @@ class ContactTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 1);
     }
+
+    public function test_individual_customer_clears_company_contact_and_tax_fields(): void
+    {
+        $this->actingUser();
+
+        $created = $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'سارة علي',
+            'company_contact_person' => 'مسؤول غير مطلوب',
+            'tax_number' => '999-888-777',
+            'tax_registration_type' => 'قيمة مضافة',
+            'commercial_register' => '112233',
+            'is_customer' => true,
+            'is_supplier' => false,
+        ])->assertCreated()->json('data');
+
+        $this->assertNull($created['company_contact_person']);
+        $this->assertNull($created['tax_number']);
+        $this->assertNull($created['tax_registration_type']);
+        $this->assertNull($created['commercial_register']);
+
+        // Switching a company customer to individual clears tax/contact-person fields on update too.
+        $company = Contact::factory()->company()->create([
+            'is_customer' => true,
+            'is_supplier' => false,
+        ]);
+
+        $updated = $this->putJson("/api/contacts/{$company->id}", [
+            'type' => 'individual',
+            'name' => $company->name,
+            'company_contact_person' => $company->company_contact_person,
+            'tax_number' => $company->tax_number,
+            'tax_registration_type' => $company->tax_registration_type,
+            'commercial_register' => $company->commercial_register,
+            'is_customer' => true,
+            'is_supplier' => false,
+        ])->assertOk()->json('data');
+
+        $this->assertNull($updated['company_contact_person']);
+        $this->assertNull($updated['tax_number']);
+        $this->assertNull($updated['tax_registration_type']);
+        $this->assertNull($updated['commercial_register']);
+    }
+
+    public function test_individual_supplier_preserves_tax_and_contact_person_fields(): void
+    {
+        $this->actingUser();
+
+        $created = $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'مؤلف مستقل',
+            'company_contact_person' => 'وكيل المؤلف',
+            'tax_number' => '555-444-333',
+            'tax_registration_type' => 'بطاقة ضريبية',
+            'commercial_register' => '778899',
+            'is_customer' => false,
+            'is_supplier' => true,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('وكيل المؤلف', $created['company_contact_person']);
+        $this->assertSame('555-444-333', $created['tax_number']);
+        $this->assertSame('بطاقة ضريبية', $created['tax_registration_type']);
+        $this->assertSame('778899', $created['commercial_register']);
+    }
 }

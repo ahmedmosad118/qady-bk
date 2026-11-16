@@ -20,7 +20,6 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'sku' => ['nullable', 'string', 'max:100', Rule::unique('products', 'sku')],
             'barcode' => [
                 'nullable', 'string', 'max:100',
                 Rule::unique('products', 'barcode')->ignore(null),
@@ -31,7 +30,11 @@ class StoreProductRequest extends FormRequest
             'publication_year' => ['nullable', 'integer', 'min:1000', 'max:2100'],
             'cover_image' => ['nullable', 'string', 'max:255'],
             'purchase_price' => ['required', 'numeric', 'min:0', 'max:9999999999'],
-            'selling_price' => ['required', 'numeric', 'min:0', 'max:9999999999'],
+            'selling_price' => [
+                'required', 'numeric', 'min:0',
+                Rule::when(is_numeric($this->input('purchase_price')), 'gt:purchase_price'),
+                'max:9999999999',
+            ],
             'is_active' => ['required', 'boolean'],
             'category_id' => [
                 'nullable',
@@ -53,8 +56,6 @@ class StoreProductRequest extends FormRequest
         return [
             'name.required' => $l['name_required'],
             'name.max' => $l['name_max'],
-            'sku.required' => $l['sku_required'],
-            'sku.unique' => $l['sku_unique'],
             'barcode.unique' => $l['barcode_unique'],
             'purchase_price.required' => $l['purchase_price_required'],
             'purchase_price.numeric' => $l['purchase_price_required'],
@@ -62,6 +63,7 @@ class StoreProductRequest extends FormRequest
             'selling_price.required' => $l['selling_price_required'],
             'selling_price.numeric' => $l['selling_price_required'],
             'selling_price.min' => $l['selling_price_min'],
+            'selling_price.gt' => $l['selling_price_gt'],
             'category_id.exists' => $l['category_id_exists'],
             'publication_year.integer' => $l['publication_year_range'],
             'publication_year.min' => $l['publication_year_range'],
@@ -75,7 +77,7 @@ class StoreProductRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        foreach (['sku', 'barcode', 'author', 'publisher', 'edition', 'cover_image'] as $field) {
+        foreach (['barcode', 'author', 'publisher', 'edition', 'cover_image'] as $field) {
             if (is_string($this->input($field)) && trim($this->input($field)) === '') {
                 $this->merge([$field => null]);
             }

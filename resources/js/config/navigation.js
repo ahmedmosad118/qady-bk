@@ -1,167 +1,128 @@
 import {
-  ArrowDownToLine,
-  ArrowLeftRight,
-  ArrowUpFromLine,
   BarChart3,
   BookOpen,
   Boxes,
-  ClipboardCheck,
-  Clock,
-  FileOutput,
-  Layers,
-  LayoutDashboard,
-  Package,
-  Receipt,
-  RotateCcw,
-  Settings,
+  Home,
+  ReceiptText,
   ShieldCheck,
-  ShoppingBag,
-  SlidersHorizontal,
+  ShoppingCart,
   Store,
-  Tags,
-  Trash2,
-  Truck,
-  UsersRound,
 } from 'lucide-vue-next';
 
 /**
- * Sidebar navigation definition.
+ * Sidebar navigation definition for compact category rail + floating flyout menu.
  *
- * Groups with `items` render as always-visible sections (matching the
- * dashboard design); groups with `children` would render as collapsible.
+ * - Direct entries have `to` (e.g. Dashboard, Reports).
+ * - Grouped categories have `sections: [{ label?, items: [{ label, to }] }]`.
  *
- * To add a new module, push an entry here and register its route in
- * `resources/js/router/routes.js`.
+ * Note: To add a new module, register its route in `resources/js/router/routes.js`
+ * and add its link here.
  */
 export const navigation = [
   {
-    key: 'main',
-    label: null,
-    items: [
-      {
-        label: 'nav.dashboard',
-        to: '/',
-        icon: LayoutDashboard,
-      },
-    ],
+    key: 'dashboard',
+    label: 'nav.dashboard',
+    to: '/',
+    icon: Home,
   },
   {
     key: 'sales',
     label: 'nav.salesGroup',
-    items: [
+    icon: Store,
+    sections: [
       {
-        label: 'nav.pos',
-        to: '/pos',
-        icon: Store,
-      },
-      {
-        label: 'nav.invoices',
-        to: '/invoices',
-        icon: Receipt,
-      },
-      {
-        label: 'nav.posShifts',
-        to: '/pos/shifts',
-        icon: Clock,
-      },
-      {
-        label: 'nav.customers',
-        to: '/customers',
-        icon: UsersRound,
+        items: [
+          { label: 'nav.pos', to: '/pos' },
+          { label: 'nav.invoices', to: '/invoices' },
+          { label: 'nav.posReturns', to: '/pos/returns' },
+          { label: 'nav.posShifts', to: '/pos/shifts' },
+          { label: 'nav.customers', to: '/customers' },
+        ],
       },
     ],
   },
   {
-    key: 'suppliers',
+    key: 'purchases',
     label: 'nav.suppliersGroup',
-    items: [
+    icon: ShoppingCart,
+    sections: [
       {
-        label: 'nav.purchaseOrders',
-        to: '/purchase-orders',
-        icon: ShoppingBag,
-      },
-      {
-        label: 'nav.suppliers',
-        to: '/suppliers',
-        icon: Truck,
+        items: [
+          { label: 'nav.purchaseOrders', to: '/purchase-orders' },
+          { label: 'nav.purchaseInvoices', to: '/purchase-invoices' },
+          { label: 'nav.suppliers', to: '/suppliers' },
+        ],
       },
     ],
   },
   {
     key: 'catalog',
     label: 'nav.catalogGroup',
-    items: [
+    icon: BookOpen,
+    sections: [
       {
-        label: 'nav.productCategories',
-        to: '/product-categories',
-        icon: Tags,
-      },
-      {
-        label: 'nav.products',
-        to: '/products',
-        icon: BookOpen,
+        items: [
+          { label: 'nav.products', to: '/products' },
+          { label: 'nav.productCategories', to: '/product-categories' },
+        ],
       },
     ],
   },
   {
     key: 'inventory',
     label: 'nav.inventoryGroup',
-    children: [
+    icon: Boxes,
+    sections: [
       {
-        label: 'nav.warehouseTransfer',
-        to: '/inventory/warehouse-transfer',
-        icon: ArrowLeftRight,
+        label: 'nav.inventoryDocsSection',
+        items: [
+          { label: 'nav.allInventoryDocs', to: '/inventory' },
+          { label: 'nav.goodsReceipt', to: '/inventory/goods-receipt' },
+          { label: 'nav.goodsDelivery', to: '/inventory/goods-delivery' },
+          { label: 'nav.stockAdjustment', to: '/inventory/stock-adjustment' },
+          { label: 'nav.inventoryReturn', to: '/inventory/inventory-return' },
+          { label: 'nav.stockWriteOff', to: '/inventory/stock-write-off' },
+        ],
       },
       {
-        label: 'nav.goodsReceipt',
-        to: '/inventory/goods-receipt',
-        icon: ArrowDownToLine,
-      },
-      {
-        label: 'nav.goodsDelivery',
-        to: '/inventory/goods-delivery',
-        icon: ArrowUpFromLine,
-      },
-      {
-        label: 'nav.stockAdjustment',
-        to: '/inventory/stock-adjustment',
-        icon: SlidersHorizontal,
-      },
-      {
-        label: 'nav.stockWriteOff',
-        to: '/inventory/stock-write-off',
-        icon: Trash2,
-      },
-      {
-        label: 'nav.warehouseStocks',
-        to: '/inventory/stocks',
-        icon: Boxes,
-      },
-      {
-        label: 'nav.stocktaking',
-        to: '/inventory/stocktakes',
-        icon: ClipboardCheck,
+        label: 'nav.inventoryTransfersSection',
+        items: [
+          { label: 'nav.openingBalance', to: '/inventory/opening-balance' },
+          { label: 'nav.warehouseStocks', to: '/inventory/stocks' },
+          { label: 'nav.stocktaking', to: '/inventory/stocktakes' },
+        ],
       },
     ],
   },
   {
+    key: 'expenses',
+    label: 'nav.expensesGroup',
+    icon: ReceiptText,
+    sections: [
+      {
+        items: [
+          { label: 'nav.expenseCategories', to: '/expense-categories' },
+          { label: 'nav.expenses', to: '/expenses' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'reports',
+    label: 'nav.reports',
+    to: '/reports',
+    icon: BarChart3,
+  },
+  {
     key: 'admin',
-    label: 'nav.adminGroup',
-    items: [
+    label: 'nav.userManagement',
+    icon: ShieldCheck,
+    sections: [
       {
-        label: 'nav.reports',
-        to: '/reports',
-        icon: BarChart3,
-      },
-      {
-        label: 'nav.users',
-        to: '/users',
-        icon: ShieldCheck,
-      },
-      {
-        label: 'nav.settings',
-        to: '/settings',
-        icon: Settings,
+        items: [
+          { label: 'nav.users', to: '/users' },
+          { label: 'nav.settings', to: '/settings' },
+        ],
       },
     ],
   },

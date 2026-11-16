@@ -34,8 +34,10 @@ class PurchaseOrderService
                 'supplier:id,name,phone,mobile,tax_number',
                 'creator:id,name',
                 'confirmer:id,name',
+                'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',
             ])
-            ->withCount('items');
+            ->withCount('items')
+            ->withSum('items', 'discount_amount');
 
         if (! empty($filters['search'])) {
             $query->search((string) $filters['search']);
@@ -87,6 +89,7 @@ class PurchaseOrderService
                 'items.product',
                 'creator:id,name,email',
                 'confirmer:id,name,email',
+                'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',
             ])
             ->findOrFail($id);
     }
@@ -189,7 +192,6 @@ class PurchaseOrderService
 
             $snapshot = [
                 'name' => $product->name,
-                'sku' => $product->sku,
                 'barcode' => $product->barcode,
                 'unit_name' => 'قطعة',
             ];

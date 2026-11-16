@@ -1,5 +1,13 @@
 <template>
+  <!-- Mobile Backdrop -->
+  <div
+    v-if="sidebarOpen"
+    class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] lg:hidden"
+    @click="closeMobileSidebar"
+  />
+
   <aside
+    ref="sidebarRef"
     :class="[
       sidebarOpen
         ? 'translate-x-0'
@@ -7,216 +15,546 @@
           ? 'translate-x-full lg:translate-x-0'
           : '-translate-x-full lg:translate-x-0',
       isRtl ? 'right-0 border-l' : 'left-0 border-r',
+      isRail ? 'lg:w-[80px] lg:px-2.5' : 'w-[272px] px-3.5',
     ]"
-    class="fixed top-0 z-50 flex h-screen w-72 flex-col overflow-y-hidden border-[var(--border)] bg-[var(--card)] duration-300 ease-linear transition-all lg:static"
+    class="fixed top-0 z-50 flex h-screen shrink-0 flex-col border-[var(--border)] bg-[var(--card)] py-[18px] transition-all duration-200 ease-linear lg:sticky lg:top-0"
   >
-    <!-- Sidebar Header -->
-    <div class="flex items-center justify-between gap-2 border-b border-[var(--border)] px-6 py-5">
-      <div class="flex w-full flex-col gap-2.5">
-        <router-link to="/" class="inline-flex w-fit" :aria-label="$t('common.dashboard')">
-          <BrandLogo size="md" />
-        </router-link>
-        <span class="h-px w-full bg-gradient-to-l from-transparent via-[var(--gold)] to-[var(--gold)]/40"></span>
-      </div>
+    <!-- Brand Header -->
+    <div
+      class="flex items-center gap-3 border-b-2 border-[var(--gold)] pb-4"
+      :class="isRail ? 'lg:justify-center lg:px-0 px-1.5' : 'px-1.5'"
+    >
+      <router-link
+        to="/"
+        class="flex min-w-0 flex-1 items-center gap-3"
+        :class="isRail ? 'lg:justify-center lg:flex-none' : ''"
+        :aria-label="$t('common.dashboard')"
+        @click="onDirectNavigate"
+      >
+        <BrandLogo :show-text="false" size="md" class="shrink-0" />
+        <div class="min-w-0" :class="{ 'lg:hidden': isRail }">
+          <strong class="block truncate text-[19px] font-extrabold leading-[1.2] text-[var(--text)]">
+            {{ isRtl ? brand.name : brand.nameEn }}
+          </strong>
+          <span class="block truncate text-[12.5px] font-normal text-[var(--muted)]">
+            {{ isRtl ? brand.tagline : brand.taglineEn }}
+          </span>
+        </div>
+      </router-link>
 
       <button
         type="button"
-        class="block rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:hidden"
+        class="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:hidden"
         :aria-label="$t('common.close')"
         :title="$t('common.close')"
-        @click="$emit('close-sidebar')"
+        @click="closeMobileSidebar"
       >
         <X class="h-5 w-5" aria-hidden="true" />
       </button>
     </div>
 
-    <!-- Navigation Links -->
-    <div class="no-scrollbar flex flex-col space-y-6 overflow-y-auto p-4 duration-300 ease-linear">
-      <div v-for="group in navigation" :key="group.key">
-        <!-- Plain group -->
-        <template v-if="group.items">
-          <h3
-            v-if="group.label"
-            class="mb-2 px-3 text-sm font-semibold text-[var(--muted)]"
-          >
+    <!-- Quick Menu Search -->
+    <label
+      ref="searchWrapRef"
+      class="mt-3.5 mb-2 flex h-[42px] items-center gap-2 rounded-xl border border-transparent bg-[var(--bg)] px-3 text-[var(--muted)] transition-colors focus-within:border-[var(--crimson)] focus-within:bg-[var(--card)]"
+      :class="isRail ? 'lg:justify-center lg:px-0 lg:cursor-pointer' : ''"
+      @click="onSearchWrapClick"
+    >
+      <Search class="h-5 w-5 shrink-0" aria-hidden="true" />
+      <input
+        ref="searchInputRef"
+        v-model="searchQuery"
+        type="text"
+        autocomplete="off"
+        :placeholder="$t('nav.menuSearchPlaceholder')"
+        class="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)]/80"
+        :class="{ 'lg:hidden': isRail }"
+        @input="onSearchInput"
+        @keydown.enter.prevent="selectFirstSearchResult"
+      />
+      <kbd
+        class="shrink-0 rounded-md border border-[var(--border)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--muted)]"
+        :class="{ 'lg:hidden': isRail }"
+      >
+        Ctrl K
+      </kbd>
+    </label>
+
+    <!-- Primary Category Rail -->
+    <nav
+      ref="navRef"
+      class="no-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto py-1"
+      @mouseleave="scheduleCloseFlyout"
+    >
+      <template v-for="group in navigation" :key="group.key">
+        <!-- Direct Route (e.g., Dashboard, Reports) -->
+        <router-link
+          v-if="!group.sections"
+          :to="group.to"
+          :title="$t(group.label)"
+          class="group flex w-full items-center gap-3 rounded-xl px-3 py-[11px] text-start text-[15px] font-semibold transition-colors"
+          :class="[
+            isRail ? 'lg:justify-center lg:px-0 lg:py-3' : '',
+            isGroupActive(group)
+              ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+              : 'text-[var(--text)] hover:bg-[var(--bg)]',
+          ]"
+          @mouseenter="onDirectHover"
+          @click="onDirectNavigate"
+        >
+          <component
+            :is="group.icon"
+            class="h-5 w-5 shrink-0"
+            aria-hidden="true"
+          />
+          <span class="flex-1 truncate" :class="{ 'lg:hidden': isRail }">
             {{ $t(group.label) }}
-          </h3>
-          <ul class="space-y-1">
-            <li v-for="item in group.items" :key="item.to">
-              <router-link
-                :to="item.to"
-                :aria-current="isItemActive(item) ? 'page' : undefined"
-                :class="[
-                  'group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]',
-                  isItemActive(item) ? activeClass : '',
-                ]"
-              >
-                <component
-                  :is="item.icon"
-                  class="h-[18px] w-[18px] shrink-0"
-                  :class="isItemActive(item) ? 'text-[var(--crimson)]' : 'text-[var(--muted)] group-hover:text-[var(--text)]'"
-                  aria-hidden="true"
-                />
-                <span>{{ $t(item.label) }}</span>
-                <span
-                  v-if="item.badge"
-                  class="ms-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--crimson)] px-1.5 text-sm font-bold leading-none text-white"
-                >
-                  {{ item.badge }}
-                </span>
-              </router-link>
-            </li>
-          </ul>
-        </template>
+          </span>
+        </router-link>
 
-        <!-- Collapsible group -->
-        <template v-else-if="group.children">
-          <button
-            type="button"
-            class="group mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-sm font-semibold text-[var(--muted)] transition-colors hover:text-[var(--text)]"
-            :aria-expanded="isGroupOpen(group.key)"
-            :aria-controls="`nav-group-${group.key}`"
-            @click="toggleGroup(group.key)"
-          >
-            <span class="flex items-center gap-2">
-              <span>{{ $t(group.label) }}</span>
-              <span
-                v-if="isGroupActive(group)"
-                class="h-1.5 w-1.5 rounded-full bg-[var(--crimson)]"
-                aria-hidden="true"
-              ></span>
-            </span>
-            <ChevronDown
-              class="h-4 w-4 transform transition-transform duration-200"
-              :class="{ '-rotate-90 rtl:rotate-90': !isGroupOpen(group.key), 'rotate-0': isGroupOpen(group.key) }"
-              aria-hidden="true"
-            />
-          </button>
-
-          <transition
-            enter-active-class="transition-all duration-200 ease-out"
-            enter-from-class="opacity-0 -translate-y-1"
-            enter-to-class="opacity-100 translate-y-0"
-            leave-active-class="transition-all duration-150 ease-in"
-            leave-from-class="opacity-100 translate-y-0"
-            leave-to-class="opacity-0 -translate-y-1"
-          >
-            <ul v-show="isGroupOpen(group.key)" :id="`nav-group-${group.key}`" class="space-y-1">
-              <li v-for="item in group.children" :key="item.to">
-                <router-link
-                  :to="item.to"
-                  :aria-current="isItemActive(item) ? 'page' : undefined"
-                  :class="[
-                    'group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]',
-                    isItemActive(item) ? activeClass : '',
-                  ]"
-                >
-                  <component
-                    :is="item.icon"
-                    class="h-[18px] w-[18px] shrink-0"
-                    :class="isItemActive(item) ? 'text-[var(--crimson)]' : 'text-[var(--muted)] group-hover:text-[var(--text)]'"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t(item.label) }}</span>
-                <span
-                  v-if="item.badge"
-                  class="ms-auto inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--crimson)] px-1.5 text-sm font-bold leading-none text-white"
-                >
-                  {{ item.badge }}
-                </span>
-                </router-link>
-              </li>
-            </ul>
-          </transition>
-        </template>
-      </div>
-    </div>
+        <!-- Category Trigger with Floating Flyout -->
+        <button
+          v-else
+          type="button"
+          :title="$t(group.label)"
+          :aria-expanded="flyoutOpen && activeFlyoutGroup?.key === group.key"
+          class="group flex w-full items-center gap-3 rounded-xl border-0 px-3 py-[11px] text-start text-[15px] font-semibold transition-colors cursor-pointer"
+          :class="[
+            isRail ? 'lg:justify-center lg:px-0 lg:py-3' : '',
+            isGroupActive(group)
+              ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+              : flyoutOpen && activeFlyoutGroup?.key === group.key
+                ? 'bg-[var(--bg)] text-[var(--text)]'
+                : 'bg-transparent text-[var(--text)] hover:bg-[var(--bg)]',
+          ]"
+          @mouseenter="onGroupHover(group, $event)"
+          @click="onGroupClick(group, $event)"
+        >
+          <component
+            :is="group.icon"
+            class="h-5 w-5 shrink-0"
+            aria-hidden="true"
+          />
+          <span class="flex-1 truncate" :class="{ 'lg:hidden': isRail }">
+            {{ $t(group.label) }}
+          </span>
+          <ChevronLeft
+            class="h-4 w-4 shrink-0 transition-transform"
+            :class="[
+              { 'lg:hidden': isRail },
+              !isRtl ? 'rotate-180' : '',
+              isGroupActive(group) ? 'text-[var(--crimson)]' : 'text-[var(--muted)]',
+            ]"
+            aria-hidden="true"
+          />
+        </button>
+      </template>
+    </nav>
 
     <!-- Sidebar Footer -->
-    <div class="mt-auto border-t border-[var(--border)] p-4 text-center">
-      <p class="text-sm font-medium text-[var(--muted)]">
-        {{ appName }} &middot; v1.0
-      </p>
+    <div
+      class="mt-2 flex items-center gap-2.5 border-t border-[var(--border)] pt-3 text-[13px] text-[var(--muted)]"
+      :class="isRail ? 'lg:justify-center' : ''"
+    >
+      <span class="flex-1 truncate font-medium" :class="{ 'lg:hidden': isRail }">
+        {{ isRtl ? brand.name : brand.nameEn }} &middot; v1.0
+      </span>
+      <button
+        type="button"
+        class="hidden h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] border border-[var(--border)] bg-transparent text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:grid cursor-pointer"
+        :aria-label="isRail ? $t('nav.expandSidebar') : $t('nav.collapseSidebar')"
+        :title="isRail ? $t('nav.expandSidebar') : $t('nav.collapseSidebar')"
+        @click="toggleRail"
+      >
+        <PanelRight class="h-5 w-5" :class="{ 'rotate-180': !isRtl }" aria-hidden="true" />
+      </button>
     </div>
   </aside>
+
+  <!-- Floating Flyout Menu (Teleported to body so overflow-hidden never clips it) -->
+  <Teleport to="body">
+    <div
+      v-if="flyoutOpen"
+      ref="flyoutRef"
+      role="menu"
+      :dir="isRtl ? 'rtl' : 'ltr'"
+      :style="flyoutStyle"
+      class="fixed z-[60] max-h-[calc(100vh-24px)] w-[330px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-[18px] border border-[var(--border)] bg-[var(--card)] p-2.5 shadow-[0_24px_50px_-16px_rgba(0,0,0,0.35)]"
+      @mouseenter="cancelCloseTimer"
+      @mouseleave="scheduleCloseFlyout"
+    >
+      <!-- Search Results Mode -->
+      <template v-if="flyoutMode === 'search'">
+        <div class="flex items-center justify-between px-3 pt-2 pb-2.5 text-base font-extrabold text-[var(--text)]">
+          <span>{{ $t('nav.searchResults') }}</span>
+          <small class="text-[12.5px] font-semibold text-[var(--muted)]">{{ searchResults.length }}</small>
+        </div>
+
+        <div v-if="searchResults.length === 0" class="p-5 text-center text-sm text-[var(--muted)]">
+          {{ $t('nav.noPagesFound') }}
+        </div>
+
+        <template v-else>
+          <router-link
+            v-for="result in searchResults"
+            :key="result.to"
+            :to="result.to"
+            role="menuitem"
+            class="group/item flex w-full items-center gap-2.5 rounded-[10px] px-3 py-[9px] text-start text-[14.5px] font-semibold transition-colors"
+            :class="isItemActive(result)
+              ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+              : 'text-[var(--text)] hover:bg-[var(--bg)]'"
+            @click="onFlyoutLinkClick"
+          >
+            <span
+              class="h-[7px] w-[7px] shrink-0 rounded-full border-2"
+              :class="isItemActive(result)
+                ? 'border-[var(--crimson)] bg-[var(--crimson)]'
+                : 'border-[var(--border)]'"
+            />
+            <span class="truncate">{{ $t(result.label) }}</span>
+            <small class="ms-auto shrink-0 text-xs font-normal text-[var(--muted)]">
+              {{ $t(result.groupLabel) }}
+            </small>
+          </router-link>
+        </template>
+      </template>
+
+      <!-- Group Sections Mode -->
+      <template v-else-if="activeFlyoutGroup">
+        <div class="flex items-center justify-between px-3 pt-2 pb-2.5 text-base font-extrabold text-[var(--text)]">
+          <span>{{ $t(activeFlyoutGroup.label) }}</span>
+          <small class="text-[12.5px] font-semibold text-[var(--muted)]">
+            {{ $t('nav.pagesCount', { count: activeGroupItemsCount }) }}
+          </small>
+        </div>
+
+        <template v-for="(section, sIdx) in activeFlyoutGroup.sections" :key="sIdx">
+          <div
+            v-if="section.label"
+            class="px-3 pt-2.5 pb-1 text-[12.5px] font-semibold text-[var(--muted)]"
+            :class="sIdx > 0 ? 'mt-1.5 border-t border-[var(--border)]' : ''"
+          >
+            {{ $t(section.label) }}
+          </div>
+          <div
+            v-else-if="sIdx > 0"
+            class="my-1.5 border-t border-[var(--border)]"
+          />
+
+          <router-link
+            v-for="item in section.items"
+            :key="item.to"
+            :to="item.to"
+            role="menuitem"
+            class="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-[9px] text-start text-[14.5px] font-semibold transition-colors"
+            :class="isItemActive(item)
+              ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+              : 'text-[var(--text)] hover:bg-[var(--bg)]'"
+            @click="onFlyoutLinkClick"
+          >
+            <span
+              class="h-[7px] w-[7px] shrink-0 rounded-full border-2"
+              :class="isItemActive(item)
+                ? 'border-[var(--crimson)] bg-[var(--crimson)]'
+                : 'border-[var(--border)]'"
+            />
+            <span class="truncate">{{ $t(item.label) }}</span>
+          </router-link>
+        </template>
+      </template>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BrandLogo from '../common/BrandLogo.vue';
-import { ChevronDown, X } from 'lucide-vue-next';
+import { ChevronLeft, PanelRight, Search, X } from 'lucide-vue-next';
 import { navigation } from '../../config/navigation';
 import brand from '../../config/brand';
 
-defineProps({
+const props = defineProps({
   sidebarOpen: {
     type: Boolean,
     default: false,
   },
 });
 
-defineEmits(['close-sidebar']);
-
-const appName = brand.name;
-const activeClass =
-  'bg-[var(--crimson-soft)] text-[var(--crimson)] font-bold hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]';
+const emit = defineEmits(['close-sidebar']);
 
 const route = useRoute();
-const { locale } = useI18n();
+const router = useRouter();
+const { locale, t } = useI18n();
 const isRtl = computed(() => locale.value === 'ar');
 
-/**
- * A nav item is active only on its own page (the dashboard "/" must not
- * match every route, which is what router-link's default active matching does).
- */
-const isItemActive = (item) => {
-  if (item.to === '/' || item.to === '/inventory') {
+const RAIL_STORAGE_KEY = 'sidebar_rail_collapsed';
+const isRail = ref(localStorage.getItem(RAIL_STORAGE_KEY) === 'true');
+
+const sidebarRef = ref(null);
+const navRef = ref(null);
+const searchWrapRef = ref(null);
+const searchInputRef = ref(null);
+const flyoutRef = ref(null);
+
+const searchQuery = ref('');
+const flyoutOpen = ref(false);
+const flyoutMode = ref('group'); // 'group' | 'search'
+const activeFlyoutGroup = ref(null);
+const pinnedKey = ref(null);
+const triggerEl = ref(null);
+const flyoutStyle = ref({});
+
+let closeTimer = null;
+
+function isItemActive(item) {
+  if (!item?.to) return false;
+  if (item.to === '/' || item.to === '/inventory' || item.to === '/pos') {
     return route.path === item.to;
   }
-  return route.path === item.to || route.path.startsWith(`${item.to}/`);
-};
-
-/**
- * Collapsible groups state, persisted per group key.
- */
-const openGroups = reactive({});
-
-const groups = navigation.filter((group) => group.children);
-
-const storageKey = (key) => `sidebar_${key}_open`;
-
-const isGroupOpen = (key) => {
-  if (openGroups[key] === undefined) {
-    const saved = localStorage.getItem(storageKey(key));
-    openGroups[key] = saved === null ? true : saved === 'true';
+  if (item.to === '/invoices' && route.path === '/pos/sales') {
+    return true;
   }
-  return openGroups[key];
-};
+  return route.path === item.to || route.path.startsWith(`${item.to}/`);
+}
 
-const toggleGroup = (key) => {
-  openGroups[key] = !isGroupOpen(key);
-  localStorage.setItem(storageKey(key), String(openGroups[key]));
-};
+function isGroupActive(group) {
+  if (!group.sections) {
+    return isItemActive(group);
+  }
+  return group.sections.some((sec) => sec.items.some((item) => isItemActive(item)));
+}
 
-const isRouteInGroup = (group) =>
-  (group.children || []).some(
-    (item) => route.path === item.to || route.path.startsWith(`${item.to}/`),
-  );
+const activeGroupItemsCount = computed(() => {
+  if (!activeFlyoutGroup.value?.sections) return 0;
+  return activeFlyoutGroup.value.sections.reduce((acc, sec) => acc + sec.items.length, 0);
+});
 
-const isGroupActive = (group) => isRouteInGroup(group);
+const allSearchableItems = computed(() => {
+  const list = [];
+  navigation.forEach((group) => {
+    if (!group.sections) {
+      list.push({
+        label: group.label,
+        to: group.to,
+        groupLabel: group.label,
+      });
+      return;
+    }
+    group.sections.forEach((sec) => {
+      sec.items.forEach((item) => {
+        list.push({
+          label: item.label,
+          to: item.to,
+          groupLabel: group.label,
+        });
+      });
+    });
+  });
+  return list;
+});
+
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return allSearchableItems.value.filter((item) => {
+    const label = t(item.label).toLowerCase();
+    const groupLabel = t(item.groupLabel).toLowerCase();
+    return label.includes(q) || groupLabel.includes(q);
+  });
+});
+
+function cancelCloseTimer() {
+  if (closeTimer) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+}
+
+function scheduleCloseFlyout() {
+  if (pinnedKey.value) return;
+  cancelCloseTimer();
+  closeTimer = setTimeout(() => {
+    closeFlyout();
+  }, 260);
+}
+
+function closeFlyout() {
+  cancelCloseTimer();
+  flyoutOpen.value = false;
+  pinnedKey.value = null;
+  activeFlyoutGroup.value = null;
+  triggerEl.value = null;
+}
+
+function closeMobileSidebar() {
+  closeFlyout();
+  emit('close-sidebar');
+}
+
+async function positionFlyout(el) {
+  if (!el || !sidebarRef.value) return;
+  await nextTick();
+
+  const triggerRect = el.getBoundingClientRect();
+  const sbRect = sidebarRef.value.getBoundingClientRect();
+  const fyEl = flyoutRef.value;
+  const flyoutWidth = fyEl ? fyEl.offsetWidth : 330;
+  const flyoutHeight = fyEl ? fyEl.offsetHeight : 280;
+
+  const top = Math.max(12, Math.min(triggerRect.top - 10, window.innerHeight - flyoutHeight - 12));
+
+  let left;
+  if (isRtl.value) {
+    // Place to the left of the right-hand sidebar; clamp inside viewport for mobile drawers
+    const preferredLeft = sbRect.left - flyoutWidth - 8;
+    left = Math.max(12, Math.min(preferredLeft, window.innerWidth - flyoutWidth - 12));
+  } else {
+    // Place to the right of the left-hand sidebar; clamp inside viewport for mobile drawers
+    const preferredLeft = sbRect.right + 8;
+    left = Math.max(12, Math.min(preferredLeft, window.innerWidth - flyoutWidth - 12));
+  }
+
+  flyoutStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  };
+}
+
+function openGroupFlyout(group, el) {
+  cancelCloseTimer();
+  flyoutMode.value = 'group';
+  activeFlyoutGroup.value = group;
+  triggerEl.value = el;
+  flyoutOpen.value = true;
+  positionFlyout(el);
+}
+
+function onGroupHover(group, event) {
+  cancelCloseTimer();
+  if (pinnedKey.value && pinnedKey.value !== group.key) return;
+  openGroupFlyout(group, event.currentTarget);
+}
+
+function onGroupClick(group, event) {
+  if (pinnedKey.value === group.key && flyoutOpen.value) {
+    closeFlyout();
+    return;
+  }
+  pinnedKey.value = group.key;
+  openGroupFlyout(group, event.currentTarget);
+}
+
+function onDirectHover() {
+  cancelCloseTimer();
+  if (!pinnedKey.value) {
+    closeFlyout();
+  }
+}
+
+function onDirectNavigate() {
+  searchQuery.value = '';
+  closeFlyout();
+  emit('close-sidebar');
+}
+
+function onFlyoutLinkClick() {
+  searchQuery.value = '';
+  closeFlyout();
+  emit('close-sidebar');
+}
+
+function onSearchInput() {
+  const q = searchQuery.value.trim();
+  if (!q) {
+    closeFlyout();
+    return;
+  }
+  flyoutMode.value = 'search';
+  pinnedKey.value = 'search';
+  activeFlyoutGroup.value = null;
+  triggerEl.value = searchWrapRef.value;
+  flyoutOpen.value = true;
+  positionFlyout(searchWrapRef.value);
+}
+
+function selectFirstSearchResult() {
+  if (flyoutMode.value !== 'search' || searchResults.value.length === 0) return;
+  const first = searchResults.value[0];
+  if (first?.to) {
+    router.push(first.to);
+    onFlyoutLinkClick();
+  }
+}
+
+function onSearchWrapClick() {
+  if (isRail.value && window.innerWidth >= 1024) {
+    isRail.value = false;
+    localStorage.setItem(RAIL_STORAGE_KEY, 'false');
+    nextTick(() => searchInputRef.value?.focus());
+  }
+}
+
+function toggleRail() {
+  isRail.value = !isRail.value;
+  localStorage.setItem(RAIL_STORAGE_KEY, String(isRail.value));
+  closeFlyout();
+}
+
+function handleDocumentClick(e) {
+  if (!flyoutOpen.value) return;
+  const target = e.target;
+  if (
+    flyoutRef.value?.contains(target) ||
+    navRef.value?.contains(target) ||
+    searchWrapRef.value?.contains(target)
+  ) {
+    return;
+  }
+  closeFlyout();
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Escape') {
+    closeFlyout();
+    searchInputRef.value?.blur();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (isRail.value && window.innerWidth >= 1024) {
+      isRail.value = false;
+      localStorage.setItem(RAIL_STORAGE_KEY, 'false');
+    }
+    nextTick(() => searchInputRef.value?.focus());
+  }
+}
+
+function handleResize() {
+  if (flyoutOpen.value && triggerEl.value) {
+    positionFlyout(triggerEl.value);
+  }
+}
 
 watch(
   () => route.path,
   () => {
-    groups.forEach((group) => {
-      if (isRouteInGroup(group)) {
-        openGroups[group.key] = true;
-        localStorage.setItem(storageKey(group.key), 'true');
-      }
-    });
-  },
-  { immediate: true },
+    closeFlyout();
+  }
 );
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+  document.addEventListener('keydown', handleKeydown);
+  window.addEventListener('resize', handleResize);
+});
+
+onBeforeUnmount(() => {
+  cancelCloseTimer();
+  document.removeEventListener('click', handleDocumentClick);
+  document.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('resize', handleResize);
+});
 </script>

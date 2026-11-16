@@ -42,6 +42,7 @@ Open a sibling component/store in the SAME app and copy its structure, API layer
 - Handle null/undefined (e.g. `project_status_id`).
 - Mirror siblings' loading, empty and error states; show backend 422 errors the way siblings do.
 - `Late` task status may be computed by the backend; don't recompute it differently in the UI.
+- **Select / Dropdown Option Labels:** NEVER include phone numbers, mobile numbers, IDs, or extra numeric suffixes in `<select>` or `<SearchableSelect>` option labels (e.g. use `label: c.name`, NEVER `` `${c.name} (${c.phone})` ``). Keep select labels clean names only.
 
 ## RTL / i18n
 - Arabic-first. Logical classes (`ms-*`, `me-*`, `text-start`), not `ml-*`/`mr-*`/`text-left`.

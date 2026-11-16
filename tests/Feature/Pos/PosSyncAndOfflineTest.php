@@ -49,7 +49,6 @@ class PosSyncAndOfflineTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'زاد المعاد',
-            'sku' => 'BK-ZAAD-001',
             'barcode' => '6221000000005',
             'selling_price' => 300.00,
             'is_active' => true,

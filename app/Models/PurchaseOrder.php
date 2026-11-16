@@ -87,6 +87,14 @@ class PurchaseOrder extends Model
     }
 
     /**
+     * Purchase invoices created from this purchase order.
+     */
+    public function purchaseInvoices(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoice::class, 'purchase_order_id');
+    }
+
+    /**
      * Scope to draft orders.
      */
     public function scopeDraft(Builder $query): Builder

@@ -1,22 +1,20 @@
 <template>
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs select-none"
-    dir="rtl"
-    @keydown.esc="emit('close')"
+  <AppDrawer
+    :open="!!saleId"
+    size="xl"
+    @close="emit('close')"
   >
-    <div
-      class="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl bg-[var(--card)] shadow-2xl border border-[var(--border)] text-[var(--text)] overflow-hidden"
-    >
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--card)] flex-none">
+    <!-- Drawer Header -->
+    <template #header>
+      <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-[var(--crimson)]/10 text-[var(--crimson)] flex items-center justify-center font-bold">
+          <div class="w-10 h-10 rounded-2xl bg-[var(--bg)] border border-[var(--border)] text-[var(--muted)] flex items-center justify-center font-bold shrink-0">
             <Receipt class="w-5 h-5" />
           </div>
           <div>
-            <div class="flex items-center gap-2">
-              <h3 class="font-extrabold text-lg leading-tight">تفاصيل فاتورة البيع</h3>
-              <span v-if="sale" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bar)] font-black text-[var(--crimson)]">
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="font-extrabold text-base sm:text-lg leading-tight text-[var(--text)]">تفاصيل فاتورة البيع</h3>
+              <span v-if="sale" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]" dir="ltr">
                 {{ sale.invoice_number }}
               </span>
             </div>
@@ -26,64 +24,78 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <!-- Print Button -->
+        <button
+          type="button"
+          class="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+          @click="emit('close')"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+    </template>
+
+    <!-- Sticky Actions & Navigation Tabs -->
+    <template #actions>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-1 overflow-x-auto">
           <button
-            v-if="sale"
+            v-for="tab in tabs"
+            :key="tab.id"
             type="button"
-            class="h-9 px-3 rounded-xl bg-[var(--crimson)] text-white text-xs font-bold hover:bg-[var(--crimson-hover)] transition flex items-center gap-1.5 shadow-sm"
+            :class="[
+              'px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer',
+              activeTab === tab.id
+                ? 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--card)] border border-transparent'
+            ]"
+            @click="activeTab = tab.id"
+          >
+            <component :is="tab.icon" class="w-3.5 h-3.5" />
+            <span>{{ tab.label }}</span>
+            <span
+              v-if="tab.badge !== undefined"
+              class="px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none"
+              :class="activeTab === tab.id ? 'bg-[var(--text)] text-[var(--card)]' : 'bg-[var(--border)] text-[var(--muted)]'"
+            >
+              {{ tab.badge }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Quick Actions -->
+        <div v-if="sale" class="flex items-center gap-2 shrink-0">
+          <button
+            v-if="sale.inventory_documents && sale.inventory_documents.length > 0"
+            type="button"
+            class="h-9 px-3.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:bg-[var(--bg)] transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            @click="goToInventoryDocument(sale.inventory_documents[0])"
+          >
+            <PackageCheck class="w-4 h-4 text-[var(--muted)]" />
+            <span>المستند المخزني ({{ sale.inventory_documents[0].document_number }})</span>
+            <ExternalLink class="w-3 h-3 text-[var(--muted)]" />
+          </button>
+
+          <button
+            type="button"
+            class="h-9 px-3.5 rounded-xl bg-[var(--text)] text-[var(--card)] text-xs font-bold hover:opacity-90 transition flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
             @click="emit('print', sale)"
           >
             <Printer class="w-4 h-4" />
             <span>طباعة الإيصال</span>
           </button>
-
-          <!-- Close Button -->
-          <button
-            type="button"
-            class="w-9 h-9 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition flex items-center justify-center"
-            @click="emit('close')"
-          >
-            <X class="w-5 h-5" />
-          </button>
         </div>
       </div>
+    </template>
 
-      <!-- Navigation Tabs -->
-      <div class="flex items-center gap-1 px-6 pt-3 border-b border-[var(--border)] bg-[var(--card)] flex-none overflow-x-auto">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          :class="[
-            'px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer',
-            activeTab === tab.id
-              ? 'border-[var(--crimson)] text-[var(--crimson)] bg-[var(--crimson)]/5'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'
-          ]"
-          @click="activeTab = tab.id"
-        >
-          <component :is="tab.icon" class="w-4 h-4" />
-          <span>{{ tab.label }}</span>
-          <span
-            v-if="tab.badge !== undefined"
-            class="px-1.5 py-0.2 rounded-full text-[10px] font-black"
-            :class="activeTab === tab.id ? 'bg-[var(--crimson)] text-white' : 'bg-[var(--border)] text-[var(--muted)]'"
-          >
-            {{ tab.badge }}
-          </span>
-        </button>
+    <!-- Drawer Body Content -->
+    <div>
+      <!-- Loading State -->
+      <div v-if="loading" class="py-16 text-center">
+        <div class="inline-block w-8 h-8 border-3 border-[var(--crimson)] border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-xs font-bold text-[var(--muted)] mt-3">جاري تحميل بيانات الفاتورة...</p>
       </div>
 
-      <!-- Modal Body (Scrollable) -->
-      <div class="flex-1 overflow-y-auto p-6 min-h-0 bg-[var(--bg)]/40">
-        <!-- Loading State -->
-        <div v-if="loading" class="py-16 text-center">
-          <div class="inline-block w-8 h-8 border-3 border-[var(--crimson)] border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-xs font-bold text-[var(--muted)] mt-3">جاري تحميل بيانات الفاتورة...</p>
-        </div>
-
-        <div v-else-if="sale" class="space-y-6">
+      <div v-else-if="sale" class="space-y-6">
           <!-- Tab 1: Invoice Information -->
           <div v-if="activeTab === 'info'" class="space-y-4">
             <!-- Key Financial Summary Cards -->
@@ -97,15 +109,15 @@
 
               <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
                 <span class="text-[11px] font-bold text-[var(--muted)] block">إجمالي الخصومات</span>
-                <b class="text-base font-extrabold text-amber-600 mt-1 block">
-                  {{ totalDiscounts.toFixed(2) }} <span class="text-xs font-medium">ج.م</span>
+                <b class="text-base font-extrabold text-[var(--text)] mt-1 block">
+                  {{ totalDiscounts.toFixed(2) }} <span class="text-xs font-medium text-[var(--muted)]">ج.م</span>
                 </b>
               </div>
 
-              <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--crimson)]/30 bg-[var(--crimson)]/5">
-                <span class="text-[11px] font-bold text-[var(--crimson)] block">الصافي النهائي</span>
-                <b class="text-lg font-black text-[var(--crimson)] mt-1 block">
-                  {{ Number(sale.grand_total || 0).toFixed(2) }} <span class="text-xs font-medium">ج.م</span>
+              <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
+                <span class="text-[11px] font-bold text-[var(--muted)] block">الصافي النهائي</span>
+                <b class="text-lg font-black text-[var(--text)] mt-1 block">
+                  {{ Number(sale.grand_total || 0).toFixed(2) }} <span class="text-xs font-medium text-[var(--muted)]">ج.م</span>
                 </b>
               </div>
 
@@ -115,6 +127,59 @@
                   <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
                   <b class="text-sm font-bold text-[var(--text)]">{{ sale.payment_method?.name || 'نقدي' }}</b>
                 </div>
+              </div>
+            </div>
+
+            <!-- Returned Items Alert Banner (if returns exist on this sale) -->
+            <div
+              v-if="sale.returns && sale.returns.length > 0"
+              class="rounded-2xl border border-[var(--border)] bg-[var(--bg)]/60 p-4 space-y-3"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--card)] border border-[var(--border)] text-[var(--muted)]">
+                    <RotateCcw class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-black text-[var(--text)]">
+                      تم تنفيذ {{ sale.returns.length }} {{ sale.returns.length === 1 ? 'مرتجع' : 'مرتجعات' }} على هذه الفاتورة
+                      <span class="ms-1.5 rounded-full px-2 py-0.5 text-[10px] font-extrabold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                        {{ isFullyReturned ? 'مرتجع كامل' : 'مرتجع جزئي' }}
+                      </span>
+                    </h4>
+                    <p class="text-[11px] font-semibold text-[var(--muted)] mt-0.5">
+                      إجمالي المسترد: <b class="font-mono text-[var(--text)]">{{ totalReturned.toFixed(2) }} ج.م</b>
+                      <span class="mx-1.5">·</span>
+                      الصافي بعد المرتجع: <b class="font-mono text-[var(--text)]">{{ netAfterReturns.toFixed(2) }} ج.م</b>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-[11px] font-bold text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer"
+                  @click="activeTab = 'returns'"
+                >
+                  <span>تفاصيل المرتجعات</span>
+                  <ExternalLink class="w-3 h-3 text-[var(--muted)]" />
+                </button>
+              </div>
+
+              <!-- Returned items summary pills -->
+              <div v-if="returnedSummaryItems.length > 0" class="flex flex-wrap gap-2 pt-2 border-t border-[var(--border)]">
+                <span
+                  v-for="rItem in returnedSummaryItems"
+                  :key="rItem.key"
+                  class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-bold text-[var(--text)]"
+                >
+                  <span class="font-bold">{{ rItem.productName }}</span>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--muted)]">
+                    × {{ rItem.quantity }}
+                  </span>
+                  <span class="font-mono text-[10px] text-[var(--muted)]">
+                    ({{ rItem.refundAmount.toFixed(2) }} ج.م)
+                  </span>
+                </span>
               </div>
             </div>
 
@@ -134,7 +199,7 @@
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">خصم الفاتورة العام:</span>
-                  <span class="col-span-2 font-bold text-amber-600">
+                  <span class="col-span-2 font-bold text-[var(--text)]">
                     {{ Number(sale.invoice_discount_amount || 0).toFixed(2) }} ج.م
                     <span v-if="sale.invoice_discount_value > 0" class="text-[11px] text-[var(--muted)]">
                       ({{ sale.invoice_discount_value }} {{ sale.invoice_discount_type === 'percentage' ? '%' : 'ج.م' }})
@@ -143,7 +208,7 @@
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">خصومات الأصناف المباشرة:</span>
-                  <span class="col-span-2 font-bold text-amber-600">
+                  <span class="col-span-2 font-bold text-[var(--text)]">
                     {{ Number(sale.items_discount_total || 0).toFixed(2) }} ج.م
                   </span>
                 </div>
@@ -157,69 +222,203 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Tab 2: Sold Items / Books -->
-          <div v-else-if="activeTab === 'items'" class="space-y-3">
+            <!-- Sold Books / Items Table (Inline with Invoice Details) -->
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-              <table class="w-full text-start text-xs">
-                <thead>
-                  <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
-                    <th class="px-3.5 py-2.5 text-start">#</th>
-                    <th class="px-3.5 py-2.5 text-start">الكتاب / الصنف</th>
-                    <th class="px-3.5 py-2.5 text-start">الكود / الباركود</th>
-                    <th class="px-3.5 py-2.5 text-center">الكمية</th>
-                    <th class="px-3.5 py-2.5 text-end">سعر الوحدة</th>
-                    <th class="px-3.5 py-2.5 text-end">الخصم</th>
-                    <th class="px-3.5 py-2.5 text-end">الإجمالي</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-[var(--border)]">
-                  <tr
-                    v-for="(item, idx) in sale.items"
-                    :key="item.id || idx"
-                    class="hover:bg-[var(--bg)]/50 transition-colors"
-                  >
-                    <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
-                    <td class="px-3.5 py-3">
-                      <b class="text-[var(--text)] block">{{ item.product_snapshot?.name || item.product?.name || 'صنف غير مسمى' }}</b>
-                      <span v-if="item.original_unit_price && item.original_unit_price !== item.unit_price" class="text-[10px] text-amber-600 block">
-                        تعديل سعر يدوي (السعر الأصلي: {{ item.original_unit_price }} ج.م)
-                      </span>
-                    </td>
-                    <td class="px-3.5 py-3 font-mono text-[11px] text-[var(--muted)]">
-                      <div>{{ item.product_snapshot?.sku || item.product?.sku || '—' }}</div>
-                      <div class="text-[10px]">{{ item.product_snapshot?.barcode || item.product?.barcode || '' }}</div>
-                    </td>
-                    <td class="px-3.5 py-3 text-center font-bold text-[var(--text)] font-mono">
-                      {{ Number(item.quantity || 0) }}
-                    </td>
-                    <td class="px-3.5 py-3 text-end font-mono">
-                      {{ Number(item.unit_price || 0).toFixed(2) }}
-                    </td>
-                    <td class="px-3.5 py-3 text-end font-mono text-amber-600">
-                      {{ Number(item.discount_amount || 0) > 0 ? Number(item.discount_amount).toFixed(2) : '—' }}
-                    </td>
-                    <td class="px-3.5 py-3 text-end font-mono font-black text-[var(--crimson)]">
-                      {{ Number(item.total || 0).toFixed(2) }} ج.م
-                    </td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="bg-[var(--bar)]/50 font-bold border-t border-[var(--border)]">
-                    <td colspan="3" class="px-3.5 py-3 text-start">إجمالي الأصناف: {{ sale.items?.length || 0 }} صنف</td>
-                    <td class="px-3.5 py-3 text-center font-mono">{{ totalQuantity }} قطعة</td>
-                    <td colspan="2" class="px-3.5 py-3 text-end text-[var(--muted)]">المجموع:</td>
-                    <td class="px-3.5 py-3 text-end font-mono font-black text-[var(--text)]">
-                      {{ Number(sale.subtotal || 0).toFixed(2) }} ج.م
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+              <div class="flex items-center justify-between px-4 py-3 bg-[var(--bar)]/50 border-b border-[var(--border)]">
+                <div class="flex items-center gap-2">
+                  <BookOpen class="w-4 h-4 text-[var(--muted)]" />
+                  <h4 class="text-xs font-black text-[var(--text)]">الكتب والأصناف المباعة</h4>
+                </div>
+                <span class="rounded-full bg-[var(--card)] border border-[var(--border)] px-2 py-0.5 text-[11px] font-extrabold text-[var(--muted)]">
+                  {{ sale.items?.length || 0 }} صنف
+                </span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-start text-xs">
+                  <thead>
+                    <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
+                      <th class="px-3.5 py-2.5 text-start">#</th>
+                      <th class="px-3.5 py-2.5 text-start">الكتاب / الصنف</th>
+                      <th class="px-3.5 py-2.5 text-start">الباركود</th>
+                      <th class="px-3.5 py-2.5 text-center">الكمية</th>
+                      <th class="px-3.5 py-2.5 text-end">سعر الوحدة</th>
+                      <th class="px-3.5 py-2.5 text-end">الخصم</th>
+                      <th class="px-3.5 py-2.5 text-end">الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[var(--border)]">
+                    <tr
+                      v-for="(item, idx) in sale.items"
+                      :key="item.id || idx"
+                      class="hover:bg-[var(--bg)]/50 transition-colors"
+                    >
+                      <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
+                      <td class="px-3.5 py-3">
+                        <b class="text-[var(--text)] block">{{ item.product_snapshot?.name || item.product?.name || 'صنف غير مسمى' }}</b>
+                        <span v-if="item.original_unit_price && item.original_unit_price !== item.unit_price" class="text-[10px] text-[var(--muted)] block">
+                          تعديل سعر يدوي (السعر الأصلي: {{ item.original_unit_price }} ج.م)
+                        </span>
+                        <span
+                          v-if="returnedQtyBySaleItemId[item.id] > 0"
+                          class="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400"
+                        >
+                          <RotateCcw class="w-2.5 h-2.5" />
+                          <span>مرتجع: {{ returnedQtyBySaleItemId[item.id] }} من {{ Number(item.quantity || 0) }}</span>
+                        </span>
+                      </td>
+                      <td class="px-3.5 py-3 font-mono text-[11px] text-[var(--muted)]">
+                        <div>{{ item.product_snapshot?.barcode || item.product?.barcode || '—' }}</div>
+                      </td>
+                      <td class="px-3.5 py-3 text-center font-bold text-[var(--text)] font-mono">
+                        {{ Number(item.quantity || 0) }}
+                      </td>
+                      <td class="px-3.5 py-3 text-end font-mono">
+                        {{ Number(item.unit_price || 0).toFixed(2) }}
+                      </td>
+                      <td class="px-3.5 py-3 text-end font-mono text-[var(--muted)]">
+                        {{ Number(item.discount_amount || 0) > 0 ? Number(item.discount_amount).toFixed(2) : '—' }}
+                      </td>
+                      <td class="px-3.5 py-3 text-end font-mono font-black text-[var(--text)]">
+                        {{ Number(item.total || 0).toFixed(2) }} ج.م
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr class="bg-[var(--bar)]/50 font-bold border-t border-[var(--border)]">
+                      <td colspan="3" class="px-3.5 py-3 text-start">إجمالي الأصناف: {{ sale.items?.length || 0 }} صنف</td>
+                      <td class="px-3.5 py-3 text-center font-mono">{{ totalQuantity }} قطعة</td>
+                      <td colspan="2" class="px-3.5 py-3 text-end text-[var(--muted)]">المجموع:</td>
+                      <td class="px-3.5 py-3 text-end font-mono font-black text-[var(--text)]">
+                        {{ Number(sale.subtotal || 0).toFixed(2) }} ج.م
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
 
-          <!-- Tab 3: Customer -->
+          <!-- Tab 2: Returns on this Sale -->
+          <div v-else-if="activeTab === 'returns'" class="space-y-4">
+            <div v-if="sale.returns && sale.returns.length > 0" class="space-y-4">
+              <!-- Summary strip -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
+                  <span class="text-[11px] font-bold text-[var(--muted)] block">عدد فواتير المرتجع</span>
+                  <b class="mt-1 block font-mono text-base font-black text-[var(--text)]">{{ sale.returns.length }}</b>
+                </div>
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
+                  <span class="text-[11px] font-bold text-[var(--muted)] block">إجمالي المبالغ المستردة</span>
+                  <b class="mt-1 block font-mono text-base font-black text-[var(--text)]">
+                    {{ totalReturned.toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                  </b>
+                </div>
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
+                  <span class="text-[11px] font-bold text-[var(--muted)] block">صافي الفاتورة بعد المرتجعات</span>
+                  <b class="mt-1 block font-mono text-base font-black text-[var(--text)]">
+                    {{ netAfterReturns.toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                  </b>
+                </div>
+              </div>
+
+              <!-- Each Return Card -->
+              <div
+                v-for="ret in sale.returns"
+                :key="ret.id"
+                class="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bar)]/60 px-4 py-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--muted)]">
+                      <RotateCcw class="w-4 h-4" />
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        class="font-mono text-xs font-black text-[var(--text)] hover:underline flex items-center gap-1 cursor-pointer"
+                        @click="emit('open-return', ret.id)"
+                      >
+                        <span>{{ ret.return_number }}</span>
+                        <ExternalLink class="w-3 h-3 text-[var(--muted)]" />
+                      </button>
+                      <p class="text-[11px] text-[var(--muted)]">
+                        {{ formatDateTime(ret.returned_at) }}
+                        <span v-if="ret.creator?.name"> · بواسطة: {{ ret.creator.name }}</span>
+                        <span v-if="ret.payment_method?.name"> · {{ ret.payment_method.name }}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono text-xs font-black text-[var(--text)]">
+                      -{{ Number(ret.total_returned || 0).toFixed(2) }} ج.م
+                    </span>
+                    <button
+                      type="button"
+                      class="h-8 px-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[11px] font-bold text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer flex items-center gap-1"
+                      @click="emit('open-return', ret.id)"
+                    >
+                      <ExternalLink class="w-3 h-3 text-[var(--muted)]" />
+                      <span>عرض فاتورة المرتجع</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="ret.notes" class="px-4 py-2 text-xs text-[var(--muted)] bg-[var(--bg)]/40 border-b border-[var(--border)]">
+                  ملاحظات: {{ ret.notes }}
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-start">
+                    <thead>
+                      <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[10px] font-bold text-[var(--muted)]">
+                        <th class="px-4 py-2 text-start">الكتاب / الصنف المرتجع</th>
+                        <th class="px-4 py-2 text-center">الكمية المرتجعة</th>
+                        <th class="px-4 py-2 text-end">سعر الوحدة</th>
+                        <th class="px-4 py-2 text-end">الخصم الموزع</th>
+                        <th class="px-4 py-2 text-end">المبلغ المسترد</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[var(--border)]">
+                      <tr v-for="rItem in ret.items" :key="rItem.id" class="hover:bg-[var(--bg)]/40">
+                        <td class="px-4 py-2.5 font-bold text-[var(--text)]">
+                          {{ rItem.product?.name || `منتج #${rItem.product_id}` }}
+                          <span v-if="rItem.product?.barcode" class="block font-mono text-[10px] font-normal text-[var(--muted)]">
+                            {{ rItem.product.barcode }}
+                          </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-center font-mono font-extrabold text-[var(--text)]">
+                          {{ Number(rItem.quantity || 0) }}
+                        </td>
+                        <td class="px-4 py-2.5 text-end font-mono text-[var(--muted)]">
+                          {{ Number(rItem.unit_price || 0).toFixed(2) }} ج.م
+                        </td>
+                        <td class="px-4 py-2.5 text-end font-mono text-[var(--muted)]">
+                          -{{ Number(rItem.allocated_discount || 0).toFixed(2) }} ج.م
+                        </td>
+                        <td class="px-4 py-2.5 text-end font-mono font-black text-[var(--text)]">
+                          {{ Number(rItem.refund_amount || 0).toFixed(2) }} ج.م
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-8 text-center">
+              <div class="w-14 h-14 mx-auto rounded-full bg-[var(--bar)] flex items-center justify-center text-[var(--muted)] mb-3">
+                <RotateCcw class="w-7 h-7" />
+              </div>
+              <h4 class="font-bold text-sm text-[var(--text)]">لا توجد مرتجعات مسجلة</h4>
+              <p class="text-xs text-[var(--muted)] max-w-md mx-auto mt-1">
+                لم يتم تسجيل أي مرتجعات على هذه الفاتورة حتى الآن.
+              </p>
+            </div>
+          </div>
+
+          <!-- Tab 4: Customer -->
           <div v-else-if="activeTab === 'customer'" class="space-y-4">
             <div v-if="sale.customer" class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               <div class="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
@@ -271,7 +470,7 @@
               <!-- Creator User -->
               <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
                 <div class="flex items-center gap-2.5 pb-3 border-b border-[var(--border)]">
-                  <UserCheck class="w-5 h-5 text-[var(--crimson)]" />
+                  <UserCheck class="w-5 h-5 text-[var(--muted)]" />
                   <h4 class="font-bold text-xs">الكاشير / منشئ الفاتورة</h4>
                 </div>
                 <div class="mt-3 space-y-2 text-xs">
@@ -294,7 +493,7 @@
               <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
                 <div class="flex items-center justify-between pb-3 border-b border-[var(--border)]">
                   <div class="flex items-center gap-2.5">
-                    <Clock class="w-5 h-5 text-amber-600" />
+                    <Clock class="w-5 h-5 text-[var(--muted)]" />
                     <h4 class="font-bold text-xs">الوردية المرتبطة</h4>
                   </div>
                   <span
@@ -309,7 +508,7 @@
                 <div v-if="sale.shift" class="mt-3 space-y-2 text-xs">
                   <div class="flex justify-between">
                     <span class="text-[var(--muted)]">رقم الوردية:</span>
-                    <b class="font-mono text-[var(--crimson)]">{{ sale.shift.shift_number }}</b>
+                    <b class="font-mono text-[var(--text)]">{{ sale.shift.shift_number }}</b>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-[var(--muted)]">فتح الوردية:</span>
@@ -357,7 +556,7 @@
                     <div>
                       <div class="flex items-center gap-2">
                         <b class="text-sm font-bold text-[var(--text)]">{{ docTypeLabel(invDoc.document_type) }}</b>
-                        <span class="font-mono text-xs text-[var(--crimson)] font-black px-2 py-0.5 rounded bg-[var(--bar)]">
+                        <span class="font-mono text-xs text-[var(--text)] font-black px-2 py-0.5 rounded bg-[var(--bar)]">
                           {{ invDoc.document_number }}
                         </span>
                       </div>
@@ -376,10 +575,10 @@
 
                     <button
                       type="button"
-                      class="h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--bar)] hover:bg-[var(--border)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                      @click="emit('open-inventory-document', invDoc.id)"
+                      class="h-8 px-3 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--bg)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      @click="goToInventoryDocument(invDoc)"
                     >
-                      <ExternalLink class="w-3.5 h-3.5" />
+                      <ExternalLink class="w-3.5 h-3.5 text-[var(--muted)]" />
                       <span>عرض المستند الكامل</span>
                     </button>
                   </div>
@@ -407,14 +606,14 @@
                     <thead>
                       <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
                         <th class="px-3 py-2 text-start">الصنف</th>
-                        <th class="px-3 py-2 text-start">الكود (SKU)</th>
+                        <th class="px-3 py-2 text-start">الباركود</th>
                         <th class="px-3 py-2 text-center">الكمية المصروفة</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-[var(--border)]">
                       <tr v-for="item in invDoc.items" :key="item.id" class="hover:bg-[var(--bg)]/50">
                         <td class="px-3 py-2 font-medium">{{ item.product?.name || 'صنف' }}</td>
-                        <td class="px-3 py-2 font-mono text-[var(--muted)]">{{ item.product?.sku || '—' }}</td>
+                        <td class="px-3 py-2 font-mono text-[var(--muted)]">{{ item.product?.barcode || '—' }}</td>
                         <td class="px-3 py-2 text-center font-bold font-mono">{{ Number(item.quantity) }}</td>
                       </tr>
                     </tbody>
@@ -437,26 +636,28 @@
         </div>
       </div>
 
-      <!-- Modal Footer -->
-      <div class="flex items-center justify-between px-6 py-3.5 border-t border-[var(--border)] bg-[var(--card)] flex-none">
+    <!-- Drawer Footer -->
+    <template #footer>
+      <div class="flex items-center justify-between gap-3">
         <span class="text-xs text-[var(--muted)]">
           مكتبة القاضي · نظام إدارة نقاط البيع والمخازن
         </span>
 
         <button
           type="button"
-          class="h-9 px-4 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:bg-[var(--bg)] transition"
+          class="h-9 px-4 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:bg-[var(--bg)] transition cursor-pointer"
           @click="emit('close')"
         >
           إغلاق
         </button>
       </div>
-    </div>
-  </div>
+    </template>
+  </AppDrawer>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   Receipt,
   Printer,
@@ -469,10 +670,15 @@ import {
   Clock,
   Layers,
   Package,
+  PackageCheck,
   ExternalLink,
   FileQuestion,
+  RotateCcw,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import AppDrawer from '../../../components/ui/AppDrawer.vue';
+
+const router = useRouter();
 
 const props = defineProps({
   saleId: {
@@ -483,21 +689,74 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  initialTab: {
+    type: String,
+    default: 'info',
+  },
 });
 
-const emit = defineEmits(['close', 'print', 'open-shift', 'open-inventory-document']);
+const emit = defineEmits(['close', 'print', 'open-shift', 'open-return', 'open-inventory-document']);
 
 const sale = ref(props.initialSale);
 const loading = ref(!props.initialSale);
-const activeTab = ref('info');
+const activeTab = ref(props.initialTab || 'info');
 
 const tabs = computed(() => [
   { id: 'info', label: 'بيانات الفاتورة', icon: FileText },
-  { id: 'items', label: 'الكتب والأصناف المباعة', icon: BookOpen, badge: sale.value?.items?.length },
+  { id: 'returns', label: 'المرتجعات', icon: RotateCcw, badge: sale.value?.returns?.length || 0 },
   { id: 'customer', label: 'العميل', icon: User },
   { id: 'user', label: 'الكاشير والوردية', icon: Clock },
   { id: 'inventory', label: 'المستند المخزني', icon: Package, badge: sale.value?.inventory_documents?.length },
 ]);
+
+const totalReturned = computed(() => {
+  if (!sale.value?.returns) return 0;
+  return sale.value.returns.reduce((sum, r) => sum + Number(r.total_returned || 0), 0);
+});
+
+const netAfterReturns = computed(() => {
+  const grandTotal = Number(sale.value?.grand_total || 0);
+  return Math.max(0, grandTotal - totalReturned.value);
+});
+
+const isFullyReturned = computed(() => {
+  const grandTotal = Number(sale.value?.grand_total || 0);
+  return totalReturned.value > 0 && totalReturned.value >= grandTotal - 0.01;
+});
+
+const returnedQtyBySaleItemId = computed(() => {
+  const map = {};
+  if (!sale.value?.returns) return map;
+  for (const ret of sale.value.returns) {
+    for (const item of ret.items || []) {
+      const key = item.pos_sale_item_id;
+      if (key) {
+        map[key] = (map[key] || 0) + Number(item.quantity || 0);
+      }
+    }
+  }
+  return map;
+});
+
+const returnedSummaryItems = computed(() => {
+  const grouped = new Map();
+  if (!sale.value?.returns) return [];
+  for (const ret of sale.value.returns) {
+    for (const item of ret.items || []) {
+      const key = String(item.product_id || item.pos_sale_item_id || item.id);
+      const existing = grouped.get(key) || {
+        key,
+        productName: item.product?.name || `منتج #${item.product_id}`,
+        quantity: 0,
+        refundAmount: 0,
+      };
+      existing.quantity += Number(item.quantity || 0);
+      existing.refundAmount += Number(item.refund_amount || 0);
+      grouped.set(key, existing);
+    }
+  }
+  return Array.from(grouped.values());
+});
 
 const totalDiscounts = computed(() => {
   if (!sale.value) return 0;
@@ -525,11 +784,32 @@ async function fetchSaleDetails() {
   }
 }
 
+function goToInventoryDocument(doc) {
+  if (!doc?.id) return;
+  const typeSlugMap = {
+    goods_delivery: 'goods-delivery',
+    goods_receipt: 'goods-receipt',
+    warehouse_transfer: 'warehouse-transfer',
+    stock_adjustment: 'stock-adjustment',
+    inventory_return: 'inventory-return',
+    stock_write_off: 'stock-write-off',
+    opening_balance: 'opening-balance',
+  };
+  const slug = typeSlugMap[doc.document_type];
+  emit('close');
+  router.push({
+    path: slug ? `/inventory/${slug}` : '/inventory',
+    query: {
+      search: doc.document_number || undefined,
+      open: String(doc.id),
+    },
+  });
+}
+
 function docTypeLabel(type) {
   const map = {
     goods_delivery: 'إذن تسليم مخزني',
     goods_receipt: 'إذن استلام مخزني',
-    stock_issue: 'إذن صرف داخلي',
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     stock_write_off: 'إذن إهلاك',
@@ -558,6 +838,15 @@ function formatDate(val) {
     day: 'numeric',
   });
 }
+
+watch(() => props.saleId, () => {
+  activeTab.value = props.initialTab || 'info';
+  fetchSaleDetails();
+});
+
+watch(() => props.initialTab, (val) => {
+  if (val) activeTab.value = val;
+});
 
 onMounted(() => {
   fetchSaleDetails();

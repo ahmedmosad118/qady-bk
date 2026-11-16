@@ -140,4 +140,20 @@ class Contact extends Model
     {
         return $this->hasMany(PurchaseOrder::class, 'supplier_id');
     }
+
+    /**
+     * Purchase invoices issued by this supplier.
+     */
+    public function purchaseInvoices(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoice::class, 'supplier_id');
+    }
+
+    /**
+     * General expenses optionally linked to this contact.
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class, 'contact_id');
+    }
 }

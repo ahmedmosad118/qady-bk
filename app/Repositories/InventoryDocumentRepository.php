@@ -79,7 +79,7 @@ class InventoryDocumentRepository
             'canceller:id,name,email',
             'reverser:id,name,email',
             'referenceable',
-            'items.product:id,name,sku,barcode,purchase_price,selling_price',
+            'items.product:id,name,barcode,purchase_price,selling_price',
         ]);
     }
 

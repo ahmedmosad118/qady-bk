@@ -46,7 +46,7 @@ class PosSaleController extends Controller
     }
 
     /**
-     * Search and paginate products for POS catalog lookup (by name, sku, or barcode).
+     * Search and paginate products for POS catalog lookup (by name or barcode).
      */
     public function products(Request $request): JsonResponse
     {

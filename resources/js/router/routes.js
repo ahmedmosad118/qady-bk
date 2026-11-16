@@ -16,8 +16,13 @@ import WarehouseEditView from '../views/inventory/WarehouseEditView.vue';
 import StocktakesView from '../views/inventory/StocktakesView.vue';
 import PosView from '../views/pos/PosView.vue';
 import PosSalesView from '../views/pos/management/PosSalesView.vue';
+import PosReturnsView from '../views/pos/management/PosReturnsView.vue';
 import PosShiftsView from '../views/pos/management/PosShiftsView.vue';
 import PurchaseOrdersView from '../views/purchases/PurchaseOrdersView.vue';
+import PurchaseInvoicesView from '../views/purchases/PurchaseInvoicesView.vue';
+import ExpensesView from '../views/expenses/ExpensesView.vue';
+import ExpenseCategoriesView from '../views/expenses/ExpenseCategoriesView.vue';
+import SettingsView from '../views/settings/SettingsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
 /**
@@ -98,6 +103,12 @@ const routes = [
         meta: { titleKey: 'nav.purchaseOrders' },
       },
       {
+        path: 'purchase-invoices',
+        name: 'purchase-invoices',
+        component: PurchaseInvoicesView,
+        meta: { titleKey: 'nav.purchaseInvoices' },
+      },
+      {
         path: 'invoices',
         name: 'invoices',
         component: PosSalesView,
@@ -108,6 +119,12 @@ const routes = [
         name: 'pos.sales',
         component: PosSalesView,
         meta: { titleKey: 'nav.invoices' },
+      },
+      {
+        path: 'pos/returns',
+        name: 'pos.returns',
+        component: PosReturnsView,
+        meta: { titleKey: 'nav.posReturns' },
       },
       {
         path: 'pos/shifts',
@@ -140,6 +157,10 @@ const routes = [
         meta: { titleKey: 'nav.stocktaking' },
       },
       {
+        path: 'inventory/stock-issue',
+        redirect: '/inventory',
+      },
+      {
         path: 'inventory/:type',
         name: 'inventory.by-type',
         component: InventoryDocumentsView,
@@ -158,9 +179,21 @@ const routes = [
         meta: { titleKey: 'nav.reports' },
       },
       {
+        path: 'expenses',
+        name: 'expenses',
+        component: ExpensesView,
+        meta: { titleKey: 'nav.expenses' },
+      },
+      {
+        path: 'expense-categories',
+        name: 'expense-categories',
+        component: ExpenseCategoriesView,
+        meta: { titleKey: 'nav.expenseCategories' },
+      },
+      {
         path: 'settings',
         name: 'settings',
-        component: ComingSoonView,
+        component: SettingsView,
         meta: { titleKey: 'nav.settings' },
       },
     ],

@@ -67,25 +67,21 @@ class StocktakeTest extends TestCase
 
         $this->activeProduct1 = Product::factory()->create([
             'name' => 'صحيح البخاري',
-            'sku' => 'BK-ISL-001',
             'is_active' => true,
         ]);
 
         $this->activeProduct2 = Product::factory()->create([
             'name' => 'رياض الصالحين',
-            'sku' => 'BK-ISL-002',
             'is_active' => true,
         ]);
 
         $this->inactiveProductWithStock = Product::factory()->create([
             'name' => 'كتاب نادر غير نشط ذو رصيد',
-            'sku' => 'BK-RAR-001',
             'is_active' => false,
         ]);
 
         $this->inactiveProductZeroStock = Product::factory()->create([
             'name' => 'كتاب ملغي بدون رصيد',
-            'sku' => 'BK-ARC-002',
             'is_active' => false,
         ]);
 

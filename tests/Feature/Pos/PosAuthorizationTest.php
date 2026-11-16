@@ -50,7 +50,6 @@ class PosAuthorizationTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'مختصر صحيح مسلم',
-            'sku' => 'BK-MUSLIM-001',
             'selling_price' => 100.00,
             'is_active' => true,
         ]);

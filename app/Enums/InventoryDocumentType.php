@@ -8,7 +8,6 @@ enum InventoryDocumentType: string
 {
     case GOODS_RECEIPT = 'goods_receipt';
     case GOODS_DELIVERY = 'goods_delivery';
-    case STOCK_ISSUE = 'stock_issue';
     case WAREHOUSE_TRANSFER = 'warehouse_transfer';
     case STOCK_ADJUSTMENT = 'stock_adjustment';
     case INVENTORY_RETURN = 'inventory_return';

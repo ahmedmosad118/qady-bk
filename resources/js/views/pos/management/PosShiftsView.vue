@@ -1,18 +1,11 @@
 <template>
   <div class="space-y-6" dir="rtl">
     <!-- Page Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">نقاط البيع</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          الورديات
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">
-          متابعة ورديات الكاشير، تدقيق أرصدة الدرج، فحص الحركات النقدية والفوارق المالية عند الإغلاق.
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader
+      title="الورديات"
+      subtitle="متابعة ورديات الكاشير، تدقيق أرصدة الدرج، فحص الحركات النقدية والفوارق المالية عند الإغلاق."
+    >
+      <template #actions>
         <router-link
           to="/invoices"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
@@ -28,79 +21,58 @@
           <Store class="h-[18px] w-[18px]" />
           <span>شاشة الكاشير (POS)</span>
         </router-link>
-      </div>
-    </div>
-
-    <!-- Filters Bar -->
-    <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- Status Filter -->
-        <div>
-          <label class="block text-xs font-bold text-[var(--muted)] mb-1">حالة الوردية</label>
-          <select
-            v-model="filters.status"
-            class="w-full h-10 px-3 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-hidden focus:border-[var(--crimson)]"
-            @change="fetchShifts(1)"
-          >
-            <option value="">كل الورديات</option>
-            <option value="open">ورديات مفتوحة حالياً</option>
-            <option value="closed">ورديات مغلقة ومجردة</option>
-          </select>
-        </div>
-
-        <!-- Search Input -->
-        <div>
-          <label class="block text-xs font-bold text-[var(--muted)] mb-1">بحث برقم الوردية أو المستخدم</label>
-          <div class="relative">
-            <Search class="w-4 h-4 text-[var(--muted)] absolute top-1/2 -translate-y-1/2 right-3 pointer-events-none" />
-            <input
-              v-model="filters.search"
-              type="text"
-              placeholder="SH-..., اسم الكاشير..."
-              class="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-hidden focus:border-[var(--crimson)]"
-              @input="onSearchDebounced"
-            />
-          </div>
-        </div>
-
-        <!-- Date From -->
-        <div>
-          <label class="block text-xs font-bold text-[var(--muted)] mb-1">من تاريخ الفتح</label>
-          <input
-            v-model="filters.date_from"
-            type="date"
-            class="w-full h-10 px-3 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-hidden focus:border-[var(--crimson)]"
-            @change="fetchShifts(1)"
-          />
-        </div>
-
-        <!-- Date To -->
-        <div>
-          <label class="block text-xs font-bold text-[var(--muted)] mb-1">إلى تاريخ الفتح</label>
-          <input
-            v-model="filters.date_to"
-            type="date"
-            class="w-full h-10 px-3 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-hidden focus:border-[var(--crimson)]"
-            @change="fetchShifts(1)"
-          />
-        </div>
-      </div>
-
-      <!-- Active Filters Reset -->
-      <div v-if="hasActiveFilters" class="mt-3 pt-3 border-t border-[var(--border)] flex justify-end">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--crimson)] transition cursor-pointer"
-          @click="resetFilters"
-        >
-          <RotateCcw class="w-3.5 h-3.5" />
-          <span>إعادة تعيين الفلاتر</span>
-        </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Data Table Container -->
     <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs overflow-hidden">
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="filters.search"
+        search-placeholder="SH-..., اسم الكاشير..."
+        :active-filters-count="activeFiltersCount"
+        @search="onSearchDebounced"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
+          <!-- Status Filter -->
+          <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">حالة الوردية</label>
+            <select
+              v-model="filters.status"
+              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+              @change="fetchShifts(1)"
+            >
+              <option value="">كل الورديات</option>
+              <option value="open">ورديات مفتوحة حالياً</option>
+              <option value="closed">ورديات مغلقة ومجردة</option>
+            </select>
+          </div>
+
+          <!-- Date Range -->
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('common.dateFrom') }}</label>
+              <input
+                v-model="filters.date_from"
+                type="date"
+                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                @change="fetchShifts(1)"
+              />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('common.dateTo') }}</label>
+              <input
+                v-model="filters.date_to"
+                type="date"
+                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                @change="fetchShifts(1)"
+              />
+            </div>
+          </div>
+        </div>
+      </FilterToolbar>
       <div class="overflow-x-auto">
         <table class="w-full text-right text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
@@ -274,13 +246,25 @@
       :shift-id="selectedShiftId"
       @close="selectedShiftId = null"
       @open-sale="handleOpenSaleFromShift"
+      @print="openPrintModal"
     />
 
     <!-- Sale Detail Modal (Cross-linked) -->
     <PosSaleDetailModal
       v-if="selectedSaleId"
       :sale-id="selectedSaleId"
+      :initial-tab="selectedSaleTab"
       @close="selectedSaleId = null"
+      @print="openPrintModal"
+    />
+
+    <!-- Thermal Receipt Modal (Reused for reprints from shift sales) -->
+    <ReceiptModal
+      v-if="selectedSaleForReceipt"
+      :sale="selectedSaleForReceipt"
+      :is-reprint="true"
+      @new-sale="selectedSaleForReceipt = null"
+      @close="selectedSaleForReceipt = null"
     />
   </div>
 </template>
@@ -291,18 +275,19 @@ import {
   Clock,
   Store,
   Receipt,
-  Search,
   User,
   UserCheck,
   Eye,
   ChevronRight,
   ChevronLeft,
   Loader2,
-  RotateCcw,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../../components/ui/PageHeader.vue';
 import PosShiftDetailModal from './PosShiftDetailModal.vue';
 import PosSaleDetailModal from './PosSaleDetailModal.vue';
+import ReceiptModal from '../modals/ReceiptModal.vue';
 
 const shifts = ref([]);
 const loading = ref(true);
@@ -323,10 +308,18 @@ const meta = reactive({
 
 const selectedShiftId = ref(null);
 const selectedSaleId = ref(null);
+const selectedSaleTab = ref('info');
+const selectedSaleForReceipt = ref(null);
 
-const hasActiveFilters = computed(() => {
-  return !!(filters.status || filters.search.trim() || filters.date_from || filters.date_to);
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (filters.status) count++;
+  if (filters.date_from) count++;
+  if (filters.date_to) count++;
+  return count;
 });
+
+const hasActiveFilters = computed(() => Boolean(filters.search.trim()) || activeFiltersCount.value > 0);
 
 function resetFilters() {
   filters.status = '';
@@ -374,8 +367,24 @@ function openShiftDetails(shiftId) {
   selectedShiftId.value = shiftId;
 }
 
-function handleOpenSaleFromShift(saleId) {
+function handleOpenSaleFromShift(saleId, tab = 'info') {
+  selectedSaleTab.value = tab;
   selectedSaleId.value = saleId;
+}
+
+async function openPrintModal(sale) {
+  if (!sale.items || !sale.payment_method) {
+    try {
+      const res = await api.get(`/pos/sales/${sale.id}`);
+      if (res.data?.success) {
+        selectedSaleForReceipt.value = res.data.data;
+        return;
+      }
+    } catch {
+      // fallback
+    }
+  }
+  selectedSaleForReceipt.value = sale;
 }
 
 // Difference logic:

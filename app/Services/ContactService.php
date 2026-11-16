@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ContactType;
 use App\Models\Contact;
 use App\Models\ContactAddress;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ class ContactService
      */
     public function createContact(array $data): Contact
     {
+        $data = $this->normalizeIndividualCustomerData($data);
+
         return DB::transaction(function () use ($data) {
             $contact = new Contact();
             $contact->fill($data);
@@ -38,11 +41,42 @@ class ContactService
      */
     public function updateContact(Contact $contact, array $data): Contact
     {
+        $data = $this->normalizeIndividualCustomerData($data, $contact);
+
         return DB::transaction(function () use ($contact, $data) {
             $contact->update($data);
 
             return $contact->fresh(['addresses']);
         });
+    }
+
+    /**
+     * Clear company-only and tax/register fields when a contact is an individual customer only.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function normalizeIndividualCustomerData(array $data, ?Contact $existing = null): array
+    {
+        $rawType = $data['type'] ?? $existing?->type ?? ContactType::INDIVIDUAL->value;
+        $type = $rawType instanceof ContactType ? $rawType->value : (string) $rawType;
+
+        $isCustomer = array_key_exists('is_customer', $data)
+            ? (bool) $data['is_customer']
+            : (bool) ($existing?->is_customer ?? false);
+
+        $isSupplier = array_key_exists('is_supplier', $data)
+            ? (bool) $data['is_supplier']
+            : (bool) ($existing?->is_supplier ?? false);
+
+        if ($type === ContactType::INDIVIDUAL->value && $isCustomer && !$isSupplier) {
+            $data['company_contact_person'] = null;
+            $data['tax_number'] = null;
+            $data['tax_registration_type'] = null;
+            $data['commercial_register'] = null;
+        }
+
+        return $data;
     }
 
     /**

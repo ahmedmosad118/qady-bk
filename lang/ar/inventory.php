@@ -13,7 +13,6 @@ return [
     'types' => [
         'goods_receipt' => 'إذن استلام مخزني',
         'goods_delivery' => 'إذن تسليم مخزني',
-        'stock_issue' => 'إذن صرف داخلي',
         'warehouse_transfer' => 'إذن تحويل مخزني',
         'stock_adjustment' => 'إذن تسوية جردية',
         'inventory_return' => 'إذن مرتجع مخزني',

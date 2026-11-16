@@ -1,18 +1,8 @@
 <template>
   <div class="mx-auto max-w-4xl space-y-6">
     <!-- Header -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('warehouses.title') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-3xl">
-          {{ $t('warehouses.editWarehouse') }}
-        </h1>
-        <p class="mt-1.5 text-sm text-[var(--muted)]">
-          {{ $t('warehouses.subtitle') }}
-        </p>
-      </div>
-
-      <div class="flex items-center gap-2">
+    <PageHeader :title="$t('warehouses.editWarehouse')" :subtitle="$t('warehouses.subtitle')">
+      <template #actions>
         <span
           v-if="warehouse?.is_default"
           class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-400"
@@ -27,8 +17,8 @@
         >
           {{ warehouse?.is_active ? $t('common.active') : $t('common.inactive') }}
         </span>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Alert banner -->
     <div
@@ -178,6 +168,7 @@ import {
   Save,
 } from 'lucide-vue-next';
 import api from '../../services/api';
+import PageHeader from '../../components/ui/PageHeader.vue';
 
 const route = useRoute();
 const loading = ref(true);

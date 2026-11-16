@@ -233,8 +233,8 @@
                         v-model="item.product_id"
                         :options="availableProductOptions(item.product_id)"
                         :paginate="10"
-                        placeholder="-- ابحث أو اختر منتج أو إصدار --"
-                        search-placeholder="ابحث باسم الكتاب، المؤلف أو الـ SKU..."
+                        placeholder="-- ابحث أو اختر منتج --"
+                        search-placeholder="ابحث بالاسم أو الباركود..."
                         :clearable="false"
                       />
                       <p v-if="errors[`items.${idx}.product_id`]" class="mt-1 text-[11px] text-[var(--crimson)]">
@@ -336,7 +336,6 @@ function typeLabel(type) {
   const labels = {
     goods_receipt: 'إذن استلام مخزني',
     goods_delivery: 'إذن تسليم مخزني',
-    stock_issue: 'إذن صرف داخلي',
     warehouse_transfer: 'إذن تحويل مخزني',
     stock_adjustment: 'إذن تسوية جردية',
     inventory_return: 'إذن مرتجع مخزني',
@@ -372,7 +371,6 @@ const documentTypeOptions = computed(() => {
   const options = [
     { value: 'goods_receipt', label: 'إذن استلام مخزني' },
     { value: 'goods_delivery', label: 'إذن تسليم مخزني' },
-    { value: 'stock_issue', label: 'إذن صرف داخلي' },
   ];
 
   if (props.warehouses.length > 1) {
@@ -411,7 +409,7 @@ const returnDirectionOptions = [
 // Computed properties for conditional warehouse fields
 const isSourceRequired = computed(() => {
   const t = form.document_type;
-  if (['goods_delivery', 'stock_issue', 'warehouse_transfer', 'stock_write_off'].includes(t)) {
+  if (['goods_delivery', 'warehouse_transfer', 'stock_write_off'].includes(t)) {
     return true;
   }
   if (t === 'stock_adjustment' && form.adjustment_direction === 'decrease') {
@@ -501,7 +499,8 @@ function availableProductOptions(currentProductId) {
     .filter(p => !selectedOtherIds.includes(p.id))
     .map(p => ({
       value: p.id,
-      label: `${p.name} — ${p.author ? p.author + ' ' : ''}(${p.sku})`,
+      label: p.name,
+      barcode: p.barcode,
     }));
 }
 

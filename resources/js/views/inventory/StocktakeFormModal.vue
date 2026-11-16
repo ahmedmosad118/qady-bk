@@ -156,7 +156,7 @@
                   :options="unselectedProductOptions"
                   :paginate="10"
                   placeholder="-- اختر كتاباً أو صنفاً لإضافته لنطاق الجرد --"
-                  search-placeholder="ابحث بالاسم، المؤلف، الباركود أو SKU..."
+                  search-placeholder="ابحث بالاسم أو الباركود..."
                   :clearable="false"
                 />
               </div>
@@ -197,18 +197,6 @@
               >
                 <div>
                   <span class="font-extrabold text-[var(--text)]">{{ p.name }}</span>
-                  <span v-if="p.author" class="text-[var(--muted)] mr-1">— {{ p.author }}</span>
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-[10px] font-mono text-[var(--muted)]" dir="ltr">SKU: {{ p.sku }}</span>
-                    <span
-                      v-if="p.barcode"
-                      class="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20"
-                      dir="ltr"
-                    >
-                      <Barcode class="h-3 w-3" />
-                      {{ p.barcode }}
-                    </span>
-                  </div>
                 </div>
                 <button
                   type="button"
@@ -363,8 +351,7 @@ const unselectedProductOptions = computed(() =>
     .filter(p => p.is_active && !form.product_ids.includes(p.id))
     .map(p => ({
       value: p.id,
-      label: `${p.name} — ${p.author ? p.author + ' ' : ''}(${p.sku})${p.barcode ? ' [باركود: ' + p.barcode + ']' : ''}`,
-      sku: p.sku,
+      label: p.name,
       barcode: p.barcode,
     }))
 );
@@ -388,7 +375,7 @@ async function handleBarcodeSubmit() {
 
   // 1. Check if already added
   const alreadyAdded = allProducts.value.find(
-    p => form.product_ids.includes(p.id) && (p.barcode === code || p.sku === code)
+    p => form.product_ids.includes(p.id) && p.barcode === code
   );
   if (alreadyAdded) {
     barcodeFeedback.value = {
@@ -400,7 +387,7 @@ async function handleBarcodeSubmit() {
   }
 
   // 2. Check local loaded products list
-  let product = allProducts.value.find(p => p.barcode === code || p.sku === code);
+  let product = allProducts.value.find(p => p.barcode === code);
 
   // 3. If not found locally, query backend lookup endpoint
   if (!product) {

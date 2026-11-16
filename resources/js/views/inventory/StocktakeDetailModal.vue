@@ -10,7 +10,7 @@
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-start gap-3">
           <div
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--crimson)]/20 bg-[var(--crimson-soft)] text-[var(--crimson)] shadow-xs"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] shadow-xs"
           >
             <ClipboardCheck class="h-6 w-6" />
           </div>
@@ -76,7 +76,7 @@
             v-if="stocktake.status === 'draft'"
             type="button"
             :disabled="actionInProgress"
-            class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--crimson)] bg-[var(--crimson)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:opacity-90 disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--text)] px-4 py-2 text-xs font-bold text-[var(--card)] shadow-xs hover:opacity-90 disabled:opacity-50 cursor-pointer"
             @click="handleStartStocktake"
           >
             <Play class="h-3.5 w-3.5" />
@@ -88,7 +88,7 @@
             v-if="stocktake.status === 'in_progress' || stocktake.status === 'rejected'"
             type="button"
             :disabled="actionInProgress || uncountedCount > 0"
-            class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--crimson)] bg-[var(--crimson)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:opacity-90 disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--text)] px-4 py-2 text-xs font-bold text-[var(--card)] shadow-xs hover:opacity-90 disabled:opacity-50 cursor-pointer"
             :title="uncountedCount > 0 ? 'يجب إكمال عد كافة المنتجات قبل الإرسال للاعتماد' : ''"
             @click="handleSubmitStocktake"
           >
@@ -140,9 +140,9 @@
       </div>
 
       <!-- Rejection Banner if Rejected -->
-      <div v-if="stocktake.status === 'rejected'" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700">
+      <div v-if="stocktake.status === 'rejected'" class="rounded-xl border border-rose-500/25 bg-rose-500/5 p-3.5 text-xs text-rose-700 dark:text-rose-400">
         <span class="font-extrabold block">تم رفض نتائج الجرد:</span>
-        <span class="mt-0.5 block">{{ stocktake.rejection_reason || 'يرجى مراجعة نتائج العد وإعادة العد للبنود المشكوك فيها ثم إعادة الإرسال للاعتماد.' }}</span>
+        <span class="mt-0.5 block text-[var(--text)]">{{ stocktake.rejection_reason || 'يرجى مراجعة نتائج العد وإعادة العد للبنود المشكوك فيها ثم إعادة الإرسال للاعتماد.' }}</span>
       </div>
 
       <!-- Progress Stats Summary Bar -->
@@ -156,8 +156,8 @@
           <span class="text-lg font-black text-emerald-600 mt-0.5 block">{{ stocktake.counted_items_count || 0 }}</span>
         </div>
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
-          <span class="text-[11px] font-bold text-amber-600 block">جاري العد</span>
-          <span class="text-lg font-black text-amber-600 mt-0.5 block">{{ stocktake.counting_items_count || 0 }}</span>
+          <span class="text-[11px] font-bold text-[var(--muted)] block">جاري العد</span>
+          <span class="text-lg font-black text-[var(--text)] mt-0.5 block">{{ stocktake.counting_items_count || 0 }}</span>
         </div>
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
           <span class="text-[11px] font-bold text-[var(--muted)] block">بانتظار العد</span>
@@ -170,24 +170,24 @@
         <button
           type="button"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-          :class="activeTab === 'counting' ? 'bg-[var(--crimson)] text-white shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
+          :class="activeTab === 'counting' ? 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
           @click="activeTab = 'counting'"
         >
           <Barcode class="h-3.5 w-3.5" />
           <span>العد الفعلي (Blind Count)</span>
-          <span class="rounded-full bg-black/20 px-1.5 py-0.2 text-[10px]">{{ stocktake.items?.length || 0 }}</span>
+          <span class="rounded-full bg-[var(--bg)] border border-[var(--border)] text-[var(--muted)] px-1.5 py-0.2 text-[10px]">{{ stocktake.items?.length || 0 }}</span>
         </button>
 
         <button
           v-if="stocktake.can_review_results"
           type="button"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-          :class="activeTab === 'results' ? 'bg-[var(--crimson)] text-white shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
+          :class="activeTab === 'results' ? 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
           @click="activeTab = 'results'"
         >
           <Scale class="h-3.5 w-3.5" />
           <span>مراجعة النتائج والفروقات</span>
-          <span v-if="stocktake.increases_count || stocktake.decreases_count" class="rounded-full bg-amber-500 text-white px-1.5 py-0.2 text-[10px]">
+          <span v-if="stocktake.increases_count || stocktake.decreases_count" class="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.2 text-[10px]">
             {{ (stocktake.increases_count || 0) + (stocktake.decreases_count || 0) }}
           </span>
         </button>
@@ -196,12 +196,12 @@
           v-if="stocktake.inventory_documents && stocktake.inventory_documents.length > 0"
           type="button"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-          :class="activeTab === 'adjustments' ? 'bg-[var(--crimson)] text-white shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
+          :class="activeTab === 'adjustments' ? 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
           @click="activeTab = 'adjustments'"
         >
           <SlidersHorizontal class="h-3.5 w-3.5" />
           <span>مستندات التسوية الناتجة</span>
-          <span class="rounded-full bg-[var(--crimson-soft)] text-[var(--crimson)] px-1.5 py-0.2 text-[10px]">
+          <span class="rounded-full bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] px-1.5 py-0.2 text-[10px]">
             {{ stocktake.inventory_documents.length }}
           </span>
         </button>
@@ -209,7 +209,7 @@
         <button
           type="button"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-          :class="activeTab === 'history' ? 'bg-[var(--crimson)] text-white shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
+          :class="activeTab === 'history' ? 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]'"
           @click="activeTab = 'history'"
         >
           <History class="h-3.5 w-3.5" />
@@ -226,8 +226,8 @@
             <input
               v-model="itemsSearch"
               type="text"
-              placeholder="بحث بالاسم، الباركود أو SKU..."
-              class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pr-9 pl-3 text-xs outline-none focus:border-[var(--crimson)]"
+              placeholder="بحث بالاسم أو الباركود..."
+              class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pr-9 pl-3 text-xs outline-none focus:border-[var(--text)]"
             />
           </div>
 
@@ -238,7 +238,7 @@
               type="button"
               class="px-2.5 py-1 rounded-lg border transition-colors cursor-pointer"
               :class="itemStatusFilter === st
-                ? 'border-[var(--crimson)] bg-[var(--crimson-soft)] text-[var(--crimson)]'
+                ? 'border-[var(--text)] bg-[var(--bg)] text-[var(--text)]'
                 : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'"
               @click="itemStatusFilter = st"
             >
@@ -254,7 +254,7 @@
               <tr>
                 <th class="w-10 px-3 py-2.5 text-center">#</th>
                 <th class="min-w-[200px] px-3 py-2.5">الكتاب / الصنف</th>
-                <th class="w-24 px-3 py-2.5 text-center">الباركود / SKU</th>
+                <th class="w-24 px-3 py-2.5 text-center">الباركود</th>
                 <th class="w-24 px-3 py-2.5 text-center">الحالة</th>
                 <th class="w-32 px-3 py-2.5 text-center">الكمية الفعلية</th>
                 <th class="min-w-[160px] px-3 py-2.5 text-center">إجراءات العد</th>
@@ -273,10 +273,10 @@
                   <span v-if="item.product?.author" class="text-[11px] text-[var(--muted)] block">{{ item.product.author }}</span>
                 </td>
                 <td class="px-3 py-3 text-center font-mono text-[11px] text-[var(--muted)]" dir="ltr">
-                  <span>{{ item.product?.sku }}</span>
-                  <div v-if="item.product?.barcode" class="text-[10px] text-emerald-600 font-bold tracking-tight">
+                  <div v-if="item.product?.barcode" class="text-[11px] text-emerald-600 font-bold tracking-tight">
                     ║▌ {{ item.product.barcode }}
                   </div>
+                  <span v-else>—</span>
                 </td>
                 <td class="px-3 py-3 text-center">
                   <span
@@ -309,10 +309,10 @@
                   <button
                     v-if="item.count_status === 'pending' && ['in_progress', 'rejected'].includes(stocktake.status)"
                     type="button"
-                    class="inline-flex items-center gap-1 rounded-lg border border-[var(--crimson)]/30 bg-[var(--crimson-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--crimson)] hover:bg-[var(--crimson-soft)]/80 cursor-pointer"
+                    class="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-bold text-[var(--text)] hover:bg-[var(--bg)] cursor-pointer"
                     @click="handleStartCountItem(item)"
                   >
-                    <Play class="h-3 w-3" />
+                    <Play class="h-3 w-3 text-[var(--muted)]" />
                     <span>بدء العد</span>
                   </button>
 
@@ -362,7 +362,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div
             class="rounded-xl border p-3 cursor-pointer transition-all text-center"
-            :class="varianceFilter === 'all' ? 'border-[var(--crimson)] bg-[var(--crimson-soft)]' : 'border-[var(--border)] bg-[var(--card)]'"
+            :class="varianceFilter === 'all' ? 'border-[var(--text)] bg-[var(--bg)]' : 'border-[var(--border)] bg-[var(--card)]'"
             @click="varianceFilter = 'all'"
           >
             <span class="text-[11px] font-bold text-[var(--muted)] block">كافة الأصناف المعدودة</span>
@@ -421,7 +421,7 @@
                 <td class="px-3 py-3 text-center text-xs text-[var(--muted)]">{{ idx + 1 }}</td>
                 <td class="px-3 py-3">
                   <span class="font-extrabold text-[var(--text)] block">{{ item.product?.name }}</span>
-                  <span class="font-mono text-[11px] text-[var(--muted)] block" dir="ltr">{{ item.product?.sku }}</span>
+                  <span v-if="item.product?.barcode" class="font-mono text-[11px] text-[var(--muted)] block" dir="ltr">{{ item.product.barcode }}</span>
                 </td>
                 <td class="px-3 py-3 text-center font-bold text-[var(--text)]">
                   {{ item.system_quantity !== null ? item.system_quantity : '—' }}
@@ -504,10 +504,10 @@
             <div class="pt-2 border-t border-[var(--border)] flex justify-end">
               <router-link
                 to="/inventory"
-                class="inline-flex items-center gap-1 text-xs font-bold text-[var(--crimson)] hover:underline"
+                class="inline-flex items-center gap-1 text-xs font-bold text-[var(--text)] hover:underline"
               >
                 <span>الانتقال للمستندات للترحيل</span>
-                <ExternalLink class="h-3 w-3" />
+                <ExternalLink class="h-3 w-3 text-[var(--muted)]" />
               </router-link>
             </div>
           </div>
@@ -559,7 +559,7 @@
           </button>
           <button
             type="button"
-            class="rounded-xl border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:opacity-90"
+            class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 cursor-pointer"
             :disabled="!rejectReason.trim()"
             @click="handleRejectStocktake"
           >
@@ -663,7 +663,6 @@ const filteredItems = computed(() => {
     const q = itemsSearch.value.trim().toLowerCase();
     list = list.filter(i =>
       i.product?.name?.toLowerCase().includes(q) ||
-      i.product?.sku?.toLowerCase().includes(q) ||
       i.product?.barcode?.toLowerCase().includes(q) ||
       i.product?.author?.toLowerCase().includes(q)
     );

@@ -53,7 +53,6 @@ class PosHeldSaleTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'الأربعون النووية',
-            'sku' => 'BK-ARBAEEN-001',
             'barcode' => '6221000000004',
             'selling_price' => 50.00,
             'is_active' => true,

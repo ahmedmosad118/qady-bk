@@ -1,22 +1,14 @@
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.inventoryGroup') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ pageTitle }}
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">{{ pageSubtitle }}</p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader :title="pageTitle" :subtitle="pageSubtitle">
+      <template #actions>
         <!-- Direct link to edit default warehouse (accessible directly without menu) -->
         <router-link
           to="/warehouses"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
         >
-          <Building2 class="h-[18px] w-[18px] text-[var(--crimson)]" aria-hidden="true" />
+          <Building2 class="h-[18px] w-[18px] text-[var(--muted)]" aria-hidden="true" />
           <span>{{ $t('warehouses.editWarehouse') }}</span>
         </router-link>
 
@@ -30,8 +22,8 @@
           <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
           <span>{{ createButtonText }}</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Refresh / Load Error banner -->
     <div
@@ -50,65 +42,42 @@
 
     <!-- Main Documents Card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Toolbar & Filters -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="flex flex-col gap-4">
-          <!-- Search & Selects row -->
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <!-- Search by Number -->
-            <div class="relative">
-              <Search
-                class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-                aria-hidden="true"
-              />
-              <input
-                v-model="filters.search"
-                type="search"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                :placeholder="$t('inventory.searchPlaceholder')"
-                @input="debouncedSearch"
-              />
-            </div>
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="filters.search"
+        :search-placeholder="$t('inventory.searchPlaceholder')"
+        :active-filters-count="activeFiltersCount"
+        @search="debouncedSearch"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
+          <!-- Type Filter (Only visible when viewing all documents) -->
+          <div v-if="!activeType">
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('inventory.fields.type') }}</label>
+            <SearchableSelect
+              v-model="filters.document_type"
+              :options="typeFilterOptions"
+              placeholder="كل أنواع المستندات"
+              search-placeholder="بحث في أنواع المستندات..."
+              allow-empty
+              @change="loadDocuments"
+            />
+          </div>
 
-            <!-- Type Filter (Only visible when viewing all documents) -->
-            <div v-if="!activeType">
-              <SearchableSelect
-                v-model="filters.document_type"
-                :options="typeFilterOptions"
-                placeholder="كل أنواع المستندات"
-                search-placeholder="بحث في أنواع المستندات..."
-                allow-empty
-                @change="loadDocuments"
-              />
-            </div>
-
-            <!-- Status Filter -->
-            <div>
-              <SearchableSelect
-                v-model="filters.status"
-                :options="statusFilterOptions"
-                placeholder="كل الحالات"
-                search-placeholder="بحث في الحالات..."
-                allow-empty
-                @change="loadDocuments"
-              />
-            </div>
-
-            <!-- Reset Filters -->
-            <div class="flex items-center gap-2">
-              <button
-                v-if="hasActiveFilters"
-                type="button"
-                class="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] px-4 text-xs font-bold text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
-                @click="resetFilters"
-              >
-                <RotateCcw class="h-4 w-4" />
-                <span>{{ $t('inventory.resetFilters') }}</span>
-              </button>
-            </div>
+          <!-- Status Filter -->
+          <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('common.status') }}</label>
+            <SearchableSelect
+              v-model="filters.status"
+              :options="statusFilterOptions"
+              placeholder="كل الحالات"
+              search-placeholder="بحث في الحالات..."
+              allow-empty
+              @change="loadDocuments"
+            />
           </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Table View -->
       <div class="overflow-x-auto">
@@ -116,6 +85,7 @@
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.documentNumber') }}</th>
+              <th class="px-4 py-3.5">{{ $t('inventory.fields.documentSource') }}</th>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.type') }}</th>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.date') }}</th>
               <th class="hidden px-4 py-3.5 md:table-cell">{{ $t('inventory.fields.sourceWarehouse') }}</th>
@@ -128,15 +98,15 @@
           <tbody class="divide-y divide-[var(--border)]">
             <!-- Loading indicator -->
             <tr v-if="loading && documents.length === 0">
-              <td colspan="8" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
-                <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--crimson)]" />
+              <td colspan="9" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
+                <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--muted)]" />
                 <span class="mt-2 block">{{ $t('common.loading') }}</span>
               </td>
             </tr>
 
             <!-- Empty State -->
             <tr v-else-if="documents.length === 0">
-              <td colspan="8" class="px-4 py-12 text-center">
+              <td colspan="9" class="px-4 py-12 text-center">
                 <FileText class="mx-auto h-10 w-10 text-[var(--muted)]/50" />
                 <h3 class="mt-3 text-base font-bold text-[var(--text)]">{{ $t('inventory.noDocuments') }}</h3>
                 <p class="mt-1 text-xs text-[var(--muted)]">{{ $t('inventory.noDocumentsDesc') }}</p>
@@ -162,24 +132,39 @@
               <td class="px-4 py-3.5">
                 <button
                   type="button"
-                  class="font-mono text-sm font-extrabold text-[var(--crimson)] hover:underline"
+                  class="font-mono text-sm font-extrabold text-[var(--text)] hover:underline cursor-pointer"
+                  dir="ltr"
                   @click="openDetailModal(doc)"
                 >
                   {{ doc.document_number }}
                 </button>
-                <div v-if="doc.referenceable_type === 'pos_sale'" class="mt-1">
-                  <button
-                    type="button"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-[var(--crimson)]/10 text-[var(--crimson)] hover:bg-[var(--crimson)]/20 transition cursor-pointer"
-                    title="فتح تفاصيل فاتورة البيع المرتبطة"
-                    @click.stop="openPosSaleModal(doc.referenceable?.id || doc.referenceable_id)"
-                  >
-                    <Receipt class="w-3 h-3" />
-                    <span>فاتورة: {{ doc.referenceable?.invoice_number || ('#' + doc.referenceable_id) }}</span>
-                  </button>
-                </div>
-                <span v-else-if="doc.referenceable_type" class="block text-[11px] text-[var(--muted)]">
-                  {{ doc.referenceable_type }} #{{ doc.referenceable_id }}
+              </td>
+
+              <!-- Document Source -->
+              <td class="px-4 py-3.5">
+                <button
+                  v-if="documentSourceInfo(doc)?.clickable"
+                  type="button"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs font-bold text-[var(--text)] transition-colors hover:bg-[var(--bar)] cursor-pointer"
+                  :title="documentSourceInfo(doc).title"
+                  @click.stop="documentSourceInfo(doc).onClick()"
+                >
+                  <component :is="documentSourceInfo(doc).icon" class="h-3.5 w-3.5 text-[var(--muted)] shrink-0" aria-hidden="true" />
+                  <span class="text-[var(--muted)] font-semibold">{{ documentSourceInfo(doc).label }}:</span>
+                  <span class="font-mono" dir="ltr">{{ documentSourceInfo(doc).number }}</span>
+                  <ExternalLink class="h-3 w-3 text-[var(--muted)] shrink-0" aria-hidden="true" />
+                </button>
+                <span
+                  v-else-if="documentSourceInfo(doc)"
+                  class="inline-flex items-center rounded-md bg-[var(--bg)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]"
+                >
+                  {{ documentSourceInfo(doc).label }} {{ documentSourceInfo(doc).number }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex rounded-md bg-[var(--bg)] px-2.5 py-1 text-xs font-semibold text-[var(--muted)]"
+                >
+                  {{ $t('inventory.fields.directSource') }}
                 </span>
               </td>
 
@@ -243,9 +228,9 @@
                     <Eye class="h-4 w-4" />
                   </button>
 
-                  <!-- Edit button (Only visible in specific type view, NOT on All Documents) -->
+                  <!-- Edit button (Only visible in specific type view, NOT on All Documents or Purchase Invoice GRs) -->
                   <button
-                    v-if="activeType && (doc.status === 'draft' || doc.status === 'rejected')"
+                    v-if="activeType && doc.referenceable_type !== 'purchase_invoice' && (doc.status === 'draft' || doc.status === 'rejected')"
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
                     :title="$t('common.edit')"
@@ -254,9 +239,9 @@
                     <Pencil class="h-4 w-4" />
                   </button>
 
-                  <!-- Delete button (Only visible in specific type view, NOT on All Documents) -->
+                  <!-- Delete button (Only visible in specific type view, NOT on All Documents or Purchase Invoice GRs) -->
                   <button
-                    v-if="activeType && doc.status === 'draft'"
+                    v-if="activeType && doc.referenceable_type !== 'purchase_invoice' && doc.status === 'draft'"
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]"
                     :title="$t('common.delete')"
@@ -309,6 +294,7 @@
       @updated="onDocumentUpdated"
       @edit="openEditModalFromDetail"
       @open-pos-sale="openPosSaleModal"
+      @open-pos-return="openPosReturnModal"
     />
 
     <InventoryDocumentFormModal
@@ -326,17 +312,28 @@
       v-if="selectedPosSaleId"
       :sale-id="selectedPosSaleId"
       @close="selectedPosSaleId = null"
+      @open-return="openPosReturnModal"
+    />
+
+    <!-- POS Return Detail Modal (Cross-linked from inventory document) -->
+    <PosReturnDetailModal
+      v-if="selectedPosReturnId"
+      :return-id="selectedPosReturnId"
+      @close="selectedPosReturnId = null"
+      @open-sale="openPosSaleModal"
     />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   Building2,
+  ClipboardCheck,
+  ExternalLink,
   Eye,
   FileText,
   Loader2,
@@ -344,28 +341,85 @@ import {
   Plus,
   Receipt,
   RotateCcw,
-  Search,
   Trash2,
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import InventoryDocumentDetailModal from './InventoryDocumentDetailModal.vue';
 import InventoryDocumentFormModal from './InventoryDocumentFormModal.vue';
 import PosSaleDetailModal from '../pos/management/PosSaleDetailModal.vue';
+import PosReturnDetailModal from '../pos/management/PosReturnDetailModal.vue';
 import api from '../../services/api';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n();
 
 const selectedPosSaleId = ref(null);
+const selectedPosReturnId = ref(null);
 
 function openPosSaleModal(saleId) {
   selectedPosSaleId.value = saleId;
 }
 
+function openPosReturnModal(returnId) {
+  selectedPosReturnId.value = returnId;
+}
+
+function documentSourceInfo(doc) {
+  if (!doc?.referenceable_type) return null;
+
+  const refId = doc.referenceable?.id || doc.referenceable_id;
+  switch (doc.referenceable_type) {
+    case 'pos_sale':
+      return {
+        clickable: true,
+        icon: Receipt,
+        label: 'فاتورة بيع',
+        number: doc.referenceable?.invoice_number || `#${refId}`,
+        title: 'فتح تفاصيل فاتورة البيع المرتبطة',
+        onClick: () => openPosSaleModal(refId),
+      };
+    case 'pos_return':
+      return {
+        clickable: true,
+        icon: RotateCcw,
+        label: 'مرتجع',
+        number: doc.referenceable?.return_number || `#${refId}`,
+        title: 'فتح تفاصيل فاتورة المرتجع المرتبطة',
+        onClick: () => openPosReturnModal(refId),
+      };
+    case 'stocktake':
+      return {
+        clickable: true,
+        icon: ClipboardCheck,
+        label: 'جرد',
+        number: doc.referenceable?.stocktake_number || `#${refId}`,
+        title: 'فتح مستند الجرد المرتبط',
+        onClick: () => router.push({ path: '/inventory/stocktakes', query: { open: String(refId) } }),
+      };
+    case 'purchase_invoice':
+      return {
+        clickable: true,
+        icon: Receipt,
+        label: 'فاتورة شراء',
+        number: doc.referenceable?.invoice_number || `#${refId}`,
+        title: 'فتح فاتورة الشراء المرتبطة',
+        onClick: () => router.push({ path: '/purchase-invoices', query: { open: String(refId) } }),
+      };
+    default:
+      return {
+        clickable: false,
+        label: doc.referenceable_type,
+        number: `#${refId}`,
+      };
+  }
+}
+
 const slugToTypeMap = {
   'goods-receipt': 'goods_receipt',
   'goods-delivery': 'goods_delivery',
-  'stock-issue': 'stock_issue',
   'warehouse-transfer': 'warehouse_transfer',
   'stock-adjustment': 'stock_adjustment',
   'inventory-return': 'inventory_return',
@@ -384,7 +438,6 @@ const pageTitle = computed(() => {
   const titles = {
     goods_receipt: 'الاستلامات المخزنية',
     goods_delivery: 'التسليمات المخزنية',
-    stock_issue: 'أذونات الصرف الداخلي',
     warehouse_transfer: 'التحويلات المخزنية',
     stock_adjustment: 'التسويات المخزنية',
     inventory_return: 'المرتجعات المخزنية',
@@ -399,7 +452,6 @@ const pageSubtitle = computed(() => {
   const subs = {
     goods_receipt: 'متابعة وإصدار أذونات استلام وتوريد الكتب والمنتجات إلى المخزن.',
     goods_delivery: 'توثيق وتسجيل أذونات تسليم الكتب والطلبيات للعملاء والجهات المستلمة.',
-    stock_issue: 'إدارة أذونات الصرف الداخلي للأقسام والجهات الطالبة.',
     warehouse_transfer: 'إدارة حركات نقل وتحويل الكتب بين المستودعات والفروع المختلفة.',
     stock_adjustment: 'تسجيل ومعالجة تسويات الفروق الجردية (زيادة أو عجز).',
     inventory_return: 'إدارة أذونات المرتجعات الواردة والصادرة من وإلى المخزن.',
@@ -441,9 +493,14 @@ const filters = reactive({
   page: 1,
 });
 
-const hasActiveFilters = computed(() => {
-  return !!filters.search || !!filters.document_type || !!filters.status;
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (!activeType.value && filters.document_type) count++;
+  if (filters.status) count++;
+  return count;
 });
+
+const hasActiveFilters = computed(() => Boolean(filters.search) || activeFiltersCount.value > 0);
 
 const typeFilterOptions = computed(() => {
   const options = [
@@ -599,7 +656,6 @@ function typeLabel(type) {
   const labels = {
     goods_receipt: 'إذن استلام',
     goods_delivery: 'إذن تسليم',
-    stock_issue: 'إذن صرف داخلي',
     warehouse_transfer: 'إذن تحويل',
     stock_adjustment: 'إذن تسوية',
     inventory_return: 'إذن مرتجع',
@@ -658,18 +714,41 @@ function formatDate(dateStr) {
   return dateStr.substring(0, 10);
 }
 
+function applyRouteQuery() {
+  if (typeof route.query.search === 'string') {
+    filters.search = route.query.search;
+  }
+  if (route.query.open) {
+    const docId = Number(route.query.open);
+    if (Number.isFinite(docId) && docId > 0) {
+      openDetailModal({ id: docId });
+    }
+  }
+}
+
 watch(
   () => route.params.type,
   () => {
     filters.page = 1;
-    filters.search = '';
+    filters.search = typeof route.query.search === 'string' ? route.query.search : '';
     filters.status = '';
     filters.document_type = '';
     loadDocuments();
+    applyRouteQuery();
+  }
+);
+
+watch(
+  () => route.query.open,
+  (openId) => {
+    if (openId) {
+      applyRouteQuery();
+    }
   }
 );
 
 onMounted(() => {
+  applyRouteQuery();
   loadDocuments();
   loadLookups();
 });

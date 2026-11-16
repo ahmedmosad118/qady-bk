@@ -1,25 +1,19 @@
 <template>
   <div class="space-y-6">
     <!-- Page header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.userManagement') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ $t('users.title') }}
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">{{ $t('users.subtitle') }}</p>
-      </div>
-
-      <button
-        type="button"
-        class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="!schema"
-        @click="openCreate"
-      >
-        <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
-        <span>{{ $t('users.addMember') }}</span>
-      </button>
-    </div>
+    <PageHeader :title="$t('users.title')" :subtitle="$t('users.subtitle')">
+      <template #actions>
+        <button
+          type="button"
+          class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="!schema"
+          @click="openCreate"
+        >
+          <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
+          <span>{{ $t('users.addMember') }}</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Refresh error (stale data still shown) -->
     <div
@@ -38,44 +32,43 @@
 
     <!-- Users card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Toolbar -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div class="relative w-full xl:max-w-md">
-            <Search
-              class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-              aria-hidden="true"
-            />
-            <input
-              v-model="search"
-              type="search"
-              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-              :placeholder="$t('users.searchPlaceholder')"
-              :aria-label="$t('common.search')"
-            />
+      <!-- Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="search"
+        :search-placeholder="$t('users.searchPlaceholder')"
+        :active-filters-count="activeFiltersCount"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
+          <!-- Status -->
+          <div>
+            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">{{ $t('common.status') }}</label>
+            <div class="flex flex-wrap gap-2">
+              <FilterChip
+                :label="$t('users.statusAll')"
+                :active="statusFilter === 'all'"
+                @click="statusFilter = 'all'"
+              />
+              <FilterChip
+                :label="$t('users.statusActive')"
+                :active="statusFilter === 'active'"
+                @click="statusFilter = 'active'"
+              />
+              <FilterChip
+                :label="$t('users.statusInactive')"
+                :active="statusFilter === 'inactive'"
+                @click="statusFilter = 'inactive'"
+              />
+            </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <FilterChip
-              :label="$t('users.statusAll')"
-              :active="statusFilter === 'all'"
-              @click="statusFilter = 'all'"
-            />
-            <FilterChip
-              :label="$t('users.statusActive')"
-              :active="statusFilter === 'active'"
-              @click="statusFilter = 'active'"
-            />
-            <FilterChip
-              :label="$t('users.statusInactive')"
-              :active="statusFilter === 'inactive'"
-              @click="statusFilter = 'inactive'"
-            />
-
+          <!-- Role -->
+          <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('users.roleFilter') }}</label>
             <div class="relative">
               <select
                 v-model="roleFilter"
-                class="h-10 min-w-[150px] cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3.5 text-sm font-semibold text-[var(--muted)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('users.roleFilter')"
               >
                 <option value="all">{{ $t('users.allRoles') }}</option>
@@ -89,7 +82,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Bulk actions -->
       <div
@@ -250,7 +243,6 @@ import {
   ChevronDown,
   Plus,
   RotateCw,
-  Search,
   SearchX,
   Trash2,
   Users,
@@ -260,6 +252,8 @@ import alertService from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
 import FilterChip from '../../components/ui/FilterChip.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import UsersTable from '../../components/users/UsersTable.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
@@ -277,6 +271,13 @@ const loadError = ref('');
 const search = ref('');
 const statusFilter = ref('all');
 const roleFilter = ref('all');
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (statusFilter.value !== 'all') count++;
+  if (roleFilter.value !== 'all') count++;
+  return count;
+});
 
 const page = ref(1);
 const perPage = 10;

@@ -172,10 +172,9 @@ export const usePosStore = defineStore('pos', {
         if (!q) return true;
 
         const nameMatch = p.name && p.name.toLowerCase().includes(q);
-        const skuMatch = p.sku && p.sku.toLowerCase().includes(q);
         const barcodeMatch = p.barcode && p.barcode.toLowerCase().includes(q);
 
-        return nameMatch || skuMatch || barcodeMatch;
+        return nameMatch || barcodeMatch;
       });
     },
   },
@@ -556,7 +555,6 @@ export const usePosStore = defineStore('pos', {
           product_id: pId,
           product: product,
           name: product.name,
-          sku: product.sku,
           barcode: product.barcode,
           original_unit_price: origPrice,
           unit_price: origPrice,
@@ -985,7 +983,6 @@ export const usePosStore = defineStore('pos', {
             items_snapshot: Object.values(this.cart.items).map((it) => ({
               product_id: it.product_id,
               name: it.name,
-              sku: it.sku,
               barcode: it.barcode,
               quantity: it.quantity,
               unit_price: it.unit_price,
@@ -1024,7 +1021,7 @@ export const usePosStore = defineStore('pos', {
             customer: this.cart.customer,
             items: Object.values(this.cart.items).map((it) => ({
               product: it.product,
-              product_snapshot: { name: it.name, sku: it.sku, barcode: it.barcode },
+              product_snapshot: { name: it.name, barcode: it.barcode },
               quantity: it.quantity,
               unit_price: it.unit_price,
               total: it.total,

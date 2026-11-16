@@ -283,7 +283,6 @@ class PosSyncService
                     'id' => $p->id,
                     'category_id' => $p->category_id,
                     'name' => $p->name,
-                    'sku' => $p->sku,
                     'barcode' => $p->barcode,
                     'selling_price' => (string) $p->selling_price,
                     'purchase_price' => (string) $p->purchase_price,

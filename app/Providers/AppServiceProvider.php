@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\InventoryDocument;
 use App\Models\PosReturn;
 use App\Models\PosSale;
+use App\Models\PurchaseInvoice;
 use App\Models\Stocktake;
 use App\Models\User;
 use App\Observers\InventoryDocumentObserver;
@@ -31,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
             'stocktake' => Stocktake::class,
             'pos_sale' => PosSale::class,
             'pos_return' => PosReturn::class,
+            'purchase_invoice' => PurchaseInvoice::class,
         ]);
 
         InventoryDocument::observe(InventoryDocumentObserver::class);
@@ -43,5 +45,15 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('pos.manage_shifts', fn (User $user) => true);
         Gate::define('pos.manage_shift_cash', fn (User $user) => true);
         Gate::define('pos.process_returns', fn (User $user) => true);
+
+        // Expenses Authorization Gates (Integration points with current/future permission systems)
+        Gate::define('expenses.view', fn (User $user) => true);
+        Gate::define('expenses.create', fn (User $user) => true);
+        Gate::define('expenses.update', fn (User $user) => true);
+        Gate::define('expenses.delete', fn (User $user) => true);
+        Gate::define('expense_categories.view', fn (User $user) => true);
+        Gate::define('expense_categories.create', fn (User $user) => true);
+        Gate::define('expense_categories.update', fn (User $user) => true);
+        Gate::define('expense_categories.delete', fn (User $user) => true);
     }
 }

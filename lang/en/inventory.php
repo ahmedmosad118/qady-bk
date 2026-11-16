@@ -13,7 +13,6 @@ return [
     'types' => [
         'goods_receipt' => 'Goods Receipt',
         'goods_delivery' => 'Goods Delivery',
-        'stock_issue' => 'Stock Issue',
         'warehouse_transfer' => 'Warehouse Transfer',
         'stock_adjustment' => 'Stock Adjustment',
         'inventory_return' => 'Inventory Return',

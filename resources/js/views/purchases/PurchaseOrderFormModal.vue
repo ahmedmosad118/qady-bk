@@ -484,7 +484,8 @@ const supplierOptions = computed(() => {
 const productOptions = computed(() => {
   return props.products.map((p) => ({
     value: p.id,
-    label: `${p.name} - ${p.sku}`,
+    label: p.name,
+    barcode: p.barcode,
   }));
 });
 

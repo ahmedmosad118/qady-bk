@@ -23,7 +23,6 @@ class ProductFactory extends Factory
         return [
             'category_id' => null,
             'name' => fake()->unique()->sentence(4),
-            'sku' => 'LBK-'.fake()->unique()->numberBetween(1, 999999),
             'barcode' => null,
             'author' => fake()->name(),
             'publisher' => fake()->company(),

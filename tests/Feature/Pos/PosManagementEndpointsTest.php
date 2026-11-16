@@ -59,7 +59,6 @@ class PosManagementEndpointsTest extends TestCase
 
         $this->product = Product::create([
             'name' => 'Constitutional Law Volume 1',
-            'sku' => 'LAW-001',
             'barcode' => '6221234567890',
             'category_id' => $category->id,
             'purchase_price' => 50.00,

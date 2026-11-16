@@ -19,7 +19,6 @@ class InventoryDocumentNumberService
     protected const TYPE_PREFIXES = [
         'goods_receipt' => 'GR',
         'goods_delivery' => 'GD',
-        'stock_issue' => 'SI',
         'warehouse_transfer' => 'WT',
         'stock_adjustment' => 'SA',
         'inventory_return' => 'IR',

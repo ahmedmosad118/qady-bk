@@ -65,4 +65,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(PurchaseOrder::class, 'confirmed_by');
     }
+
+    public function purchaseInvoicesCreated(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoice::class, 'created_by');
+    }
+
+    public function expensesCreated(): HasMany
+    {
+        return $this->hasMany(Expense::class, 'created_by');
+    }
 }

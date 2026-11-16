@@ -62,7 +62,6 @@ class PosIdempotencyTest extends TestCase
 
         $this->product = Product::factory()->create([
             'name' => 'تفسير ابن كثير',
-            'sku' => 'BK-KATHIR-001',
             'barcode' => '9789771112223',
             'selling_price' => 150.00,
             'is_active' => true,

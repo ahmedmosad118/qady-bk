@@ -64,7 +64,6 @@ class PosSaleTest extends TestCase
 
         $this->product1 = Product::factory()->create([
             'name' => 'صحيح البخاري',
-            'sku' => 'BK-BUKHARI-001',
             'barcode' => '6221000000001',
             'purchase_price' => 120.00,
             'selling_price' => 200.00,
@@ -73,7 +72,6 @@ class PosSaleTest extends TestCase
 
         $this->product2 = Product::factory()->create([
             'name' => 'رياض الصالحين',
-            'sku' => 'BK-RIYADH-002',
             'barcode' => '6221000000002',
             'purchase_price' => 80.00,
             'selling_price' => 150.00,
@@ -240,7 +238,6 @@ class PosSaleTest extends TestCase
         $this->assertEquals('200.00', (string) $item->original_unit_price);
         $this->assertEquals('180.00', (string) $item->unit_price);
         $this->assertEquals('صحيح البخاري', $item->product_snapshot['name']);
-        $this->assertEquals('BK-BUKHARI-001', $item->product_snapshot['sku']);
         $this->assertEquals('6221000000001', $item->product_snapshot['barcode']);
         $this->assertEquals('قطعة', $item->product_snapshot['unit_name']);
     }
@@ -367,7 +364,7 @@ class PosSaleTest extends TestCase
         $searchResp = $this->getJson('/api/pos/products?search=البخاري');
         $searchResp->assertOk();
         $this->assertCount(1, $searchResp->json('data'));
-        $this->assertEquals('BK-BUKHARI-001', $searchResp->json('data.0.sku'));
+        $this->assertEquals('6221000000001', $searchResp->json('data.0.barcode'));
 
         // Lookup by exact barcode
         $lookupResp = $this->getJson('/api/pos/products/lookup?barcode=6221000000002');

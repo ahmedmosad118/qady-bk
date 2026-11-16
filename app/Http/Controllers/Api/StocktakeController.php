@@ -130,7 +130,6 @@ class StocktakeController extends Controller
                 'product' => $item->product ? [
                     'id' => $item->product->id,
                     'name' => $item->product->name,
-                    'sku' => $item->product->sku,
                     'barcode' => $item->product->barcode,
                     'author' => $item->product->author ?? null,
                 ] : null,

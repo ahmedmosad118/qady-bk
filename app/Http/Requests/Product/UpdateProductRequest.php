@@ -21,7 +21,6 @@ class UpdateProductRequest extends StoreProductRequest
 
         $product = $this->product();
 
-        $rules['sku'] = ['required', 'string', 'max:100', Rule::unique('products', 'sku')->ignore($product->id)];
         $rules['barcode'] = [
             'nullable', 'string', 'max:100',
             Rule::unique('products', 'barcode')->ignore($product->id),

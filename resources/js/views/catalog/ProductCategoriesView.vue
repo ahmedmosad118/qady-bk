@@ -1,24 +1,18 @@
 <template>
   <div class="space-y-6">
     <!-- Page header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.catalogGroup') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ $t('productCategories.title') }}
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">{{ $t('productCategories.subtitle') }}</p>
-      </div>
-
-      <button
-        type="button"
-        class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
-        @click="openCreate"
-      >
-        <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
-        <span>{{ $t('productCategories.addCategory') }}</span>
-      </button>
-    </div>
+    <PageHeader :title="$t('productCategories.title')" :subtitle="$t('productCategories.subtitle')">
+      <template #actions>
+        <button
+          type="button"
+          class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
+          @click="openCreate"
+        >
+          <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
+          <span>{{ $t('productCategories.addCategory') }}</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Refresh error (stale data still shown) -->
     <div
@@ -37,44 +31,43 @@
 
     <!-- Categories card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Toolbar -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div class="relative w-full xl:max-w-md">
-            <Search
-              class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-              aria-hidden="true"
-            />
-            <input
-              v-model="search"
-              type="search"
-              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-              :placeholder="$t('productCategories.searchPlaceholder')"
-              :aria-label="$t('common.search')"
-            />
+      <!-- Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="search"
+        :search-placeholder="$t('productCategories.searchPlaceholder')"
+        :active-filters-count="activeFiltersCount"
+        @reset="resetFilters"
+      >
+        <div class="space-y-4">
+          <!-- Status -->
+          <div>
+            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">{{ $t('common.status') }}</label>
+            <div class="flex flex-wrap gap-2">
+              <FilterChip
+                :label="$t('productCategories.statusAll')"
+                :active="statusFilter === 'all'"
+                @click="statusFilter = 'all'"
+              />
+              <FilterChip
+                :label="$t('productCategories.statusActive')"
+                :active="statusFilter === 'active'"
+                @click="statusFilter = 'active'"
+              />
+              <FilterChip
+                :label="$t('productCategories.statusInactive')"
+                :active="statusFilter === 'inactive'"
+                @click="statusFilter = 'inactive'"
+              />
+            </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <FilterChip
-              :label="$t('productCategories.statusAll')"
-              :active="statusFilter === 'all'"
-              @click="statusFilter = 'all'"
-            />
-            <FilterChip
-              :label="$t('productCategories.statusActive')"
-              :active="statusFilter === 'active'"
-              @click="statusFilter = 'active'"
-            />
-            <FilterChip
-              :label="$t('productCategories.statusInactive')"
-              :active="statusFilter === 'inactive'"
-              @click="statusFilter = 'inactive'"
-            />
-
+          <!-- Scope -->
+          <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('productCategories.nameCol') }}</label>
             <div class="relative">
               <select
                 v-model="scopeFilter"
-                class="h-10 min-w-[150px] cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3.5 text-sm font-semibold text-[var(--muted)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('productCategories.nameCol')"
               >
                 <option value="all">{{ $t('productCategories.filterAll') }}</option>
@@ -88,7 +81,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Bulk actions -->
       <div
@@ -137,9 +130,6 @@
                 {{ $t('productCategories.parentCol') }}
               </th>
               <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
-                {{ $t('productCategories.productsCol') }}
-              </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
                 {{ $t('productCategories.statusCol') }}
               </th>
               <th scope="col" class="w-24 px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
@@ -150,7 +140,7 @@
 
           <tbody v-if="loading" aria-busy="true">
             <tr v-for="n in 5" :key="n" class="border-t border-[var(--border)]">
-              <td colspan="6" class="px-4 py-4">
+              <td colspan="5" class="px-4 py-4">
                 <div class="h-4 w-48 animate-pulse rounded bg-[var(--bg)]"></div>
               </td>
             </tr>
@@ -197,12 +187,6 @@
               <td class="hidden px-4 py-3.5 sm:table-cell">
                 <span v-if="category.parent_name" class="text-sm text-[var(--muted)]">{{ category.parent_name }}</span>
                 <span v-else class="text-sm text-[var(--muted)]">{{ $t('productCategories.noParent') }}</span>
-              </td>
-
-              <td class="px-4 py-3.5">
-                <span class="inline-flex min-w-7 items-center justify-center rounded-lg bg-[var(--bg)] px-2 py-1 text-sm font-bold tabular-nums text-[var(--muted)]">
-                  {{ category.products?.length || 0 }}
-                </span>
               </td>
 
               <td class="px-4 py-3.5">
@@ -330,7 +314,6 @@ import {
   Pencil,
   Plus,
   RotateCw,
-  Search,
   SearchX,
   Trash2,
 } from 'lucide-vue-next';
@@ -338,6 +321,8 @@ import api from '../../services/api';
 import alertService from '../../services/alert';
 import { useNotificationStore } from '../../stores/notification';
 import FilterChip from '../../components/ui/FilterChip.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
@@ -400,8 +385,15 @@ const filteredRows = computed(() => {
   });
 });
 
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (statusFilter.value !== 'all') count++;
+  if (scopeFilter.value !== 'all') count++;
+  return count;
+});
+
 const hasFilters = computed(
-  () => search.value.trim() !== '' || statusFilter.value !== 'all' || scopeFilter.value !== 'all'
+  () => search.value.trim() !== '' || activeFiltersCount.value > 0
 );
 
 const parentLocked = computed(() => {

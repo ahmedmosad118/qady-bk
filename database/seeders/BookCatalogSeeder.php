@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -26,7 +26,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'الوسيط في شرح القانون المدني الجديد - نظرية الالتزام',
-                                    'sku' => 'LBK-LAW-001',
                                     'barcode' => '9789770110011',
                                     'author' => 'د. عبد الرزاق أحمد السنهوري',
                                     'publisher' => 'مكتبة القاضي',
@@ -37,7 +36,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'شرح القانون التجاري والشركات التجارية في القانون المصري',
-                                    'sku' => 'LBK-LAW-002',
                                     'barcode' => '9789770110028',
                                     'author' => 'د. مصطفى كمال طه',
                                     'publisher' => 'مكتبة القاضي',
@@ -48,7 +46,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'صياغة العقود التجارية والمدنية وتطبيقاتها القضائية',
-                                    'sku' => 'LBK-LAW-003',
                                     'barcode' => '9789770110035',
                                     'author' => 'المستشار أنور طلبة',
                                     'publisher' => 'مكتبة القاضي',
@@ -64,7 +61,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'شرح قانون العقوبات - القسم العام',
-                                    'sku' => 'LBK-LAW-004',
                                     'barcode' => '9789770110042',
                                     'author' => 'د. محمود نجيب حسني',
                                     'publisher' => 'دار الفكر العربي والقانون',
@@ -75,7 +71,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'أصول الإجراءات الجنائية والتحقيق القضائي',
-                                    'sku' => 'LBK-LAW-005',
                                     'barcode' => '9789770110059',
                                     'author' => 'د. أحمد فتحي سرور',
                                     'publisher' => 'دار النهضة العربية',
@@ -91,7 +86,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'مبادئ القضاء الإداري ودعوى الإلغاء في أحكام مجلس الدولة',
-                                    'sku' => 'LBK-LAW-006',
                                     'barcode' => '9789770110066',
                                     'author' => 'د. سليمان الطماوي',
                                     'publisher' => 'مكتبة القاضي',
@@ -112,7 +106,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'بداية المجتهد ونهاية المقتصد (مجلدان فخمان)',
-                                    'sku' => 'LBK-ISL-001',
                                     'barcode' => '9789770220010',
                                     'author' => 'ابن رشد الحفيد الأندلسي',
                                     'publisher' => 'دار الحديث للطباعة',
@@ -123,7 +116,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'الرسالة في أصول الفقه',
-                                    'sku' => 'LBK-ISL-002',
                                     'barcode' => '9789770220027',
                                     'author' => 'الإمام محمد بن إدريس الشافعي',
                                     'publisher' => 'مكتبة الحلبي',
@@ -139,7 +131,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'تفسير ابن كثير (تفسير القرآن العظيم - 4 أجزاء)',
-                                    'sku' => 'LBK-ISL-003',
                                     'barcode' => '9789770220034',
                                     'author' => 'الحافظ إسماعيل بن كثير',
                                     'publisher' => 'دار المعارف للطباعة',
@@ -150,7 +141,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'الإتقان في علوم القرآن',
-                                    'sku' => 'LBK-ISL-004',
                                     'barcode' => '9789770220041',
                                     'author' => 'الإمام جلال الدين السيوطي',
                                     'publisher' => 'دار الكتب العلمية',
@@ -171,7 +161,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'ثلاثية القاهرة (بين القصرين - قصر الشوق - السكرية)',
-                                    'sku' => 'LBK-LIT-001',
                                     'barcode' => '9789770330019',
                                     'author' => 'نجيب محفوظ',
                                     'publisher' => 'دار الشروق',
@@ -182,7 +171,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'ثلاثية غرناطة',
-                                    'sku' => 'LBK-LIT-002',
                                     'barcode' => '9789770330026',
                                     'author' => 'رضوى عاشور',
                                     'publisher' => 'دار الشروق',
@@ -193,7 +181,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'الأيام (الأجزاء الثلاثة كاملة)',
-                                    'sku' => 'LBK-LIT-003',
                                     'barcode' => '9789770330033',
                                     'author' => 'د. طه حسين',
                                     'publisher' => 'دار المعارف المصرية',
@@ -209,7 +196,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'المعجم الوسيط (مجمع اللغة العربية)',
-                                    'sku' => 'LBK-LIT-004',
                                     'barcode' => '9789770330040',
                                     'author' => 'لجنة من كبار اللغويين بمجمع القاهرة',
                                     'publisher' => 'مكتبة الشروق الدولية',
@@ -220,7 +206,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'مقدمة ابن خلدون (كتاب العبر وديوان المبتدأ والخبر)',
-                                    'sku' => 'LBK-LIT-005',
                                     'barcode' => '9789770330057',
                                     'author' => 'عبد الرحمن بن خلدون',
                                     'publisher' => 'دار الفكر العربي',
@@ -241,7 +226,6 @@ class BookCatalogSeeder extends Seeder
                             'books' => [
                                 [
                                     'name' => 'مبادئ الإدارة الاستراتيجية المعاصرة في الشركات والمؤسسات',
-                                    'sku' => 'LBK-MGT-001',
                                     'barcode' => '9789770440018',
                                     'author' => 'د. أحمد سيد مصطفى',
                                     'publisher' => 'مكتبة القاضي',
@@ -252,7 +236,6 @@ class BookCatalogSeeder extends Seeder
                                 ],
                                 [
                                     'name' => 'المحاسبة المالية المتقدمة وفق المعايير الدولية IFRS',
-                                    'sku' => 'LBK-MGT-002',
                                     'barcode' => '9789770440025',
                                     'author' => 'د. محمد مطر',
                                     'publisher' => 'مكتبة الأنجلو المصرية',
@@ -283,11 +266,10 @@ class BookCatalogSeeder extends Seeder
 
                     foreach ($childCatData['books'] as $book) {
                         Product::query()->updateOrCreate(
-                            ['sku' => $book['sku']],
+                            ['barcode' => $book['barcode']],
                             [
                                 'category_id' => $subCat->id,
                                 'name' => $book['name'],
-                                'barcode' => $book['barcode'],
                                 'author' => $book['author'],
                                 'publisher' => $book['publisher'],
                                 'edition' => $book['edition'],

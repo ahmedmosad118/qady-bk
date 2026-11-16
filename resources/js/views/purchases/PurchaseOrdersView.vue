@@ -1,18 +1,8 @@
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-sm font-semibold text-[var(--crimson)]">{{ $t('nav.suppliersGroup') }}</p>
-        <h1 class="mt-1 text-2xl font-extrabold leading-tight text-[var(--text)] sm:text-[28px]">
-          {{ $t('purchaseOrders.title') }}
-        </h1>
-        <p class="mt-1.5 text-sm leading-6 text-[var(--muted)]">
-          {{ $t('purchaseOrders.subtitle') }}
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader :title="$t('purchaseOrders.title')" :subtitle="$t('purchaseOrders.subtitle')">
+      <template #actions>
         <button
           type="button"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
@@ -21,8 +11,8 @@
           <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
           <span>{{ $t('purchaseOrders.create') }}</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Error Banner -->
     <div
@@ -41,64 +31,19 @@
 
     <!-- Main Card -->
     <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Toolbar & Filters -->
-      <div class="border-b border-[var(--border)] p-4 sm:p-5">
-        <div class="flex flex-col gap-4">
-          <!-- Search & Selects row -->
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <!-- Search -->
-            <div class="relative">
-              <Search
-                class="pointer-events-none absolute right-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
-                aria-hidden="true"
-              />
-              <input
-                v-model="filters.search"
-                type="search"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-11 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                :placeholder="$t('purchaseOrders.searchPlaceholder')"
-                @input="debouncedSearch"
-              />
-            </div>
-
-            <!-- Supplier Filter -->
-            <div>
-              <select
-                v-model="filters.supplier_id"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                @change="loadOrders"
-              >
-                <option :value="null">{{ $t('purchaseOrders.allSuppliers') }}</option>
-                <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">
-                  {{ sup.name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Date From -->
-            <div>
-              <input
-                v-model="filters.order_date_from"
-                type="date"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                @change="loadOrders"
-              />
-            </div>
-
-            <!-- Date To -->
-            <div>
-              <input
-                v-model="filters.order_date_to"
-                type="date"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                @change="loadOrders"
-              />
-            </div>
-          </div>
-
-          <!-- Status Chips Row (without counts) -->
-          <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-[var(--border)]">
-            <div class="flex flex-wrap items-center gap-1.5">
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
+        v-model:search="filters.search"
+        :search-placeholder="$t('purchaseOrders.searchPlaceholder')"
+        :active-filters-count="activeFiltersCount"
+        @search="debouncedSearch"
+        @reset="clearFilters"
+      >
+        <div class="space-y-4">
+          <!-- Status -->
+          <div>
+            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.status') }}</label>
+            <div class="flex flex-wrap gap-2">
               <FilterChip
                 :label="$t('purchaseOrders.allStatuses')"
                 :active="filters.status === null"
@@ -120,30 +65,46 @@
                 @click="setStatusFilter('cancelled')"
               />
             </div>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <button
-                v-if="hasActiveFilters"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]"
-                @click="clearFilters"
-              >
-                <X class="h-3.5 w-3.5" />
-                <span>{{ $t('common.clearFilters') }}</span>
-              </button>
+          <!-- Supplier -->
+          <div>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.supplier') }}</label>
+            <select
+              v-model="filters.supplier_id"
+              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+              @change="meta.current_page = 1; loadOrders()"
+            >
+              <option :value="null">{{ $t('purchaseOrders.allSuppliers') }}</option>
+              <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">
+                {{ sup.name }}
+              </option>
+            </select>
+          </div>
 
-              <button
-                type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]"
-                :title="$t('common.refresh')"
-                @click="loadOrders"
-              >
-                <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />
-              </button>
+          <!-- Date Range -->
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('common.previous') === 'Previous' ? 'From' : 'من' }})</label>
+              <input
+                v-model="filters.order_date_from"
+                type="date"
+                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                @change="meta.current_page = 1; loadOrders()"
+              />
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('common.previous') === 'Previous' ? 'To' : 'إلى' }})</label>
+              <input
+                v-model="filters.order_date_to"
+                type="date"
+                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                @change="meta.current_page = 1; loadOrders()"
+              />
             </div>
           </div>
         </div>
-      </div>
+      </FilterToolbar>
 
       <!-- Table Section -->
       <div class="overflow-x-auto">
@@ -154,10 +115,10 @@
               <th class="px-5 py-3.5">{{ $t('purchaseOrders.supplier') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.orderDate') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.expectedDeliveryDate') }}</th>
-              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.itemsCount') }}</th>
-              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.total') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.status') }}</th>
-              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.creator') }}</th>
+              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.itemsCount') }}</th>
+              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.totalDiscounts') }}</th>
+              <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.total') }}</th>
               <th class="px-5 py-3.5 text-left">{{ $t('purchaseOrders.actions') }}</th>
             </tr>
           </thead>
@@ -218,9 +179,6 @@
               <!-- Supplier -->
               <td class="px-5 py-4">
                 <div class="font-bold text-[var(--text)]">{{ order.supplier?.name || '—' }}</div>
-                <div v-if="order.supplier?.phone || order.supplier?.mobile" class="text-xs text-[var(--muted)]" dir="ltr">
-                  {{ order.supplier?.mobile || order.supplier?.phone }}
-                </div>
               </td>
 
               <!-- Order Date -->
@@ -231,18 +189,6 @@
               <!-- Expected Delivery Date -->
               <td class="px-5 py-4 text-center text-xs font-mono text-[var(--muted)]">
                 {{ formatDateOnly(order.expected_delivery_date) }}
-              </td>
-
-              <!-- Items Count -->
-              <td class="px-5 py-4 text-center">
-                <span class="inline-flex rounded-full bg-[var(--bg)] px-2.5 py-0.5 text-xs font-bold text-[var(--text)] border border-[var(--border)]">
-                  {{ order.items_count ?? order.items?.length ?? 0 }}
-                </span>
-              </td>
-
-              <!-- Total -->
-              <td class="px-5 py-4 text-center font-mono text-sm font-black text-[var(--text)]">
-                {{ formatMoney(order.total) }} <span class="text-xs font-normal text-[var(--muted)]">ج.م</span>
               </td>
 
               <!-- Status Badge -->
@@ -256,9 +202,29 @@
                 </span>
               </td>
 
-              <!-- Creator -->
-              <td class="px-5 py-4 text-center text-xs text-[var(--muted)]">
-                {{ order.creator?.name || '—' }}
+              <!-- Items Count -->
+              <td class="px-5 py-4 text-center">
+                <span class="inline-flex rounded-full bg-[var(--bg)] px-2.5 py-0.5 text-xs font-bold text-[var(--text)] border border-[var(--border)]">
+                  {{ order.items_count ?? order.items?.length ?? 0 }}
+                </span>
+              </td>
+
+              <!-- Total Discounts -->
+              <td class="px-5 py-4 text-center font-mono text-xs font-bold">
+                <span
+                  v-if="totalDiscountAmount(order) > 0"
+                  class="text-rose-600 dark:text-rose-400"
+                  :title="discountBreakdownTitle(order)"
+                >
+                  -{{ formatMoney(totalDiscountAmount(order)) }}
+                  <span class="text-[11px] font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
+                </span>
+                <span v-else class="text-[var(--muted)]">—</span>
+              </td>
+
+              <!-- Total -->
+              <td class="px-5 py-4 text-center font-mono text-sm font-black text-[var(--text)]">
+                {{ formatMoney(order.total) }} <span class="text-xs font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
               </td>
 
               <!-- Actions -->
@@ -272,6 +238,17 @@
                     @click="openDetailModal(order)"
                   >
                     <Eye class="h-4 w-4" />
+                  </button>
+
+                  <!-- Open Linked Purchase Invoice -->
+                  <button
+                    v-if="getLinkedInvoice(order)"
+                    type="button"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--crimson)] hover:bg-[var(--crimson-soft)]"
+                    :title="`فتح فاتورة الشراء (${getLinkedInvoice(order).invoice_number})`"
+                    @click="goToLinkedInvoice(getLinkedInvoice(order).id)"
+                  >
+                    <Receipt class="h-4 w-4" />
                   </button>
 
                   <!-- Confirm & Convert (Draft only) -->
@@ -378,28 +355,31 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import api from '../../services/api';
 import { confirmAction, confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
 import FilterChip from '../../components/ui/FilterChip.vue';
+import FilterToolbar from '../../components/ui/FilterToolbar.vue';
+import PageHeader from '../../components/ui/PageHeader.vue';
 import PurchaseOrderFormModal from './PurchaseOrderFormModal.vue';
 import PurchaseOrderDetailModal from './PurchaseOrderDetailModal.vue';
 import {
   ShoppingBag,
   Plus,
-  Search,
-  RefreshCw,
   Eye,
   Pencil,
   Trash2,
   CheckCircle2,
   XCircle,
-  X,
   AlertCircle,
+  Receipt,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 
 const orders = ref([]);
 const suppliers = ref([]);
@@ -423,15 +403,16 @@ const filters = reactive({
   order_date_to: null,
 });
 
-const hasActiveFilters = computed(() => {
-  return (
-    !!filters.search ||
-    filters.supplier_id !== null ||
-    filters.status !== null ||
-    filters.order_date_from !== null ||
-    filters.order_date_to !== null
-  );
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (filters.supplier_id !== null) count++;
+  if (filters.status !== null) count++;
+  if (filters.order_date_from) count++;
+  if (filters.order_date_to) count++;
+  return count;
 });
+
+const hasActiveFilters = computed(() => Boolean(filters.search) || activeFiltersCount.value > 0);
 
 // Modals state
 const formModalOpen = ref(false);
@@ -472,6 +453,26 @@ function changePage(page) {
 function formatMoney(amount) {
   const num = Number(amount) || 0;
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function itemDiscountsAmount(order) {
+  if (order?.items_sum_discount_amount !== undefined && order?.items_sum_discount_amount !== null) {
+    return Number(order.items_sum_discount_amount) || 0;
+  }
+  return (order?.items || []).reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
+}
+
+function totalDiscountAmount(order) {
+  return itemDiscountsAmount(order) + (Number(order?.discount_amount) || 0);
+}
+
+function discountBreakdownTitle(order) {
+  const itemDisc = itemDiscountsAmount(order);
+  const orderDisc = Number(order?.discount_amount) || 0;
+  const parts = [];
+  if (itemDisc > 0) parts.push(`${t('purchaseOrders.itemDiscounts')}: ${formatMoney(itemDisc)}`);
+  if (orderDisc > 0) parts.push(`${t('purchaseOrders.orderDiscount')}: ${formatMoney(orderDisc)}`);
+  return parts.join(' | ');
 }
 
 function formatDateOnly(val) {
@@ -543,6 +544,16 @@ async function loadProducts() {
   } catch {
     // Keep empty on error
   }
+}
+
+function getLinkedInvoice(order) {
+  const list = order?.purchase_invoices || [];
+  if (list.length === 0) return null;
+  return list.find((inv) => inv.status !== 'cancelled') || list[0];
+}
+
+function goToLinkedInvoice(invoiceId) {
+  router.push({ name: 'purchase-invoices', query: { open: invoiceId } });
 }
 
 function openCreateModal() {
@@ -657,9 +668,28 @@ async function deleteOrderAction(order) {
   }
 }
 
+function openFromQuery() {
+  if (route.query.open) {
+    const id = Number(route.query.open);
+    if (Number.isFinite(id) && id > 0) {
+      openDetailModal({ id });
+    }
+  }
+}
+
+watch(
+  () => route.query.open,
+  (openId) => {
+    if (openId) {
+      openFromQuery();
+    }
+  }
+);
+
 onMounted(() => {
   loadOrders();
   loadSuppliers();
   loadProducts();
+  openFromQuery();
 });
 </script>

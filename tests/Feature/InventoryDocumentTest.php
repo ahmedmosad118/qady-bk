@@ -297,4 +297,19 @@ class InventoryDocumentTest extends TestCase
         $resAll->assertStatus(200);
         $resAll->assertJsonCount(2, 'data');
     }
+
+    public function test_stock_issue_document_type_is_removed_and_rejected(): void
+    {
+        $this->assertNotContains('stock_issue', InventoryDocumentType::values());
+
+        $response = $this->postJson('/api/inventory-documents', [
+            'document_type' => 'stock_issue',
+            'document_date' => '2026-11-16',
+            'source_warehouse_id' => $this->warehouse->id,
+            'items' => [['product_id' => $this->product1->id, 'quantity' => 1]],
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['document_type']);
+    }
 }

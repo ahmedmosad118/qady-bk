@@ -20,6 +20,7 @@ use App\Models\Warehouse;
 use App\Services\InventoryDocumentNumberService;
 use App\Services\InventoryDocumentWorkflowService;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
@@ -326,7 +327,6 @@ class PosReturnService
                 'pos_sale_item_id' => $item->id,
                 'product_id' => $item->product_id,
                 'product_name' => $item->product?->name,
-                'sku' => $item->product?->sku,
                 'barcode' => $item->product?->barcode,
                 'sold_quantity' => $soldQty,
                 'already_returned_quantity' => $alreadyReturned,
@@ -352,5 +352,69 @@ class PosReturnService
             ],
             'items' => $itemsSummary,
         ];
+    }
+
+    /**
+     * Paginate POS returns with optional filters.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function paginateReturns(array $filters, int $perPage = 15): LengthAwarePaginator
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+        $shiftId = $filters['shift_id'] ?? null;
+        $posSaleId = $filters['pos_sale_id'] ?? null;
+        $paymentMethodId = $filters['payment_method_id'] ?? null;
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        return PosReturn::query()
+            ->with([
+                'sale:id,invoice_number,customer_id,grand_total,sold_at',
+                'sale.customer:id,name,phone',
+                'creator:id,name',
+                'paymentMethod:id,name',
+                'shift:id,shift_number',
+                'inventoryDocuments:id,document_number,referenceable_type,referenceable_id,status',
+            ])
+            ->withCount('items')
+            ->when($search !== '', function ($q) use ($search): void {
+                $q->where(function ($sub) use ($search): void {
+                    $sub->where('return_number', 'like', "%{$search}%")
+                        ->orWhereHas('sale', function ($sq) use ($search): void {
+                            $sq->where('invoice_number', 'like', "%{$search}%")
+                                ->orWhereHas('customer', fn ($cq) => $cq->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"));
+                        })
+                        ->orWhereHas('creator', fn ($uq) => $uq->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($shiftId, fn ($q) => $q->where('shift_id', $shiftId))
+            ->when($posSaleId, fn ($q) => $q->where('pos_sale_id', $posSaleId))
+            ->when($paymentMethodId, fn ($q) => $q->where('payment_method_id', $paymentMethodId))
+            ->when($dateFrom, fn ($q) => $q->whereDate('returned_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('returned_at', '<=', $dateTo))
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Get POS return with complete details including sale, items, and linked inventory document.
+     */
+    public function getReturnDetails(PosReturn $posReturn): PosReturn
+    {
+        return $posReturn->load([
+            'items.product:id,name,barcode',
+            'items.saleItem:id,sale_id,product_id,quantity,unit_price,total,allocated_invoice_discount',
+            'paymentMethod:id,name',
+            'sale:id,invoice_number,customer_id,payment_method_id,subtotal,items_discount_total,invoice_discount_amount,grand_total,sold_at',
+            'sale.customer:id,name,phone,email',
+            'sale.paymentMethod:id,name',
+            'shift:id,shift_number,opened_at,closed_at',
+            'creator:id,name,email',
+            'inventoryDocuments.sourceWarehouse:id,name,code',
+            'inventoryDocuments.destinationWarehouse:id,name,code',
+            'inventoryDocuments.items.product:id,name,barcode',
+            'inventoryDocuments.creator:id,name',
+        ]);
     }
 }

@@ -41,7 +41,6 @@ class WarehouseStockController extends Controller
                 $q->whereHas('product', function ($sub) use ($filters): void {
                     $search = $filters['search'];
                     $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('sku', 'like', "%{$search}%")
                         ->orWhere('barcode', 'like', "%{$search}%");
                 });
             });
