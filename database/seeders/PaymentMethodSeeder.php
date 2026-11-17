@@ -20,7 +20,6 @@ class PaymentMethodSeeder extends Seeder
                 ['name' => $type->label()],
                 [
                     'type' => $type->value,
-                    'is_active' => true,
                 ]
             );
         }

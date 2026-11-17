@@ -8,6 +8,7 @@ use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PaymentMethodType;
 use App\Enums\StockMovementDirection;
+use App\Models\Contact;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
 use App\Models\PaymentMethod;
@@ -21,6 +22,7 @@ use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Services\Pos\PosSaleCalculator;
 use App\Services\Pos\PosSaleService;
 use App\Services\Pos\PosShiftService;
 use Database\Seeders\PaymentMethodSeeder;
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosSaleTest extends TestCase
@@ -45,6 +48,7 @@ class PosSaleTest extends TestCase
     protected Product $product1;
     protected Product $product2;
     protected PosSaleService $saleService;
+    protected PosSaleCalculator $calculator;
     protected PosShiftService $shiftService;
 
     protected function setUp(): void
@@ -52,6 +56,7 @@ class PosSaleTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->seed(PaymentMethodSeeder::class);
@@ -65,6 +70,7 @@ class PosSaleTest extends TestCase
 
         $this->shiftService = app(PosShiftService::class);
         $this->saleService = app(PosSaleService::class);
+        $this->calculator = app(PosSaleCalculator::class);
 
         $this->shift = $this->shiftService->openShift($this->user, 1000.00);
 
@@ -228,6 +234,46 @@ class PosSaleTest extends TestCase
         $response = $this->postJson('/api/pos/sales', $payload);
         $response->assertCreated();
         $this->assertNull($response->json('data.customer_id'));
+        $this->assertNull($response->json('data.customer'));
+    }
+
+    public function test_sale_with_registered_customer_binds_and_hydrates_contact_and_rejects_invalid_customer(): void
+    {
+        $customer = Contact::factory()->create([
+            'name' => 'المستشار أحمد القاضي',
+            'phone' => '01099887766',
+            'is_customer' => true,
+        ]);
+
+        $sale = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'customer_id' => $customer->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product1->id, 'quantity' => '1.000'],
+            ],
+        ], $this->user);
+
+        $this->assertSame($customer->id, $sale->customer_id);
+        $this->assertTrue($sale->relationLoaded('customer'));
+        $this->assertNotNull($sale->customer);
+        $this->assertSame($customer->id, $sale->customer->id);
+        $this->assertSame('المستشار أحمد القاضي', $sale->customer->name);
+
+        // Non-existent customer_id must throw ValidationException on customer_id
+        try {
+            $this->saleService->createSale([
+                'shift_id' => $this->shift->id,
+                'customer_id' => 999999,
+                'payment_method_id' => $this->cashMethod->id,
+                'items' => [
+                    ['product_id' => $this->product1->id, 'quantity' => '1.000'],
+                ],
+            ], $this->user);
+            $this->fail('Expected ValidationException for non-existent customer_id.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('customer_id', $e->errors());
+        }
     }
 
     public function test_price_override_and_preserves_original_price_in_snapshot(): void
@@ -606,9 +652,9 @@ class PosSaleTest extends TestCase
             DB::flushQueryLog();
             DB::enableQueryLog();
 
-            $consolidateResult = $this->saleService->consolidateItems($itemsPayload);
+            $consolidateResult = $this->calculator->consolidateItems($itemsPayload);
             $loadedProducts = $this->saleService->loadProducts(array_keys($consolidateResult));
-            $this->saleService->calculateItems($consolidateResult, $loadedProducts);
+            $this->calculator->calculate($consolidateResult, $loadedProducts);
 
             $calcQueries = DB::getQueryLog();
             DB::disableQueryLog();
@@ -617,7 +663,7 @@ class PosSaleTest extends TestCase
             $this->assertCount(
                 1,
                 $calcQueries,
-                "Expected exactly 1 product query during loadProducts + calculateItems for {$itemCount} items."
+                "Expected exactly 1 product query during loadProducts + calculate for {$itemCount} items."
             );
 
             // Also verify full sale execution bulk inserts pos_sale_items and inventory_document_items in 1 query each
@@ -655,7 +701,6 @@ class PosSaleTest extends TestCase
             'name' => 'Secondary Warehouse',
             'address' => 'Alexandria',
             'is_default' => false,
-            'is_active' => true,
         ]);
 
         Warehouse::query()->update(['is_default' => false]);
@@ -682,7 +727,6 @@ class PosSaleTest extends TestCase
             'name' => 'Secondary Warehouse',
             'address' => 'Giza',
             'is_default' => false,
-            'is_active' => true,
         ]);
 
         WarehouseStock::query()->create([

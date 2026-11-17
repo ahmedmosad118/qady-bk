@@ -37,14 +37,39 @@ class AppServiceProvider extends ServiceProvider
 
         InventoryDocument::observe(InventoryDocumentObserver::class);
 
-        // POS Authorization Gates (Integration points with current/future permission systems)
-        Gate::define('pos.sell', fn (User $user) => true);
-        Gate::define('pos.override_price', fn (User $user) => true);
-        Gate::define('pos.apply_item_discount', fn (User $user) => true);
-        Gate::define('pos.apply_invoice_discount', fn (User $user) => true);
-        Gate::define('pos.manage_shifts', fn (User $user) => true);
-        Gate::define('pos.manage_shift_cash', fn (User $user) => true);
-        Gate::define('pos.process_returns', fn (User $user) => true);
+        // POS Authorization Gates bound to real Spatie roles & permissions
+        $hasPosPermission = static function (User $user, array $permissions): bool {
+            if ($user->hasAnyRole(['admin', 'Owner', 'Super Admin'])) {
+                return true;
+            }
+
+            foreach ($permissions as $permission) {
+                if ($user->checkPermissionTo($permission)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        $posGates = [
+            'pos.sell' => ['pos.sell'],
+            'pos.discount' => ['pos.discount', 'pos.apply_item_discount', 'pos.apply_invoice_discount'],
+            'pos.apply_item_discount' => ['pos.discount', 'pos.apply_item_discount'],
+            'pos.apply_invoice_discount' => ['pos.discount', 'pos.apply_invoice_discount'],
+            'pos.price_override' => ['pos.price_override', 'pos.override_price'],
+            'pos.override_price' => ['pos.price_override', 'pos.override_price'],
+            'pos.shift' => ['pos.shift', 'pos.manage_shifts'],
+            'pos.manage_shifts' => ['pos.shift', 'pos.manage_shifts'],
+            'pos.return' => ['pos.return', 'pos.process_returns'],
+            'pos.process_returns' => ['pos.return', 'pos.process_returns'],
+            'pos.expenses' => ['pos.expenses', 'pos.manage_shift_cash'],
+            'pos.manage_shift_cash' => ['pos.expenses', 'pos.manage_shift_cash'],
+        ];
+
+        foreach ($posGates as $gate => $permissions) {
+            Gate::define($gate, static fn (User $user): bool => $hasPosPermission($user, $permissions));
+        }
 
         // Expenses Authorization Gates (Integration points with current/future permission systems)
         Gate::define('expenses.view', fn (User $user) => true);

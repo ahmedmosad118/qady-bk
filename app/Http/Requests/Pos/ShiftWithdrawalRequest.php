@@ -11,7 +11,7 @@ class ShiftWithdrawalRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::allows('pos.manage_shift_cash', $this->user());
+        return Gate::allows('pos.expenses', $this->user()) && Gate::allows('pos.manage_shift_cash', $this->user());
     }
 
     /**

@@ -1302,7 +1302,6 @@ export const usePosStore = defineStore('pos', {
           phone: phone.trim() || null,
           type: type || 'individual',
           is_customer: true,
-          is_active: true,
         });
 
         const created = resp.data.data;

@@ -18,6 +18,7 @@ use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosDashboardAndPaymentMethodTest extends TestCase
@@ -40,6 +41,7 @@ class PosDashboardAndPaymentMethodTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->seed(PaymentMethodSeeder::class);
@@ -60,7 +62,6 @@ class PosDashboardAndPaymentMethodTest extends TestCase
         $this->product = Product::factory()->create([
             'name' => 'حلية طالب العلم',
             'selling_price' => 100.00,
-            'is_active' => true,
         ]);
 
         WarehouseStock::query()->create([

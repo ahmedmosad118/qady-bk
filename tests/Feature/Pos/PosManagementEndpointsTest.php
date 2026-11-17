@@ -18,6 +18,7 @@ use App\Services\Pos\PosSaleService;
 use App\Services\Pos\PosShiftService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosManagementEndpointsTest extends TestCase
@@ -36,25 +37,23 @@ class PosManagementEndpointsTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create(['name' => 'Cashier One']);
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->warehouse = Warehouse::create([
             'name' => 'Main Warehouse',
             'code' => 'WH-01',
             'address' => 'Cairo, Egypt',
-            'is_active' => true,
             'is_default' => true,
         ]);
 
         $this->cashMethod = PaymentMethod::create([
             'name' => 'نقدي',
             'type' => PaymentMethodType::CASH,
-            'is_active' => true,
         ]);
 
         $category = ProductCategory::create([
             'name' => 'General Books',
-            'is_active' => true,
         ]);
 
         $this->product = Product::create([
@@ -63,7 +62,6 @@ class PosManagementEndpointsTest extends TestCase
             'category_id' => $category->id,
             'purchase_price' => 50.00,
             'selling_price' => 100.00,
-            'is_active' => true,
         ]);
 
         $this->warehouse->stocks()->create([
@@ -76,7 +74,6 @@ class PosManagementEndpointsTest extends TestCase
             'phone' => '01012345678',
             'is_customer' => true,
             'is_supplier' => false,
-            'is_active' => true,
         ]);
 
         /** @var PosShiftService $shiftService */

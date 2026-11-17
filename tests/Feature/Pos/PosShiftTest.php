@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Pos;
 
+use App\Enums\PaymentMethodType;
 use App\Models\PaymentMethod;
 use App\Models\PosSale;
 use App\Models\PosShift;
@@ -19,6 +20,7 @@ use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosShiftTest extends TestCase
@@ -33,6 +35,7 @@ class PosShiftTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->seed(PaymentMethodSeeder::class);
@@ -175,5 +178,60 @@ class PosShiftTest extends TestCase
 
         $this->expectException(LogicException::class);
         $tx->delete();
+    }
+
+    public function test_shift_balances_expenses_withdrawals_and_sales_summary_use_exact_decimal_precision(): void
+    {
+        $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
+        $visaMethod = PaymentMethod::query()->where('type', PaymentMethodType::VISA)->firstOrFail();
+        /** @var PosSaleService $saleService */
+        $saleService = app(PosSaleService::class);
+
+        $product = Product::factory()->create([
+            'name' => 'شرح الورقات',
+            'selling_price' => 33.33,
+        ]);
+
+        WarehouseStock::query()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => '20.000',
+        ]);
+
+        // Open shift with string decimal '1000.55'
+        $shift = $this->shiftService->openShift($this->user, '1000.55');
+        $this->assertSame('1000.55', (string) $shift->opening_balance);
+
+        // Cash sale: 1 * 19.99 = 19.99 -> expected_cash = 1000.55 + 19.99 = 1020.54
+        $saleService->createSale([
+            'shift_id' => $shift->id,
+            'payment_method_id' => $cashMethod->id,
+            'items' => [['product_id' => $product->id, 'quantity' => '1.000', 'unit_price' => '19.99']],
+        ], $this->user);
+
+        // Visa sale: 1 * 33.33 = 33.33 -> does not affect cash, total_sales_amount = 19.99 + 33.33 = 53.32
+        $saleService->createSale([
+            'shift_id' => $shift->id,
+            'payment_method_id' => $visaMethod->id,
+            'items' => [['product_id' => $product->id, 'quantity' => '1.000', 'unit_price' => '33.33']],
+        ], $this->user);
+
+        // Expense: '10.15', Withdrawal: '25.25' -> expected_cash = 1020.54 - 10.15 - 25.25 = 985.14
+        $this->shiftService->recordExpense($shift, $this->user, '10.15', 'إكرامية');
+        $this->shiftService->recordWithdrawal($shift, $this->user, '25.25', 'توريد جزئي');
+
+        // Close with actual_cash = '985.10' -> difference = 985.10 - 985.14 = -0.04
+        $closed = $this->shiftService->closeShift($shift, $this->user, '985.10');
+        $summary = $this->shiftService->getShiftSummary($closed);
+
+        $this->assertSame('985.14', $summary['expected_cash']);
+        $this->assertSame('985.10', $summary['actual_cash']);
+        $this->assertSame('-0.04', $summary['difference']);
+        $this->assertSame('19.99', $summary['cash_sales']);
+        $this->assertSame('33.33', $summary['visa_sales']);
+        $this->assertSame('53.32', $summary['total_sales_amount']);
+        $this->assertSame('10.15', $summary['expenses']);
+        $this->assertSame('25.25', $summary['withdrawals']);
     }
 }

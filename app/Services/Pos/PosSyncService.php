@@ -9,19 +9,20 @@ use App\Models\PosSale;
 use App\Models\PosShift;
 use App\Models\PosSyncTransaction;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Support\Decimal;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class PosSyncService
 {
     public function __construct(
         protected PosSaleService $saleService,
+        protected PosDefaultWarehouseResolver $warehouseResolver,
     ) {}
 
     /**
@@ -44,10 +45,34 @@ class PosSyncService
             ]);
         }
 
+        // Ignore any client-supplied warehouse_id (POS strictly uses the single default warehouse)
+        unset($payload['warehouse_id']);
+
+        // Consolidate requested quantities per product_id and bulk-load products in 1 query
+        $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+        $requestedByProductId = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item) || empty($item['product_id']) || ! is_numeric($item['product_id'])) {
+                continue;
+            }
+            $prodId = (int) $item['product_id'];
+            $reqQtyStr = Decimal::fromNumeric($item['quantity'] ?? 0, Decimal::QUANTITY_SCALE);
+
+            $requestedByProductId[$prodId] = isset($requestedByProductId[$prodId])
+                ? Decimal::add($requestedByProductId[$prodId], $reqQtyStr, Decimal::QUANTITY_SCALE)
+                : $reqQtyStr;
+        }
+
+        $products = $this->saleService->loadProducts(array_keys($requestedByProductId));
+
+        // 0. Re-verify permissions and server-side prices using the bulk-loaded products map (0 extra queries)
+        $this->saleService->authorizeSalePayload($payload, $products, $user);
+
         // 1. Idempotency Check: check if sale already exists in official pos_sales
         $existingSale = PosSale::query()
             ->where('client_uuid', $clientUuid)
-            ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments'])
+            ->with(PosSaleService::SALE_RELATIONS)
             ->first();
 
         if ($existingSale) {
@@ -113,7 +138,6 @@ class PosSyncService
                 ];
             }
         } else {
-            // If shift_id was not provided in offline payload, resolve currently open shift
             $shift = PosShift::query()->open()->first();
             if (! $shift) {
                 $conflictReason = 'لا توجد وردية مفتوحة على الخادم لاستقبال المزامنة.';
@@ -129,17 +153,11 @@ class PosSyncService
             $payload['shift_id'] = $shift->id;
         }
 
-        // 3. Resolve warehouse
-        $warehouseId = $payload['warehouse_id'] ?? null;
-        if ($warehouseId) {
-            $warehouse = Warehouse::query()->where('is_active', true)->find($warehouseId);
-        } else {
-            $warehouse = Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
-                ?: Warehouse::query()->where('is_active', true)->first();
-        }
-
-        if (! $warehouse) {
-            $conflictReason = 'لم يتم العثور على مخزن نشط لمعالجة الفاتورة.';
+        // 3. Resolve the single default warehouse via PosDefaultWarehouseResolver without fallback
+        try {
+            $warehouse = $this->warehouseResolver->resolve();
+        } catch (ValidationException) {
+            $conflictReason = __('pos.errors.default_warehouse_missing');
             $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
 
             return [
@@ -150,40 +168,52 @@ class PosSyncService
             ];
         }
 
-        // 4. Pre-flight stock check to detect conflicts before writing to pos_sales
-        $items = $payload['items'] ?? [];
-        foreach ($items as $item) {
-            $prodId = (int) $item['product_id'];
-            $reqQty = (float) $item['quantity'];
+        // 4. Bulk check product existence and stock sufficiency in memory (0 queries inside loops)
+        if ($requestedByProductId !== []) {
+            foreach ($requestedByProductId as $prodId => $reqQtyStr) {
+                if (! $products->has($prodId)) {
+                    $conflictReason = __('pos.errors.product_not_found', ['id' => $prodId]);
+                    $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
 
-            $stock = WarehouseStock::query()
+                    return [
+                        'status' => 'conflict',
+                        'is_idempotent' => false,
+                        'sale' => null,
+                        'conflict_reason' => $conflictReason,
+                    ];
+                }
+            }
+
+            $stocksByProductId = WarehouseStock::query()
                 ->where('warehouse_id', $warehouse->id)
-                ->where('product_id', $prodId)
-                ->first();
+                ->whereIn('product_id', array_keys($requestedByProductId))
+                ->pluck('quantity', 'product_id');
 
-            $avail = $stock ? (float) $stock->quantity : 0.0;
+            foreach ($requestedByProductId as $prodId => $reqQtyStr) {
+                $availStr = Decimal::fromNumeric($stocksByProductId[$prodId] ?? 0, Decimal::QUANTITY_SCALE);
 
-            if ($reqQty > $avail) {
-                $product = Product::query()->find($prodId);
-                $prodName = $product?->name ?? "صنف #{$prodId}";
-                $conflictReason = "تعارض مخزون: الرصيد غير كافٍ للمنتج '{$prodName}' في المخزن '{$warehouse->name}'. الرصيد المتاح: {$avail}، الكمية المطلوبة محلياً: {$reqQty}.";
+                if (Decimal::comp($reqQtyStr, $availStr, Decimal::QUANTITY_SCALE) > 0) {
+                    /** @var Product $product */
+                    $product = $products->get($prodId);
+                    $prodName = $product->name;
+                    $conflictReason = "تعارض مخزون: الرصيد غير كافٍ للمنتج '{$prodName}' في المخزن '{$warehouse->name}'. الرصيد المتاح: {$availStr}، الكمية المطلوبة محلياً: {$reqQtyStr}.";
 
-                $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
+                    $this->recordConflict($clientUuid, $shift->id, $payload, $conflictReason);
 
-                return [
-                    'status' => 'conflict',
-                    'is_idempotent' => false,
-                    'sale' => null,
-                    'conflict_reason' => $conflictReason,
-                ];
+                    return [
+                        'status' => 'conflict',
+                        'is_idempotent' => false,
+                        'sale' => null,
+                        'conflict_reason' => $conflictReason,
+                    ];
+                }
             }
         }
 
-        // 5. Attempt official sale creation (createSale is internally locked atomically on client_uuid)
+        // 5. Attempt official sale creation (createSale is internally locked atomically on client_uuid and warehouse_stocks)
         try {
             $sale = $this->saleService->createSale($payload, $user);
 
-            // Record successful sync
             PosSyncTransaction::query()->updateOrCreate(
                 ['client_uuid' => $clientUuid],
                 [
@@ -202,9 +232,15 @@ class PosSyncService
                 'sale' => $sale,
                 'conflict_reason' => null,
             ];
+        } catch (AuthorizationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             // Check if concurrent idempotent request already completed the sale
-            $existingSale = PosSale::query()->where('client_uuid', $clientUuid)->first();
+            $existingSale = PosSale::query()
+                ->where('client_uuid', $clientUuid)
+                ->with(PosSaleService::SALE_RELATIONS)
+                ->first();
+
             if ($existingSale) {
                 return [
                     'status' => 'synced',
@@ -246,7 +282,7 @@ class PosSyncService
                 ]
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to record POS sync conflict: '.$e->getMessage(), [
+            Log::error('Failed to record POS sync conflict: ' . $e->getMessage(), [
                 'client_uuid' => $uuid,
                 'shift_id' => $shiftId,
             ]);
@@ -254,30 +290,25 @@ class PosSyncService
     }
 
     /**
-     * Get offline bootstrap dataset (products, barcodes, prices, stock, payment methods).
+     * Get offline bootstrap dataset (products, barcodes, prices, stock, payment methods)
+     * scoped strictly to the single default warehouse.
      *
      * @return array<string, mixed>
      */
-    public function getBootstrapData(?int $warehouseId = null): array
+    public function getBootstrapData(): array
     {
-        $warehouse = $warehouseId
-            ? Warehouse::query()->where('is_active', true)->find($warehouseId)
-            : (Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
-                ?: Warehouse::query()->where('is_active', true)->first());
-
-        $whId = $warehouse?->id;
+        $warehouse = $this->warehouseResolver->resolve();
+        $whId = $warehouse->id;
 
         $products = Product::query()
-            ->active()
             ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
-                if ($whId) {
-                    $q->where('warehouse_id', $whId);
-                }
+                $q->where('warehouse_id', $whId);
             }])
             ->get()
             ->map(function (Product $p) use ($whId): array {
                 $stock = $p->warehouseStocks->firstWhere('warehouse_id', $whId);
-                $available = $stock ? (float) $stock->quantity : 0.0;
+                $availableStr = Decimal::fromNumeric($stock?->quantity ?? 0, Decimal::QUANTITY_SCALE);
+                $available = (float) $availableStr;
 
                 return [
                     'id' => $p->id,
@@ -293,7 +324,6 @@ class PosSyncService
             });
 
         $paymentMethods = PaymentMethod::query()
-            ->active()
             ->get(['id', 'name', 'type']);
 
         $openShifts = PosShift::query()
@@ -310,11 +340,11 @@ class PosSyncService
             ]);
 
         return [
-            'warehouse' => $warehouse ? [
+            'warehouse' => [
                 'id' => $warehouse->id,
                 'name' => $warehouse->name,
                 'code' => $warehouse->code,
-            ] : null,
+            ],
             'products' => $products,
             'payment_methods' => $paymentMethods,
             'open_shifts' => $openShifts,

@@ -19,12 +19,15 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentNumberService;
 use App\Services\InventoryDocumentWorkflowService;
+use App\Support\Decimal;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -97,32 +100,61 @@ class PosSaleService
     public function loadProducts(array $productIds): Collection
     {
         return Product::query()
-            ->whereIn('id', array_values($productIds))
+            ->whereIn('id', array_values(array_unique($productIds)))
             ->get()
             ->keyBy('id');
     }
 
     /**
-     * Validate raw items and consolidate duplicate product lines via PosSaleCalculator.
+     * Enforce POS selling, discount, and price-override permissions against server-side product data.
+     * Uses the already bulk-loaded $products map so zero additional DB queries are executed.
      *
-     * @param array<int, mixed> $rawItems
-     * @return array<int, array<string, mixed>>
-     */
-
-    /**
-     * Calculate line items and invoice totals via PosSaleCalculator.
-     *
-     * @param array<int, array<string, mixed>> $consolidatedItems
+     * @param array<string, mixed> $data
      * @param Collection<int, Product> $products
-     * @return array<string, mixed>
+     *
+     * @throws AuthorizationException
      */
-    public function calculateItems(
-        array $consolidatedItems,
-        Collection $products,
-        mixed $invoiceDiscountType = null,
-        mixed $invoiceDiscountValue = null
-    ): array {
-        return $this->calculator->calculate($consolidatedItems, $products, $invoiceDiscountType, $invoiceDiscountValue);
+    public function authorizeSalePayload(array $data, Collection $products, User $user): void
+    {
+        if (! Gate::allows('pos.sell', $user)) {
+            throw new AuthorizationException(__('This action is unauthorized.'));
+        }
+
+        $invDiscVal = Decimal::parse($data['invoice_discount_value'] ?? null);
+        if ($invDiscVal !== null && Decimal::isPositive($invDiscVal)) {
+            if (! Gate::allows('pos.discount', $user) || ! Gate::allows('pos.apply_invoice_discount', $user)) {
+                throw new AuthorizationException(__('This action is unauthorized.'));
+            }
+        }
+
+        $items = is_array($data['items'] ?? null) ? $data['items'] : [];
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $itemDiscVal = Decimal::parse($item['discount_value'] ?? null);
+            if ($itemDiscVal !== null && Decimal::isPositive($itemDiscVal)) {
+                if (! Gate::allows('pos.discount', $user) || ! Gate::allows('pos.apply_item_discount', $user)) {
+                    throw new AuthorizationException(__('This action is unauthorized.'));
+                }
+            }
+
+            if (isset($item['unit_price']) && Decimal::parse($item['unit_price']) !== null && ! empty($item['product_id'])) {
+                /** @var Product|null $product */
+                $product = $products->get((int) $item['product_id']);
+                if ($product !== null) {
+                    $requestedPrice = Decimal::fromNumeric($item['unit_price'], Decimal::MONEY_SCALE);
+                    $catalogPrice = Decimal::fromNumeric($product->selling_price, Decimal::MONEY_SCALE);
+
+                    if (Decimal::comp($requestedPrice, $catalogPrice, Decimal::MONEY_SCALE) !== 0) {
+                        if (! Gate::allows('pos.price_override', $user) || ! Gate::allows('pos.override_price', $user)) {
+                            throw new AuthorizationException(__('This action is unauthorized.'));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -183,7 +215,7 @@ class PosSaleService
                 
                 # Resolve the payment method, customer, and default warehouse for stock movements.
                 $paymentMethod = $this->resolvePaymentMethod((int) ($data['payment_method_id'] ?? 0));
-                $customer = $data['customer_id'] ?? null;
+                $customer = $this->resolveCustomer($data['customer_id'] ?? null);
 
                 # Resolve warehouse could be used in multi-warehouse scenarios.
                 $warehouse = $this->warehouseResolver->resolve();
@@ -191,8 +223,11 @@ class PosSaleService
                 # Normalize and consolidate items.
                 $lines = $this->calculator->consolidateItems($data['items'] ?? []);
 
-                # Load the products for the sale.
+                # Load the products for the sale in one bulk query.
                 $products = $this->loadProducts(array_keys($lines));
+
+                # Verify permissions and price overrides against server-side product prices.
+                $this->authorizeSalePayload($data, $products, $user);
 
                 # Calculate invoice totals and discount allocations.
                 $invoice = $this->calculator->calculate(
@@ -266,6 +301,12 @@ class PosSaleService
     {
         if ($customerId === null || $customerId === '') {
             return null;
+        }
+
+        if (! is_numeric($customerId) || (int) $customerId <= 0) {
+            throw ValidationException::withMessages([
+                'customer_id' => [__('pos.errors.customer_not_found')],
+            ]);
         }
 
         return Contact::query()->find((int) $customerId)

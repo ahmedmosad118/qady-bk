@@ -26,12 +26,16 @@ class PosShiftService
     /**
      * Open a new shift.
      */
-    public function openShift(User $user, float $openingBalance = 0.0, ?string $notes = null): PosShift
+    public function openShift(User $user, float|int|string $openingBalance = '0.00', ?string $notes = null): PosShift
     {
         return DB::transaction(function () use ($user, $openingBalance, $notes): PosShift {
             $shiftNumber = $this->numberService->generateShiftNumber();
 
-            $opening = number_format(max(0.0, $openingBalance), 2, '.', '');
+            $opening = Decimal::max(
+                '0.00',
+                Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE),
+                Decimal::MONEY_SCALE
+            );
 
             /** @var PosShift $shift */
             $shift = PosShift::query()->create([
@@ -55,7 +59,7 @@ class PosShiftService
      * Close an active shift.
      * Takes snapshot of expected cash, actual cash, and difference.
      */
-    public function closeShift(PosShift $shift, User $user, float $actualCash, ?string $notes = null): PosShift
+    public function closeShift(PosShift $shift, User $user, float|int|string $actualCash, ?string $notes = null): PosShift
     {
         return DB::transaction(function () use ($shift, $user, $actualCash, $notes): PosShift {
             /** @var PosShift $locked */
@@ -69,8 +73,8 @@ class PosShiftService
 
             // Calculate expected cash from actual transactions
             $expectedCash = $this->calculateExpectedCash($locked);
-            $actual = number_format($actualCash, 2, '.', '');
-            $difference = bcsub($actual, $expectedCash, 2);
+            $actual = Decimal::fromNumeric($actualCash, Decimal::MONEY_SCALE);
+            $difference = Decimal::sub($actual, $expectedCash, Decimal::MONEY_SCALE);
 
             $locked->update([
                 'expected_cash' => $expectedCash,
@@ -91,17 +95,20 @@ class PosShiftService
     public function recordExpense(
         PosShift $shift,
         User $user,
-        float $amount,
+        float|int|string $amount,
         string $name,
         ?string $description = null
     ): PosShiftTransaction {
-        if ($amount <= 0) {
+        $parsedAmount = Decimal::parse($amount);
+        $formattedAmount = $parsedAmount !== null ? Decimal::round($parsedAmount, Decimal::MONEY_SCALE) : null;
+
+        if ($formattedAmount === null || ! Decimal::isPositive($formattedAmount, Decimal::MONEY_SCALE)) {
             throw ValidationException::withMessages([
                 'amount' => ['مبلغ المصروف يجب أن يكون أكبر من الصفر.'],
             ]);
         }
 
-        return DB::transaction(function () use ($shift, $user, $amount, $name, $description): PosShiftTransaction {
+        return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
 
@@ -110,8 +117,6 @@ class PosShiftService
                     'shift' => ['لا يمكن تسجيل حركات مالية على وردية مغلقة.'],
                 ]);
             }
-
-            $formattedAmount = number_format($amount, 2, '.', '');
 
             $tx = new PosShiftTransaction();
             $tx->shift_id = $locked->id;
@@ -140,17 +145,20 @@ class PosShiftService
     public function recordWithdrawal(
         PosShift $shift,
         User $user,
-        float $amount,
+        float|int|string $amount,
         string $name,
         ?string $description = null
     ): PosShiftTransaction {
-        if ($amount <= 0) {
+        $parsedAmount = Decimal::parse($amount);
+        $formattedAmount = $parsedAmount !== null ? Decimal::round($parsedAmount, Decimal::MONEY_SCALE) : null;
+
+        if ($formattedAmount === null || ! Decimal::isPositive($formattedAmount, Decimal::MONEY_SCALE)) {
             throw ValidationException::withMessages([
                 'amount' => ['مبلغ السحب يجب أن يكون أكبر من الصفر.'],
             ]);
         }
 
-        return DB::transaction(function () use ($shift, $user, $amount, $name, $description): PosShiftTransaction {
+        return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
 
@@ -159,8 +167,6 @@ class PosShiftService
                     'shift' => ['لا يمكن تسجيل حركات مالية على وردية مغلقة.'],
                 ]);
             }
-
-            $formattedAmount = number_format($amount, 2, '.', '');
 
             $tx = new PosShiftTransaction();
             $tx->shift_id = $locked->id;
@@ -219,11 +225,12 @@ class PosShiftService
      */
     protected function computeExpectedCash(string $openingBalance, array $totals): string
     {
-        $subtotal = bcadd($openingBalance, $totals[PosShiftTransaction::TYPE_CASH_SALE], Decimal::MONEY_SCALE);
-        $subtotal = bcsub($subtotal, $totals[PosShiftTransaction::TYPE_CASH_RETURN], Decimal::MONEY_SCALE);
-        $subtotal = bcsub($subtotal, $totals[PosShiftTransaction::TYPE_EXPENSE], Decimal::MONEY_SCALE);
+        $opening = Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE);
+        $subtotal = Decimal::add($opening, $totals[PosShiftTransaction::TYPE_CASH_SALE], Decimal::MONEY_SCALE);
+        $subtotal = Decimal::sub($subtotal, $totals[PosShiftTransaction::TYPE_CASH_RETURN], Decimal::MONEY_SCALE);
+        $subtotal = Decimal::sub($subtotal, $totals[PosShiftTransaction::TYPE_EXPENSE], Decimal::MONEY_SCALE);
 
-        return bcsub($subtotal, $totals[PosShiftTransaction::TYPE_WITHDRAWAL], Decimal::MONEY_SCALE);
+        return Decimal::sub($subtotal, $totals[PosShiftTransaction::TYPE_WITHDRAWAL], Decimal::MONEY_SCALE);
     }
 
     /**
@@ -299,19 +306,22 @@ class PosShiftService
         $expenses = $txTotals[PosShiftTransaction::TYPE_EXPENSE];
         $withdrawals = $txTotals[PosShiftTransaction::TYPE_WITHDRAWAL];
 
-        // Non-cash sales totals
+        // Non-cash and total sales sums via Decimal
         $visaTotal = '0.00';
         $bankTransferTotal = '0.00';
+        $totalSalesSum = '0.00';
 
         foreach ($shift->sales as $sale) {
+            $saleAmount = Decimal::fromNumeric($sale->grand_total, Decimal::MONEY_SCALE);
+            $totalSalesSum = Decimal::add($totalSalesSum, $saleAmount, Decimal::MONEY_SCALE);
+
             match ($sale->paymentMethod?->type) {
-                PaymentMethodType::VISA => $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2),
-                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2),
+                PaymentMethodType::VISA => $visaTotal = Decimal::add($visaTotal, $saleAmount, Decimal::MONEY_SCALE),
+                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = Decimal::add($bankTransferTotal, $saleAmount, Decimal::MONEY_SCALE),
                 default => null,
             };
         }
 
-        $totalSalesSum = (string) $shift->sales->sum('grand_total');
         $totalSalesCount = $shift->sales->count();
         $totalReturnsCount = $shift->returns()->count();
 

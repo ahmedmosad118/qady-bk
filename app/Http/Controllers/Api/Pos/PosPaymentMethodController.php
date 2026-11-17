@@ -11,14 +11,13 @@ use Illuminate\Http\JsonResponse;
 class PosPaymentMethodController extends Controller
 {
     /**
-     * List active payment methods for POS.
+     * List payment methods for POS.
      */
     public function index(): JsonResponse
     {
         $methods = PaymentMethod::query()
-            ->active()
             ->orderBy('id', 'asc')
-            ->get(['id', 'name', 'type', 'is_active']);
+            ->get(['id', 'name', 'type']);
 
         return response()->json([
             'success' => true,

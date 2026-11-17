@@ -69,7 +69,7 @@ class PosShiftController extends Controller
 
         $shift = $this->shiftService->openShift(
             $request->user(),
-            (float) ($validated['opening_balance'] ?? 0.0),
+            $validated['opening_balance'] ?? '0.00',
             $validated['notes'] ?? null
         );
 
@@ -103,7 +103,7 @@ class PosShiftController extends Controller
         $closed = $this->shiftService->closeShift(
             $posShift,
             $request->user(),
-            (float) $validated['actual_cash'],
+            $validated['actual_cash'],
             $validated['notes'] ?? null
         );
 
@@ -140,7 +140,7 @@ class PosShiftController extends Controller
         $tx = $this->shiftService->recordExpense(
             $posShift,
             $request->user(),
-            (float) $validated['amount'],
+            $validated['amount'],
             (string) $validated['name'],
             $validated['description'] ?? null
         );
@@ -162,7 +162,7 @@ class PosShiftController extends Controller
         $tx = $this->shiftService->recordWithdrawal(
             $posShift,
             $request->user(),
-            (float) $validated['amount'],
+            $validated['amount'],
             (string) $validated['name'],
             $validated['description'] ?? null
         );

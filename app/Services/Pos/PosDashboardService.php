@@ -7,6 +7,7 @@ namespace App\Services\Pos;
 use App\Enums\PaymentMethodType;
 use App\Models\PosReturn;
 use App\Models\PosSale;
+use App\Support\Decimal;
 use Carbon\Carbon;
 
 class PosDashboardService
@@ -36,22 +37,27 @@ class PosDashboardService
         $bankTransferTotal = '0.00';
 
         foreach ($todaySales as $sale) {
-            $grossSales = bcadd($grossSales, (string) $sale->grand_total, 2);
+            $saleTotal = Decimal::fromNumeric($sale->grand_total, Decimal::MONEY_SCALE);
+            $grossSales = Decimal::add($grossSales, $saleTotal, Decimal::MONEY_SCALE);
 
             match ($sale->paymentMethod?->type) {
-                PaymentMethodType::CASH => $cashTotal = bcadd($cashTotal, (string) $sale->grand_total, 2),
-                PaymentMethodType::VISA => $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2),
-                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2),
+                PaymentMethodType::CASH => $cashTotal = Decimal::add($cashTotal, $saleTotal, Decimal::MONEY_SCALE),
+                PaymentMethodType::VISA => $visaTotal = Decimal::add($visaTotal, $saleTotal, Decimal::MONEY_SCALE),
+                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = Decimal::add($bankTransferTotal, $saleTotal, Decimal::MONEY_SCALE),
                 default => null,
             };
         }
 
         $totalReturns = '0.00';
         foreach ($todayReturns as $ret) {
-            $totalReturns = bcadd($totalReturns, (string) $ret->total_returned, 2);
+            $totalReturns = Decimal::add(
+                $totalReturns,
+                Decimal::fromNumeric($ret->total_returned, Decimal::MONEY_SCALE),
+                Decimal::MONEY_SCALE
+            );
         }
 
-        $netSales = bcsub($grossSales, $totalReturns, 2);
+        $netSales = Decimal::sub($grossSales, $totalReturns, Decimal::MONEY_SCALE);
 
         return [
             'date' => $targetDate,

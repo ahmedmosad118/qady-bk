@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Enums\PaymentMethodType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'name',
     'type',
-    'is_active',
 ])]
 class PaymentMethod extends Model
 {
@@ -27,7 +25,6 @@ class PaymentMethod extends Model
     {
         return [
             'type' => PaymentMethodType::class,
-            'is_active' => 'boolean',
         ];
     }
 
@@ -53,14 +50,6 @@ class PaymentMethod extends Model
     public function isBankTransfer(): bool
     {
         return $this->type === PaymentMethodType::BANK_TRANSFER;
-    }
-
-    /**
-     * Scope to active payment methods only.
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('is_active', true);
     }
 
     /**

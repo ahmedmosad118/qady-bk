@@ -20,6 +20,7 @@ use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosHeldSaleTest extends TestCase
@@ -39,6 +40,7 @@ class PosHeldSaleTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->seed(PaymentMethodSeeder::class);
@@ -56,7 +58,6 @@ class PosHeldSaleTest extends TestCase
             'name' => 'الأربعون النووية',
             'barcode' => '6221000000004',
             'selling_price' => 50.00,
-            'is_active' => true,
         ]);
 
         WarehouseStock::query()->create([

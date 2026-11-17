@@ -27,6 +27,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosIdempotencyTest extends TestCase
@@ -47,6 +48,7 @@ class PosIdempotencyTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
+        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
         Sanctum::actingAs($this->user);
 
         $this->seed(PaymentMethodSeeder::class);
@@ -65,7 +67,6 @@ class PosIdempotencyTest extends TestCase
             'name' => 'تفسير ابن كثير',
             'barcode' => '9789771112223',
             'selling_price' => 150.00,
-            'is_active' => true,
         ]);
 
         WarehouseStock::query()->create([
@@ -184,32 +185,42 @@ class PosIdempotencyTest extends TestCase
         $this->assertEquals('19.000', (string) $finalStock);
     }
 
-    public function test_inactive_product_cannot_be_returned(): void
+    public function test_defective_item_cannot_be_returned_while_inactive_catalog_product_is_allowed(): void
     {
         $sale = $this->saleService->createSale([
             'client_uuid' => (string) Str::uuid(),
             'shift_id' => $this->shift->id,
             'payment_method_id' => $this->cashMethod->id,
             'items' => [
-                ['product_id' => $this->product->id, 'quantity' => 1],
+                ['product_id' => $this->product->id, 'quantity' => 2],
             ],
         ], $this->user);
 
         $saleItem = $sale->items()->firstOrFail();
 
-        // Mark product as inactive/problematic
+        // 1. Deactivating product in catalog (is_active = false) does NOT block returning a previously sold item
         $this->product->update(['is_active' => false]);
 
-        $response = $this->postJson('/api/pos/returns', [
+        $allowedResp = $this->postJson('/api/pos/returns', [
             'shift_id' => $this->shift->id,
             'pos_sale_id' => $sale->id,
             'items' => [
                 ['pos_sale_item_id' => $saleItem->id, 'quantity' => 1],
             ],
         ]);
+        $allowedResp->assertCreated();
 
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors('items');
+        // 2. Defective/damaged item is rejected
+        $defectiveResp = $this->postJson('/api/pos/returns', [
+            'shift_id' => $this->shift->id,
+            'pos_sale_id' => $sale->id,
+            'items' => [
+                ['pos_sale_item_id' => $saleItem->id, 'quantity' => 1, 'is_defective' => true],
+            ],
+        ]);
+
+        $defectiveResp->assertUnprocessable();
+        $defectiveResp->assertJsonValidationErrors('items');
     }
 
     public function test_basic_pos_sell_permission_is_enforced(): void

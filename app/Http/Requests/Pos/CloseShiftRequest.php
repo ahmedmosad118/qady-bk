@@ -11,7 +11,7 @@ class CloseShiftRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::allows('pos.manage_shifts', $this->user());
+        return Gate::allows('pos.shift', $this->user()) && Gate::allows('pos.manage_shifts', $this->user());
     }
 
     /**

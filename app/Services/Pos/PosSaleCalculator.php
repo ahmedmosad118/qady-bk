@@ -48,7 +48,7 @@ class PosSaleCalculator
             $quantity = $this->parseQuantity($raw['quantity'] ?? null);
 
             if (isset($consolidated[$productId])) {
-                $consolidated[$productId]['quantity'] = bcadd(
+                $consolidated[$productId]['quantity'] = Decimal::add(
                     $consolidated[$productId]['quantity'],
                     $quantity,
                     Decimal::QUANTITY_SCALE
@@ -105,9 +105,9 @@ class PosSaleCalculator
 
             $line = $this->calculateLine($itemData, $product);
 
-            $subtotal = bcadd($subtotal, $line['subtotal'], Decimal::MONEY_SCALE);
-            $itemsDiscountTotal = bcadd($itemsDiscountTotal, $line['discount_amount'], Decimal::MONEY_SCALE);
-            $netItemsTotal = bcadd($netItemsTotal, $line['total'], Decimal::MONEY_SCALE);
+            $subtotal = Decimal::add($subtotal, $line['subtotal'], Decimal::MONEY_SCALE);
+            $itemsDiscountTotal = Decimal::add($itemsDiscountTotal, $line['discount_amount'], Decimal::MONEY_SCALE);
+            $netItemsTotal = Decimal::add($netItemsTotal, $line['total'], Decimal::MONEY_SCALE);
 
             $items[] = $line;
         }
@@ -128,7 +128,7 @@ class PosSaleCalculator
             'invoice_discount_type' => $invoiceDiscount['type'],
             'invoice_discount_value' => $invoiceDiscount['value'],
             'invoice_discount_amount' => $invoiceDiscount['amount'],
-            'grand_total' => bcsub($netItemsTotal, $invoiceDiscount['amount'], Decimal::MONEY_SCALE),
+            'grand_total' => Decimal::sub($netItemsTotal, $invoiceDiscount['amount'], Decimal::MONEY_SCALE),
         ];
     }
 
@@ -143,7 +143,7 @@ class PosSaleCalculator
         $unitPrice = $this->resolveUnitPrice($itemData['unit_price'] ?? null, $originalPrice, $product);
 
         $lineSubtotal = Decimal::round(
-            bcmul($quantity, $unitPrice, Decimal::CALCULATION_SCALE),
+            Decimal::mul($quantity, $unitPrice, Decimal::CALCULATION_SCALE),
             Decimal::MONEY_SCALE
         );
 
@@ -166,7 +166,7 @@ class PosSaleCalculator
             'discount_value' => $discount['value'],
             'discount_amount' => $discount['amount'],
             'subtotal' => $lineSubtotal,
-            'total' => bcsub($lineSubtotal, $discount['amount'], Decimal::MONEY_SCALE),
+            'total' => Decimal::sub($lineSubtotal, $discount['amount'], Decimal::MONEY_SCALE),
         ];
     }
 
@@ -205,7 +205,7 @@ class PosSaleCalculator
 
         foreach ($items as $index => $item) {
             if ($index === $lastIndex) {
-                $items[$index]['allocated_invoice_discount'] = bcsub(
+                $items[$index]['allocated_invoice_discount'] = Decimal::sub(
                     $invoiceDiscountAmount,
                     $allocatedTotal,
                     Decimal::MONEY_SCALE
@@ -216,8 +216,8 @@ class PosSaleCalculator
 
             $allocated = $canAllocate
                 ? Decimal::round(
-                    bcdiv(
-                        bcmul($invoiceDiscountAmount, (string) $item['total'], Decimal::CALCULATION_SCALE),
+                    Decimal::div(
+                        Decimal::mul($invoiceDiscountAmount, (string) $item['total'], Decimal::CALCULATION_SCALE),
                         $netItemsTotal,
                         Decimal::CALCULATION_SCALE
                     ),
@@ -225,7 +225,7 @@ class PosSaleCalculator
                 )
                 : '0.00';
 
-            $allocatedTotal = bcadd($allocatedTotal, $allocated, Decimal::MONEY_SCALE);
+            $allocatedTotal = Decimal::add($allocatedTotal, $allocated, Decimal::MONEY_SCALE);
             $items[$index]['allocated_invoice_discount'] = $allocated;
         }
 
@@ -289,14 +289,14 @@ class PosSaleCalculator
 
     protected function percentageAmount(string $baseAmount, string $percentage, string $scope, string $valueField): string
     {
-        if (bccomp($percentage, '100', Decimal::CALCULATION_SCALE) > 0) {
+        if (Decimal::comp($percentage, '100', Decimal::CALCULATION_SCALE) > 0) {
             throw ValidationException::withMessages([
                 $valueField => [__("pos.errors.{$scope}_discount_percentage_range")],
             ]);
         }
 
         return Decimal::round(
-            bcdiv(bcmul($baseAmount, $percentage, Decimal::CALCULATION_SCALE), '100', Decimal::CALCULATION_SCALE),
+            Decimal::div(Decimal::mul($baseAmount, $percentage, Decimal::CALCULATION_SCALE), '100', Decimal::CALCULATION_SCALE),
             Decimal::MONEY_SCALE
         );
     }

@@ -8,7 +8,7 @@ namespace App\Support;
  * Pure BCMath helpers for monetary and quantity arithmetic.
  *
  * Rule: money and quantities are always handled as numeric strings.
- * Never cast them to float for calculation.
+ * Never cast them to float for calculation or comparison.
  */
 final class Decimal
 {
@@ -21,7 +21,7 @@ final class Decimal
     private function __construct() {}
 
     /**
-     * Normalize user input into a canonical decimal string.
+     * Normalize user or scalar input into a canonical decimal string.
      * Returns null for anything that is not a plain decimal number (no exponent, no thousands separators).
      */
     public static function parse(mixed $value): ?string
@@ -30,6 +30,7 @@ final class Decimal
             return (string) $value;
         }
 
+        // Boundary conversion only when a caller passes a PHP float scalar.
         if (is_float($value)) {
             return is_finite($value) ? number_format($value, self::CALCULATION_SCALE, '.', '') : null;
         }
@@ -51,7 +52,7 @@ final class Decimal
     }
 
     /**
-     * Normalize a numeric value coming from the database (e.g. SUM()) to a fixed scale.
+     * Normalize a numeric value coming from the database or validated input to a fixed scale.
      */
     public static function fromNumeric(mixed $value, int $scale = self::MONEY_SCALE): string
     {
@@ -59,7 +60,7 @@ final class Decimal
     }
 
     /**
-     * Round half away from zero to the given scale.
+     * Round half away from zero to the given scale using pure BCMath.
      */
     public static function round(string $value, int $scale = self::MONEY_SCALE): string
     {
@@ -68,6 +69,31 @@ final class Decimal
         return bccomp($value, '0', self::CALCULATION_SCALE) >= 0
             ? bcadd($value, $offset, $scale)
             : bcsub($value, $offset, $scale);
+    }
+
+    public static function add(string $a, string $b, int $scale = self::MONEY_SCALE): string
+    {
+        return bcadd($a, $b, $scale);
+    }
+
+    public static function sub(string $a, string $b, int $scale = self::MONEY_SCALE): string
+    {
+        return bcsub($a, $b, $scale);
+    }
+
+    public static function mul(string $a, string $b, int $scale = self::CALCULATION_SCALE): string
+    {
+        return bcmul($a, $b, $scale);
+    }
+
+    public static function div(string $a, string $b, int $scale = self::CALCULATION_SCALE): string
+    {
+        return bcdiv($a, $b, $scale);
+    }
+
+    public static function comp(string $a, string $b, int $scale = self::CALCULATION_SCALE): int
+    {
+        return bccomp($a, $b, $scale);
     }
 
     public static function isPositive(string $value, int $scale = self::CALCULATION_SCALE): bool
@@ -86,5 +112,13 @@ final class Decimal
     public static function min(string $a, string $b, int $scale = self::MONEY_SCALE): string
     {
         return bccomp($a, $b, $scale) > 0 ? $b : $a;
+    }
+
+    /**
+     * Return the larger of two decimal strings.
+     */
+    public static function max(string $a, string $b, int $scale = self::MONEY_SCALE): string
+    {
+        return bccomp($a, $b, $scale) >= 0 ? $a : $b;
     }
 }

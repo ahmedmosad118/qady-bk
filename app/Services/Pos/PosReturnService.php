@@ -6,7 +6,6 @@ namespace App\Services\Pos;
 
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
-use App\Enums\InventoryReturnDirection;
 use App\Enums\PaymentMethodType;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
@@ -20,21 +19,38 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentNumberService;
 use App\Services\InventoryDocumentWorkflowService;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PosReturnService
 {
+    /**
+     * @var array<int, string>
+     */
+    public const RETURN_RELATIONS = [
+        'items.product',
+        'items.saleItem',
+        'paymentMethod',
+        'sale',
+        'shift',
+        'creator',
+        'inventoryDocuments',
+    ];
+
     public function __construct(
         protected PosNumberService $numberService,
         protected InventoryDocumentNumberService $invDocNumberService,
         protected InventoryDocumentWorkflowService $invWorkflowService,
         protected PosShiftService $shiftService,
+        protected PosDefaultWarehouseResolver $warehouseResolver,
     ) {}
 
     /**
@@ -51,23 +67,15 @@ class PosReturnService
             : null;
 
         if ($clientUuid !== null) {
-            $existing = PosReturn::query()
-                ->where('client_uuid', $clientUuid)
-                ->with(['items.product', 'items.saleItem', 'paymentMethod', 'sale', 'shift', 'creator', 'inventoryDocuments'])
-                ->first();
-
+            $existing = $this->findReturnByClientUuid($clientUuid);
             if ($existing) {
                 return $existing;
             }
 
-            $lock = Cache::lock('pos_return_uuid_'.$clientUuid, 15);
+            $lock = Cache::lock('pos_return_uuid_' . $clientUuid, 15);
 
             return $lock->block(15, function () use ($data, $user, $clientUuid): PosReturn {
-                $existing = PosReturn::query()
-                    ->where('client_uuid', $clientUuid)
-                    ->with(['items.product', 'items.saleItem', 'paymentMethod', 'sale', 'shift', 'creator', 'inventoryDocuments'])
-                    ->first();
-
+                $existing = $this->findReturnByClientUuid($clientUuid);
                 if ($existing) {
                     return $existing;
                 }
@@ -77,6 +85,63 @@ class PosReturnService
         }
 
         return $this->executeReturnProcessing($data, $user, null);
+    }
+
+    protected function findReturnByClientUuid(string $clientUuid): ?PosReturn
+    {
+        return PosReturn::query()
+            ->where('client_uuid', $clientUuid)
+            ->with(self::RETURN_RELATIONS)
+            ->first();
+    }
+
+    /**
+     * Aggregate previously returned quantities per pos_sale_item_id in a single GROUP BY query.
+     *
+     * @param array<int, int> $saleItemIds
+     * @return Collection<int, mixed>
+     */
+    public function sumReturnedQuantitiesBySaleItemIds(array $saleItemIds): Collection
+    {
+        if ($saleItemIds === []) {
+            return collect();
+        }
+
+        return PosReturnItem::query()
+            ->whereIn('pos_sale_item_id', array_values(array_unique($saleItemIds)))
+            ->selectRaw('pos_sale_item_id, COALESCE(SUM(quantity), 0) as total_returned')
+            ->groupBy('pos_sale_item_id')
+            ->pluck('total_returned', 'pos_sale_item_id');
+    }
+
+    /**
+     * Determine whether a sale item is eligible for return.
+     * Only missing/deleted products or defective/damaged items are rejected.
+     *
+     * @param array<string, mixed> $rawItem
+     */
+    protected function assertItemReturnable(PosSaleItem $saleItem, array $rawItem): void
+    {
+        $product = $saleItem->product;
+
+        if (! $product) {
+            throw ValidationException::withMessages([
+                'items' => ['المنتج المرتبط بسطر الفاتورة غير موجود ولا يمكن إرجاعه.'],
+            ]);
+        }
+
+        $attributes = $product->getAttributes();
+        $isDefective = ! empty($rawItem['is_defective'])
+            || ! empty($rawItem['is_damaged'])
+            || ($rawItem['condition'] ?? null) === 'defective'
+            || ! empty($attributes['is_defective'])
+            || (array_key_exists('is_returnable', $attributes) && ! $attributes['is_returnable']);
+
+        if ($isDefective) {
+            throw ValidationException::withMessages([
+                'items' => ["المنتج '{$product->name}' معيب أو تالف ولا يقبل الإرجاع."],
+            ]);
+        }
     }
 
     /**
@@ -97,31 +162,23 @@ class PosReturnService
                     ]);
                 }
 
-                // 2. Lock original sale
+                // 2. Lock original sale and its items to serialize concurrent returns
                 /** @var PosSale $sale */
                 $sale = PosSale::query()
                     ->lockForUpdate()
-                    ->with(['items.product', 'paymentMethod'])
+                    ->with(['paymentMethod', 'inventoryDocuments'])
                     ->findOrFail($data['pos_sale_id']);
 
-                // 3. Resolve destination warehouse (default active warehouse or warehouse where original sale issued)
-                $warehouseId = $data['warehouse_id'] ?? null;
-                if ($warehouseId) {
-                    $warehouse = Warehouse::query()->where('is_active', true)->findOrFail($warehouseId);
-                } else {
-                    // If original sale had an inventory document, use its source warehouse
-                    $origDoc = $sale->inventoryDocuments()->first();
-                    $origWhId = $origDoc?->source_warehouse_id;
+                $saleItems = PosSaleItem::query()
+                    ->where('sale_id', $sale->id)
+                    ->lockForUpdate()
+                    ->with('product')
+                    ->get();
 
-                    if ($origWhId) {
-                        $warehouse = Warehouse::query()->where('is_active', true)->find($origWhId);
-                    }
+                $sale->setRelation('items', $saleItems);
 
-                    if (! isset($warehouse) || ! $warehouse) {
-                        $warehouse = Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
-                            ?: Warehouse::query()->where('is_active', true)->firstOrFail();
-                    }
-                }
+                // 3. Resolve destination warehouse (client warehouse_id is strictly ignored)
+                $warehouse = $this->resolveReturnWarehouse($sale);
 
                 // 4. Validate return items
                 $rawItems = $data['items'] ?? [];
@@ -131,15 +188,18 @@ class PosReturnService
                     ]);
                 }
 
-                $saleItemsById = $sale->items->keyBy('id');
+                $saleItemsById = $saleItems->keyBy('id');
+                $returnedByItemId = $this->sumReturnedQuantitiesBySaleItemIds($saleItemsById->keys()->all())->all();
+
                 $processedItems = [];
                 $totalRefundAmount = '0.00';
 
                 foreach ($rawItems as $raw) {
-                    $saleItemId = (int) $raw['pos_sale_item_id'];
-                    $requestedQty = (float) $raw['quantity'];
+                    $saleItemId = (int) ($raw['pos_sale_item_id'] ?? 0);
+                    $parsedQty = Decimal::parse($raw['quantity'] ?? null);
+                    $reqQtyStr = $parsedQty !== null ? Decimal::round($parsedQty, Decimal::QUANTITY_SCALE) : null;
 
-                    if ($requestedQty <= 0) {
+                    if ($reqQtyStr === null || ! Decimal::isPositive($reqQtyStr, Decimal::QUANTITY_SCALE)) {
                         throw ValidationException::withMessages([
                             'items' => ['الكمية المرتجعة يجب أن تكون أكبر من الصفر.'],
                         ]);
@@ -153,58 +213,75 @@ class PosReturnService
                         ]);
                     }
 
-                    // Validate product status: defective/inactive products cannot be returned
-                    if (! $saleItem->product || ! $saleItem->product->is_active) {
-                        throw ValidationException::withMessages([
-                            'items' => ["المنتج '{$saleItem->product?->name}' غير نشط أو متوقف ولا يمكن إرجاعه."],
-                        ]);
-                    }
+                    $this->assertItemReturnable($saleItem, is_array($raw) ? $raw : []);
 
-                    // Check remaining returnable quantity across all prior returns
-                    $alreadyReturned = (float) PosReturnItem::query()
-                        ->where('pos_sale_item_id', $saleItem->id)
-                        ->sum('quantity');
+                    // Check remaining returnable quantity across all prior returns using BCMath
+                    $alreadyReturnedStr = Decimal::fromNumeric($returnedByItemId[$saleItem->id] ?? 0, Decimal::QUANTITY_SCALE);
+                    $origQtyStr = Decimal::fromNumeric($saleItem->quantity, Decimal::QUANTITY_SCALE);
+                    $remainingQtyStr = Decimal::max(
+                        '0.000',
+                        Decimal::sub($origQtyStr, $alreadyReturnedStr, Decimal::QUANTITY_SCALE),
+                        Decimal::QUANTITY_SCALE
+                    );
 
-                    $originalQty = (float) $saleItem->quantity;
-                    $remainingQty = max(0.0, $originalQty - $alreadyReturned);
-
-                    if ($requestedQty > $remainingQty) {
+                    if (Decimal::comp($reqQtyStr, $remainingQtyStr, Decimal::QUANTITY_SCALE) > 0) {
                         $prodName = $saleItem->product?->name ?? 'المنتج';
                         throw ValidationException::withMessages([
                             'items' => [
-                                "الكمية المطلوبة لإرجاع '{$prodName}' ({$requestedQty}) تتجاوز الكمية المتاحة للإرجاع ({$remainingQty}). المباع: {$originalQty}، المرتجع سابقاً: {$alreadyReturned}."
+                                "الكمية المطلوبة لإرجاع '{$prodName}' ({$reqQtyStr}) تتجاوز الكمية المتاحة للإرجاع ({$remainingQtyStr}). المباع: {$origQtyStr}، المرتجع سابقاً: {$alreadyReturnedStr}."
                             ],
                         ]);
                     }
 
-                    // Calculate pro-rated net paid amount and discount for the returned quantity
-                    // Net total paid for line = total - allocated_invoice_discount
-                    $netLineTotal = bcsub((string) $saleItem->total, (string) $saleItem->allocated_invoice_discount, 4);
-                    $origQtyStr = (string) $saleItem->quantity;
+                    // Track cumulative returned quantity in case same sale item appears twice in payload
+                    $returnedByItemId[$saleItem->id] = Decimal::add($alreadyReturnedStr, $reqQtyStr, Decimal::QUANTITY_SCALE);
 
-                    // Net paid unit price = netLineTotal / originalQty
-                    $netPaidUnitPrice = bcdiv($netLineTotal, $origQtyStr, 6);
-                    $reqQtyStr = number_format($requestedQty, 3, '.', '');
+                    // Calculate pro-rated net paid amount and discount for the returned quantity via Decimal
+                    // Multiply before dividing (amount * reqQty / origQty) to avoid repeating-decimal truncation.
+                    $netLineTotal = Decimal::sub(
+                        (string) $saleItem->total,
+                        (string) $saleItem->allocated_invoice_discount,
+                        Decimal::CALCULATION_SCALE
+                    );
 
-                    $lineRefund = number_format((float) bcmul($netPaidUnitPrice, $reqQtyStr, 4), 2, '.', '');
+                    $lineRefund = Decimal::round(
+                        Decimal::div(
+                            Decimal::mul($netLineTotal, $reqQtyStr, Decimal::CALCULATION_SCALE),
+                            $origQtyStr,
+                            Decimal::CALCULATION_SCALE
+                        ),
+                        Decimal::MONEY_SCALE
+                    );
 
-                    // Pro-rated discount for returned line = (discount_amount + allocated_invoice_discount) * (reqQty / origQty)
-                    $totalLineDiscount = bcadd((string) $saleItem->discount_amount, (string) $saleItem->allocated_invoice_discount, 4);
-                    $lineAllocatedDiscount = number_format((float) bcmul(bcdiv($totalLineDiscount, $origQtyStr, 6), $reqQtyStr, 4), 2, '.', '');
+                    // Pro-rated discount for returned line = (discount_amount + allocated_invoice_discount) * reqQty / origQty
+                    $totalLineDiscount = Decimal::add(
+                        (string) $saleItem->discount_amount,
+                        (string) $saleItem->allocated_invoice_discount,
+                        Decimal::CALCULATION_SCALE
+                    );
+                    $lineAllocatedDiscount = Decimal::round(
+                        Decimal::div(
+                            Decimal::mul($totalLineDiscount, $reqQtyStr, Decimal::CALCULATION_SCALE),
+                            $origQtyStr,
+                            Decimal::CALCULATION_SCALE
+                        ),
+                        Decimal::MONEY_SCALE
+                    );
 
-                    $totalRefundAmount = bcadd($totalRefundAmount, $lineRefund, 2);
+                    $totalRefundAmount = Decimal::add($totalRefundAmount, $lineRefund, Decimal::MONEY_SCALE);
 
                     $processedItems[] = [
                         'pos_sale_item_id' => $saleItem->id,
                         'product_id' => $saleItem->product_id,
                         'quantity' => $reqQtyStr,
-                        'unit_price' => (string) $saleItem->unit_price,
+                        'unit_price' => Decimal::fromNumeric($saleItem->unit_price, Decimal::MONEY_SCALE),
                         'allocated_discount' => $lineAllocatedDiscount,
                         'refund_amount' => $lineRefund,
                     ];
                 }
 
                 // 5. Create POS Return record
+                $now = Carbon::now();
                 $returnNumber = $this->numberService->generateReturnNumber();
 
                 /** @var PosReturn $posReturn */
@@ -216,22 +293,22 @@ class PosReturnService
                     'total_returned' => $totalRefundAmount,
                     'notes' => $data['notes'] ?? null,
                     'created_by' => $user->id,
-                    'returned_at' => Carbon::now(),
+                    'returned_at' => $now,
                     'client_uuid' => $clientUuid,
                 ]);
 
-                // 6. Create POS Return Items
-                foreach ($processedItems as $itemRow) {
-                    PosReturnItem::query()->create([
-                        'pos_return_id' => $posReturn->id,
-                        'pos_sale_item_id' => $itemRow['pos_sale_item_id'],
-                        'product_id' => $itemRow['product_id'],
-                        'quantity' => $itemRow['quantity'],
-                        'unit_price' => $itemRow['unit_price'],
-                        'allocated_discount' => $itemRow['allocated_discount'],
-                        'refund_amount' => $itemRow['refund_amount'],
-                    ]);
-                }
+                // 6. Bulk insert POS Return Items in 1 query
+                PosReturnItem::query()->insert(array_map(static fn (array $itemRow): array => [
+                    'pos_return_id' => $posReturn->id,
+                    'pos_sale_item_id' => $itemRow['pos_sale_item_id'],
+                    'product_id' => $itemRow['product_id'],
+                    'quantity' => $itemRow['quantity'],
+                    'unit_price' => $itemRow['unit_price'],
+                    'allocated_discount' => $itemRow['allocated_discount'],
+                    'refund_amount' => $itemRow['refund_amount'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $processedItems));
 
                 // 7. If original sale was cash, record cash_return transaction in the current shift
                 if ($sale->paymentMethod?->type === PaymentMethodType::CASH) {
@@ -244,7 +321,7 @@ class PosReturnService
                     $tx->name = "مرتجع نقدي - فاتورة {$sale->invoice_number} - إشعار مرتجع {$posReturn->return_number}";
                     $tx->description = null;
                     $tx->created_by = $user->id;
-                    $tx->created_at = Carbon::now();
+                    $tx->created_at = $now;
                     $tx->save();
 
                     // Refresh expected cash
@@ -253,7 +330,7 @@ class PosReturnService
                     ]);
                 }
 
-                // 8. Create Goods Receipt document and post it
+                // 8. Create Goods Receipt document and bulk-insert its items, then post it
                 $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::GOODS_RECEIPT);
 
                 /** @var InventoryDocument $invDoc */
@@ -267,34 +344,29 @@ class PosReturnService
                     'adjustment_direction' => null,
                     'return_direction' => null,
                     'status' => InventoryDocumentStatus::APPROVED,
-                    'document_date' => Carbon::now()->toDateString(),
+                    'document_date' => $now->toDateString(),
                     'notes' => "إذن استلام مخزني تلقائي لمرتجع نقطة البيع رقم: {$posReturn->return_number}",
                     'created_by' => $user->id,
                     'approved_by' => $user->id,
-                    'approved_at' => Carbon::now(),
+                    'approved_at' => $now,
                 ]);
 
-                foreach ($processedItems as $itemRow) {
-                    InventoryDocumentItem::query()->create([
-                        'inventory_document_id' => $invDoc->id,
-                        'product_id' => $itemRow['product_id'],
-                        'quantity' => $itemRow['quantity'],
-                        'notes' => null,
-                    ]);
-                }
+                InventoryDocumentItem::query()->insert(array_map(static fn (array $itemRow): array => [
+                    'inventory_document_id' => $invDoc->id,
+                    'product_id' => $itemRow['product_id'],
+                    'quantity' => $itemRow['quantity'],
+                    'notes' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $processedItems));
 
-                // Post document using the current workflow posting service
-                // This creates INBOUND stock movements, applies row locking, and updates warehouse_stocks.
-                $this->invWorkflowService->post($invDoc, $user);
+                $postedDoc = $this->invWorkflowService->post($invDoc, $user);
 
-                return $posReturn->load(['items.product', 'items.saleItem', 'paymentMethod', 'sale', 'shift', 'creator', 'inventoryDocuments']);
+                return $this->hydrateReturn($posReturn, $sale, $shift, $user, $saleItemsById, $postedDoc);
             });
         } catch (UniqueConstraintViolationException|QueryException $e) {
             if ($clientUuid !== null && str_contains($e->getMessage(), 'client_uuid')) {
-                $existing = PosReturn::query()
-                    ->where('client_uuid', $clientUuid)
-                    ->with(['items.product', 'items.saleItem', 'paymentMethod', 'sale', 'shift', 'creator', 'inventoryDocuments'])
-                    ->first();
+                $existing = $this->findReturnByClientUuid($clientUuid);
                 if ($existing) {
                     return $existing;
                 }
@@ -304,38 +376,102 @@ class PosReturnService
     }
 
     /**
+     * Resolve the destination warehouse for a POS return.
+     * Enforces that a system default warehouse exists, uses the original sale's source warehouse
+     * when present, and never accepts client-supplied warehouse_id or random warehouse fallbacks.
+     */
+    protected function resolveReturnWarehouse(PosSale $sale): Warehouse
+    {
+        $defaultWarehouse = $this->warehouseResolver->resolve();
+
+        $origDoc = $sale->inventoryDocuments->first();
+        $origWhId = $origDoc?->source_warehouse_id;
+
+        if ($origWhId && (int) $origWhId !== (int) $defaultWarehouse->id) {
+            $origWarehouse = Warehouse::query()->find($origWhId);
+            if ($origWarehouse) {
+                return $origWarehouse;
+            }
+        }
+
+        return $defaultWarehouse;
+    }
+
+    /**
+     * Hydrate return relations in memory from already-loaded models.
+     *
+     * @param EloquentCollection<int, PosSaleItem> $saleItemsById
+     */
+    protected function hydrateReturn(
+        PosReturn $posReturn,
+        PosSale $sale,
+        PosShift $shift,
+        User $user,
+        EloquentCollection $saleItemsById,
+        InventoryDocument $postedDoc
+    ): PosReturn {
+        $posReturn->setRelation('sale', $sale->withoutRelations())
+            ->setRelation('shift', $shift)
+            ->setRelation('paymentMethod', $sale->paymentMethod)
+            ->setRelation('creator', $user->withoutRelations())
+            ->setRelation('inventoryDocuments', new EloquentCollection([$postedDoc->withoutRelations()]))
+            ->load('items');
+
+        foreach ($posReturn->items as $returnItem) {
+            /** @var PosSaleItem|null $saleItem */
+            $saleItem = $saleItemsById->get($returnItem->pos_sale_item_id);
+            $returnItem->setRelation('saleItem', $saleItem?->withoutRelations());
+            $returnItem->setRelation('product', $saleItem?->product);
+        }
+
+        return $posReturn;
+    }
+
+    /**
      * Inspect returnable items for an existing sale invoice.
      *
      * @return array<string, mixed>
      */
     public function getReturnableItems(PosSale $sale): array
     {
-        $sale->load(['items.product', 'paymentMethod', 'customer', 'returns.items']);
+        $sale->loadMissing(['items.product', 'paymentMethod', 'customer']);
+
+        $returnedByItemId = $this->sumReturnedQuantitiesBySaleItemIds(
+            $sale->items->pluck('id')->all()
+        );
 
         $itemsSummary = [];
         foreach ($sale->items as $item) {
-            $alreadyReturned = (float) PosReturnItem::query()
-                ->where('pos_sale_item_id', $item->id)
-                ->sum('quantity');
+            $alreadyReturnedStr = Decimal::fromNumeric($returnedByItemId[$item->id] ?? 0, Decimal::QUANTITY_SCALE);
+            $soldQtyStr = Decimal::fromNumeric($item->quantity, Decimal::QUANTITY_SCALE);
+            $remainingQtyStr = Decimal::max(
+                '0.000',
+                Decimal::sub($soldQtyStr, $alreadyReturnedStr, Decimal::QUANTITY_SCALE),
+                Decimal::QUANTITY_SCALE
+            );
 
-            $soldQty = (float) $item->quantity;
-            $remainingQty = max(0.0, $soldQty - $alreadyReturned);
-
-            $netLineTotal = bcsub((string) $item->total, (string) $item->allocated_invoice_discount, 4);
-            $netPaidUnitPrice = bcdiv($netLineTotal, (string) $item->quantity, 4);
+            $netLineTotal = Decimal::sub(
+                (string) $item->total,
+                (string) $item->allocated_invoice_discount,
+                Decimal::CALCULATION_SCALE
+            );
+            $netPaidUnitPrice = Decimal::round(
+                Decimal::div($netLineTotal, $soldQtyStr, Decimal::CALCULATION_SCALE),
+                Decimal::MONEY_SCALE
+            );
 
             $itemsSummary[] = [
                 'pos_sale_item_id' => $item->id,
                 'product_id' => $item->product_id,
                 'product_name' => $item->product?->name,
                 'barcode' => $item->product?->barcode,
-                'sold_quantity' => $soldQty,
-                'already_returned_quantity' => $alreadyReturned,
-                'remaining_returnable_quantity' => $remainingQty,
+                'sold_quantity' => (float) $soldQtyStr,
+                'already_returned_quantity' => (float) $alreadyReturnedStr,
+                'remaining_returnable_quantity' => (float) $remainingQtyStr,
                 'original_unit_price' => (string) $item->original_unit_price,
                 'sold_unit_price' => (string) $item->unit_price,
-                'net_paid_unit_price' => number_format((float) $netPaidUnitPrice, 2, '.', ''),
-                'can_return' => $remainingQty > 0,
+                'net_paid_unit_price' => $netPaidUnitPrice,
+                'can_return' => Decimal::isPositive($remainingQtyStr, Decimal::QUANTITY_SCALE),
             ];
         }
 
