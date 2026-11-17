@@ -18,7 +18,7 @@ class PosPaymentMethodController extends Controller
         $methods = PaymentMethod::query()
             ->active()
             ->orderBy('id', 'asc')
-            ->get(['id', 'name', 'is_active']);
+            ->get(['id', 'name', 'type', 'is_active']);
 
         return response()->json([
             'success' => true,

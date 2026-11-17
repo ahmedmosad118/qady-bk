@@ -22,16 +22,10 @@ class PosSaleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $filters = [
-            'search' => $request->input('search'),
-            'shift_id' => $request->input('shift_id'),
-            'payment_method_id' => $request->input('payment_method_id'),
-            'date_from' => $request->input('date_from'),
-            'date_to' => $request->input('date_to'),
-        ];
-
-        $perPage = $request->integer('per_page', 12);
-        $paginated = $this->saleService->paginateSales($filters, $perPage);
+        $paginated = $this->saleService->paginateSales(
+            $request->only(['search', 'shift_id', 'payment_method_id', 'date_from', 'date_to']),
+            $request->integer('per_page', 12)
+        );
 
         return response()->json([
             'success' => true,
@@ -50,12 +44,12 @@ class PosSaleController extends Controller
      */
     public function products(Request $request): JsonResponse
     {
-        $query = (string) $request->input('search', '');
-        $warehouseId = $request->integer('warehouse_id') ?: null;
-        $categoryId = $request->integer('category_id') ?: null;
-        $perPage = min(100, max(1, $request->integer('per_page', 24)));
-
-        $paginated = $this->saleService->paginateProducts($query, $warehouseId, $categoryId, $perPage);
+        $paginated = $this->saleService->paginateProducts(
+            (string) $request->input('search', ''),
+            null,
+            $request->integer('category_id') ?: null,
+            min(100, max(1, $request->integer('per_page', 24)))
+        );
 
         return response()->json([
             'success' => true,
@@ -75,21 +69,20 @@ class PosSaleController extends Controller
     public function lookup(Request $request): JsonResponse
     {
         $barcode = trim((string) $request->input('barcode', ''));
-        $warehouseId = $request->integer('warehouse_id') ?: null;
 
         if ($barcode === '') {
             return response()->json([
                 'success' => false,
-                'message' => 'يرجى إدخال الباركود للبحث.',
+                'message' => __('pos.errors.barcode_required'),
             ], 422);
         }
 
-        $product = $this->saleService->lookupBarcode($barcode, $warehouseId);
+        $product = $this->saleService->lookupBarcode($barcode);
 
         if (! $product) {
             return response()->json([
                 'success' => false,
-                'message' => 'لم يتم العثور على أي منتج مرتبط بهذا الباركود.',
+                'message' => __('pos.errors.barcode_not_found'),
             ], 404);
         }
 
@@ -104,14 +97,11 @@ class PosSaleController extends Controller
      */
     public function store(StorePosSaleRequest $request): JsonResponse
     {
-        $sale = $this->saleService->createSale(
-            $request->validated(),
-            $request->user()
-        );
+        $sale = $this->saleService->createSale($request->validated(), $request->user());
 
         return response()->json([
             'success' => true,
-            'message' => 'تم إنشاء وترحيل فاتورة البيع وخصم المخزون بنجاح.',
+            'message' => __('pos.messages.sale_created'),
             'data' => $sale,
         ], 201);
     }
@@ -121,11 +111,9 @@ class PosSaleController extends Controller
      */
     public function byNumber(string $invoiceNumber): JsonResponse
     {
-        $sale = $this->saleService->getSaleByInvoiceNumber($invoiceNumber);
-
         return response()->json([
             'success' => true,
-            'data' => $sale,
+            'data' => $this->saleService->getSaleByInvoiceNumber($invoiceNumber),
         ]);
     }
 

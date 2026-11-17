@@ -15,7 +15,6 @@ use App\Models\PosSaleItem;
 use App\Models\PosShift;
 use App\Models\PosShiftTransaction;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentNumberService;
@@ -24,14 +23,42 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Unified POS Sales domain service.
+ *
+ * Orchestrates internal sub-services:
+ *   - PosSaleCalculator: pure BCMath invoice calculations & discount allocations
+ *   - PosSaleQueryService: sales pagination, invoice lookup & detail loading
+ *   - PosProductCatalogService: POS product catalog & barcode lookup
+ *   - PosDefaultWarehouseResolver: default warehouse resolution
+ */
 class PosSaleService
 {
+    /**
+     * Relations returned with a sale (store response, idempotent replays, sync).
+     *
+     * @var array<int, string>
+     */
+    public const SALE_RELATIONS = [
+        'items.product',
+        'paymentMethod',
+        'customer',
+        'shift',
+        'creator',
+        'inventoryDocuments',
+    ];
+
+    protected const CLIENT_UUID_LOCK_SECONDS = 15;
+
     public function __construct(
+        protected PosSaleCalculator $calculator,
+        protected PosSaleQueryService $queryService,
+        protected PosProductCatalogService $catalogService,
+        protected PosDefaultWarehouseResolver $warehouseResolver,
         protected PosNumberService $numberService,
         protected InventoryDocumentNumberService $invDocNumberService,
         protected InventoryDocumentWorkflowService $invWorkflowService,
@@ -39,528 +66,353 @@ class PosSaleService
     ) {}
 
     /**
-     * Complete a POS sale atomically with inventory deduction and shift transaction.
-     * Enforces atomic idempotency on client_uuid: concurrent or retried requests
-     * with the same client_uuid will return the single created sale without duplicating
-     * stock movements, inventory documents, or shift transactions.
+     * Create a sale. Idempotent on client_uuid: retries / concurrent duplicates return the original sale.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data validated payload (StorePosSaleRequest / offline sync)
      */
     public function createSale(array $data, User $user): PosSale
     {
-        $clientUuid = isset($data['client_uuid']) && trim((string) $data['client_uuid']) !== ''
-            ? trim((string) $data['client_uuid'])
-            : null;
+        $clientUuid = trim((string) ($data['client_uuid'] ?? '')) ?: null;
 
-        if ($clientUuid !== null) {
-            // 1. Immediate idempotency lookup
-            $existing = PosSale::query()
-                ->where('client_uuid', $clientUuid)
-                ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments'])
-                ->first();
-
-            if ($existing) {
-                return $existing;
-            }
-
-            // 2. Atomic lock to serialize concurrent requests for the exact same client_uuid
-            $lock = Cache::lock('pos_sale_uuid_'.$clientUuid, 15);
-
-            return $lock->block(15, function () use ($data, $user, $clientUuid): PosSale {
-                $existing = PosSale::query()
-                    ->where('client_uuid', $clientUuid)
-                    ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments'])
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-
-                return $this->executeSaleCreation($data, $user, $clientUuid);
-            });
+        if ($clientUuid === null) {
+            return $this->executeSaleCreation($data, $user, null);
         }
 
-        return $this->executeSaleCreation($data, $user, null);
+        // Fast path without locking for already-synced retries.
+        if ($existing = $this->findSaleByClientUuid($clientUuid)) {
+            return $existing;
+        }
+
+        return Cache::lock('pos_sale_uuid_' . $clientUuid, self::CLIENT_UUID_LOCK_SECONDS)
+            ->block(self::CLIENT_UUID_LOCK_SECONDS, fn (): PosSale => $this->findSaleByClientUuid($clientUuid)
+                ?? $this->executeSaleCreation($data, $user, $clientUuid));
     }
 
     /**
-     * Internal atomic execution of POS sale persistence.
+     * Bulk load products in one query, keyed by id.
      *
+     * @param array<int, int> $productIds
+     * @return Collection<int, Product>
+     */
+    public function loadProducts(array $productIds): Collection
+    {
+        return Product::query()
+            ->whereIn('id', array_values($productIds))
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * Validate raw items and consolidate duplicate product lines via PosSaleCalculator.
+     *
+     * @param array<int, mixed> $rawItems
+     * @return array<int, array<string, mixed>>
+     */
+
+    /**
+     * Calculate line items and invoice totals via PosSaleCalculator.
+     *
+     * @param array<int, array<string, mixed>> $consolidatedItems
+     * @param Collection<int, Product> $products
+     * @return array<string, mixed>
+     */
+    public function calculateItems(
+        array $consolidatedItems,
+        Collection $products,
+        mixed $invoiceDiscountType = null,
+        mixed $invoiceDiscountValue = null
+    ): array {
+        return $this->calculator->calculate($consolidatedItems, $products, $invoiceDiscountType, $invoiceDiscountValue);
+    }
+
+    /**
+     * Paginate POS sales invoices with filters via PosSaleQueryService.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function paginateSales(array $filters, int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->queryService->paginateSales($filters, $perPage);
+    }
+
+    /**
+     * Get sale by invoice number via PosSaleQueryService.
+     */
+    public function getSaleByInvoiceNumber(string $invoiceNumber): PosSale
+    {
+        return $this->queryService->getSaleByInvoiceNumber($invoiceNumber);
+    }
+
+    /**
+     * Get sale details by model via PosSaleQueryService.
+     */
+    public function getSaleDetails(PosSale $sale): PosSale
+    {
+        return $this->queryService->getSaleDetails($sale);
+    }
+
+    /**
+     * Paginate POS catalog products via PosProductCatalogService.
+     */
+    public function paginateProducts(
+        string $query = '',
+        ?int $warehouseId = null,
+        ?int $categoryId = null,
+        int $perPage = 24
+    ): LengthAwarePaginator {
+        return $this->catalogService->paginateProducts($query, $categoryId, $perPage);
+    }
+
+    /**
+     * Lookup product by exact barcode via PosProductCatalogService.
+     */
+    public function lookupBarcode(string $barcode, ?int $warehouseId = null): ?Product
+    {
+        return $this->catalogService->lookupBarcode($barcode);
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     protected function executeSaleCreation(array $data, User $user, ?string $clientUuid): PosSale
     {
         try {
             return DB::transaction(function () use ($data, $user, $clientUuid): PosSale {
-                // 1. Lock and validate shift is open
-                /** @var PosShift $shift */
-                $shift = PosShift::query()->lockForUpdate()->findOrFail($data['shift_id']);
-                if ($shift->isClosed()) {
-                    throw ValidationException::withMessages([
-                        'shift_id' => ['الوردية المحددة مغلقة. لا يمكن إتمام عملية البيع على وردية مغلقة.'],
-                    ]);
+                # Lock the shift row for the whole transaction to serialize expected_cash updates per shift.
+                $shift = $this->lockOpenShift((int) ($data['shift_id'] ?? 0));
+                
+                # Resolve the payment method, customer, and default warehouse for stock movements.
+                $paymentMethod = $this->resolvePaymentMethod((int) ($data['payment_method_id'] ?? 0));
+                $customer = $data['customer_id'] ?? null;
+
+                # Resolve warehouse could be used in multi-warehouse scenarios.
+                $warehouse = $this->warehouseResolver->resolve();
+
+                # Normalize and consolidate items.
+                $lines = $this->calculator->consolidateItems($data['items'] ?? []);
+
+                # Load the products for the sale.
+                $products = $this->loadProducts(array_keys($lines));
+
+                # Calculate invoice totals and discount allocations.
+                $invoice = $this->calculator->calculate(
+                    $lines,
+                    $products,
+                    $data['invoice_discount_type'] ?? null,
+                    $data['invoice_discount_value'] ?? null
+                );
+
+                # Insert the sale, items, cash transaction (if applicable), and post the delivery document.
+                $sale = $this->insertSale($shift, $paymentMethod, $customer, $invoice, $data['notes'] ?? null, $user, $clientUuid);
+                $this->insertSaleItems($sale, $invoice['items']);
+
+                if ($paymentMethod->isCash()) {
+                    $this->recordCashSale($shift, $sale, $invoice['grand_total'], $user);
                 }
 
-                // 2. Validate payment method
-                /** @var PaymentMethod $paymentMethod */
-                $paymentMethod = PaymentMethod::query()
-                    ->where('is_active', true)
-                    ->findOrFail($data['payment_method_id']);
+                $document = $this->postDeliveryDocument($sale, $warehouse, $invoice['items'], $user);
 
-                // 3. Resolve warehouse (specified or default active warehouse)
-                $warehouseId = $data['warehouse_id'] ?? null;
-                if ($warehouseId) {
-                    $warehouse = Warehouse::query()->where('is_active', true)->findOrFail($warehouseId);
-                } else {
-                    $warehouse = Warehouse::query()->where('is_default', true)->where('is_active', true)->first()
-                        ?: Warehouse::query()->where('is_active', true)->firstOrFail();
-                }
-
-                // 4. Validate customer if provided
-                $customerId = $data['customer_id'] ?? null;
-                if ($customerId) {
-                    Contact::query()->where('is_active', true)->findOrFail($customerId);
-                }
-
-                // 5. Consolidate and validate items
-                $rawItems = $data['items'] ?? [];
-                if (empty($rawItems)) {
-                    throw ValidationException::withMessages([
-                        'items' => ['يجب إضافة صنف واحد على الأقل في الفاتورة.'],
-                    ]);
-                }
-
-                // Consolidate duplicates: if same product added multiple times, aggregate quantity
-                $consolidated = [];
-                foreach ($rawItems as $raw) {
-                    $pId = (int) $raw['product_id'];
-                    $qty = (float) $raw['quantity'];
-
-                    if ($qty <= 0) {
-                        throw ValidationException::withMessages([
-                            'items' => ['الكمية لكل صنف يجب أن تكون أكبر من الصفر.'],
-                        ]);
-                    }
-
-                    if (! isset($consolidated[$pId])) {
-                        $consolidated[$pId] = $raw;
-                        $consolidated[$pId]['quantity'] = $qty;
-                    } else {
-                        $consolidated[$pId]['quantity'] += $qty;
-                    }
-                }
-
-                // Prepare item records and calculate line totals
-                $processedItems = [];
-                $itemsSubtotalSum = '0.00';
-                $itemsDiscountTotalSum = '0.00';
-                $sumOfLineTotals = '0.00';
-
-                foreach ($consolidated as $pId => $itemData) {
-                    /** @var Product $product */
-                    $product = Product::query()->findOrFail($pId);
-                    if (! $product->is_active) {
-                        throw ValidationException::withMessages([
-                            'items' => ["المنتج '{$product->name}' غير نشط ولا يمكن بيعه."],
-                        ]);
-                    }
-
-                    $qty = (float) $itemData['quantity'];
-                    $qtyStr = number_format($qty, 3, '.', '');
-
-                    $originalPrice = (string) $product->selling_price;
-                    $unitPrice = isset($itemData['unit_price'])
-                        ? number_format((float) $itemData['unit_price'], 2, '.', '')
-                        : $originalPrice;
-
-                    if (bccomp($unitPrice, '0.00', 2) < 0) {
-                        throw ValidationException::withMessages([
-                            'items' => ["سعر البيع للصنف '{$product->name}' لا يمكن أن يكون سالبًا."],
-                        ]);
-                    }
-
-                    // Line subtotal = quantity * unit_price
-                    $lineSubtotal = bcmul($qtyStr, $unitPrice, 2);
-
-                    // Item-level discount
-                    $discType = $itemData['discount_type'] ?? null;
-                    $discVal = isset($itemData['discount_value']) ? (float) $itemData['discount_value'] : null;
-                    $discAmount = '0.00';
-
-                    if ($discType === 'percentage' && $discVal !== null) {
-                        if ($discVal < 0 || $discVal > 100) {
-                            throw ValidationException::withMessages([
-                                'items' => ['نسبة الخصم على الصنف يجب أن تكون بين 0 و 100.'],
-                            ]);
-                        }
-                        $discAmount = bcdiv(bcmul($lineSubtotal, (string) $discVal, 4), '100', 2);
-                    } elseif ($discType === 'fixed' && $discVal !== null) {
-                        if ($discVal < 0) {
-                            throw ValidationException::withMessages([
-                                'items' => ['قيمة الخصم على الصنف لا يمكن أن تكون سالبة.'],
-                            ]);
-                        }
-                        $discAmount = number_format(min((float) $lineSubtotal, $discVal), 2, '.', '');
-                    }
-
-                    if (bccomp($discAmount, $lineSubtotal, 2) > 0) {
-                        $discAmount = $lineSubtotal;
-                    }
-
-                    $lineTotal = bcsub($lineSubtotal, $discAmount, 2);
-
-                    $itemsSubtotalSum = bcadd($itemsSubtotalSum, $lineSubtotal, 2);
-                    $itemsDiscountTotalSum = bcadd($itemsDiscountTotalSum, $discAmount, 2);
-                    $sumOfLineTotals = bcadd($sumOfLineTotals, $lineTotal, 2);
-
-                    $snapshot = [
-                        'name' => $product->name,
-                        'barcode' => $product->barcode,
-                        'unit_name' => 'قطعة',
-                    ];
-
-                    $processedItems[] = [
-                        'product_id' => $product->id,
-                        'product' => $product,
-                        'product_snapshot' => $snapshot,
-                        'quantity' => $qtyStr,
-                        'original_unit_price' => $originalPrice,
-                        'unit_price' => $unitPrice,
-                        'discount_type' => $discType,
-                        'discount_value' => $discVal !== null ? number_format($discVal, 2, '.', '') : null,
-                        'discount_amount' => $discAmount,
-                        'subtotal' => $lineSubtotal,
-                        'total' => $lineTotal,
-                    ];
-                }
-
-                // 6. Invoice-level discount
-                $invDiscType = $data['invoice_discount_type'] ?? null;
-                $invDiscVal = isset($data['invoice_discount_value']) ? (float) $data['invoice_discount_value'] : null;
-                $invDiscAmount = '0.00';
-
-                if ($invDiscType === 'percentage' && $invDiscVal !== null) {
-                    if ($invDiscVal < 0 || $invDiscVal > 100) {
-                        throw ValidationException::withMessages([
-                            'invoice_discount_value' => ['نسبة خصم الفاتورة يجب أن تكون بين 0 و 100.'],
-                        ]);
-                    }
-                    $invDiscAmount = bcdiv(bcmul($sumOfLineTotals, (string) $invDiscVal, 4), '100', 2);
-                } elseif ($invDiscType === 'fixed' && $invDiscVal !== null) {
-                    if ($invDiscVal < 0) {
-                        throw ValidationException::withMessages([
-                            'invoice_discount_value' => ['قيمة خصم الفاتورة لا يمكن أن تكون سالبة.'],
-                        ]);
-                    }
-                    $invDiscAmount = number_format(min((float) $sumOfLineTotals, $invDiscVal), 2, '.', '');
-                }
-
-                if (bccomp($invDiscAmount, $sumOfLineTotals, 2) > 0) {
-                    $invDiscAmount = $sumOfLineTotals;
-                }
-
-                $grandTotal = bcsub($sumOfLineTotals, $invDiscAmount, 2);
-
-                // 7. Accurately allocate invoice discount across items (Rule 11 for partial returns)
-                $allocatedTotal = '0.00';
-                $itemCount = count($processedItems);
-
-                foreach ($processedItems as $index => &$itemRef) {
-                    if ($index === $itemCount - 1) {
-                        // Last item takes remaining penny difference
-                        $allocated = bcsub($invDiscAmount, $allocatedTotal, 2);
-                    } else {
-                        if (bccomp($sumOfLineTotals, '0.00', 2) > 0) {
-                            $ratio = bcdiv($itemRef['total'], $sumOfLineTotals, 6);
-                            $allocated = number_format((float) bcmul($invDiscAmount, $ratio, 4), 2, '.', '');
-                        } else {
-                            $allocated = '0.00';
-                        }
-                        $allocatedTotal = bcadd($allocatedTotal, $allocated, 2);
-                    }
-                    $itemRef['allocated_invoice_discount'] = $allocated;
-                }
-                unset($itemRef);
-
-                // 8. Generate invoice number & create POS Sale record
-                $invoiceNumber = $this->numberService->generateInvoiceNumber();
-
-                /** @var PosSale $sale */
-                $sale = PosSale::query()->create([
-                    'invoice_number' => $invoiceNumber,
-                    'shift_id' => $shift->id,
-                    'customer_id' => $customerId,
-                    'payment_method_id' => $paymentMethod->id,
-                    'subtotal' => $itemsSubtotalSum,
-                    'items_discount_total' => $itemsDiscountTotalSum,
-                    'invoice_discount_type' => $invDiscType,
-                    'invoice_discount_value' => $invDiscVal !== null ? number_format($invDiscVal, 2, '.', '') : null,
-                    'invoice_discount_amount' => $invDiscAmount,
-                    'grand_total' => $grandTotal,
-                    'notes' => $data['notes'] ?? null,
-                    'created_by' => $user->id,
-                    'sold_at' => Carbon::now(),
-                    'client_uuid' => $clientUuid,
-                ]);
-
-                // 9. Create POS Sale Items
-                foreach ($processedItems as $itemRow) {
-                    PosSaleItem::query()->create([
-                        'sale_id' => $sale->id,
-                        'product_id' => $itemRow['product_id'],
-                        'product_snapshot' => $itemRow['product_snapshot'],
-                        'quantity' => $itemRow['quantity'],
-                        'original_unit_price' => $itemRow['original_unit_price'],
-                        'unit_price' => $itemRow['unit_price'],
-                        'discount_type' => $itemRow['discount_type'],
-                        'discount_value' => $itemRow['discount_value'],
-                        'discount_amount' => $itemRow['discount_amount'],
-                        'subtotal' => $itemRow['subtotal'],
-                        'total' => $itemRow['total'],
-                        'allocated_invoice_discount' => $itemRow['allocated_invoice_discount'],
-                    ]);
-                }
-
-                // 10. Record cash sale in shift if paid cash
-                if ($paymentMethod->name === 'نقدي') {
-                    $tx = new PosShiftTransaction();
-                    $tx->shift_id = $shift->id;
-                    $tx->type = PosShiftTransaction::TYPE_CASH_SALE;
-                    $tx->amount = $grandTotal;
-                    $tx->pos_sale_id = $sale->id;
-                    $tx->pos_return_id = null;
-                    $tx->name = "مبيعات نقدية - فاتورة {$sale->invoice_number}";
-                    $tx->description = null;
-                    $tx->created_by = $user->id;
-                    $tx->created_at = Carbon::now();
-                    $tx->save();
-
-                    // Refresh expected cash
-                    $shift->update([
-                        'expected_cash' => $this->shiftService->calculateExpectedCash($shift),
-                    ]);
-                }
-
-                // 11. Create Goods Delivery inventory document and post it
-                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::GOODS_DELIVERY);
-
-                /** @var InventoryDocument $invDoc */
-                $invDoc = InventoryDocument::query()->create([
-                    'document_number' => $docNumber,
-                    'document_type' => InventoryDocumentType::GOODS_DELIVERY,
-                    'referenceable_type' => 'pos_sale',
-                    'referenceable_id' => $sale->id,
-                    'source_warehouse_id' => $warehouse->id,
-                    'destination_warehouse_id' => null,
-                    'adjustment_direction' => null,
-                    'return_direction' => null,
-                    'status' => InventoryDocumentStatus::APPROVED,
-                    'document_date' => Carbon::now()->toDateString(),
-                    'notes' => "إذن تسليم مخزني تلقائي لفاتورة بيع نقطة البيع رقم: {$sale->invoice_number}",
-                    'created_by' => $user->id,
-                    'approved_by' => $user->id,
-                    'approved_at' => Carbon::now(),
-                ]);
-
-                foreach ($processedItems as $itemRow) {
-                    InventoryDocumentItem::query()->create([
-                        'inventory_document_id' => $invDoc->id,
-                        'product_id' => $itemRow['product_id'],
-                        'quantity' => $itemRow['quantity'],
-                        'notes' => null,
-                    ]);
-                }
-
-                // Post document using the current workflow posting service
-                // This verifies stock availability, applies row locking, checks stocktake locks,
-                // creates immutable stock_movements, and updates warehouse_stocks.
-                $this->invWorkflowService->post($invDoc, $user);
-
-                return $sale->load(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments']);
+                return $this->hydrateSale($sale, $shift, $paymentMethod, $customer, $user, $products, $document);
             });
-        } catch (UniqueConstraintViolationException|QueryException $e) {
-            // Concurrent race condition safeguard: if another process committed with the same client_uuid
+        } catch (QueryException $e) {
+            // Lost a race on the client_uuid unique index: return the winner's sale.
             if ($clientUuid !== null && str_contains($e->getMessage(), 'client_uuid')) {
-                $existing = PosSale::query()
-                    ->where('client_uuid', $clientUuid)
-                    ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'inventoryDocuments'])
-                    ->first();
-                if ($existing) {
-                    return $existing;
-                }
+                return $this->findSaleByClientUuid($clientUuid) ?? throw $e;
             }
+
             throw $e;
         }
     }
 
-    /**
-     * Get sale by invoice number.
-     */
-    public function getSaleByInvoiceNumber(string $invoiceNumber): PosSale
+    protected function findSaleByClientUuid(string $clientUuid): ?PosSale
     {
         return PosSale::query()
-            ->where('invoice_number', $invoiceNumber)
-            ->with(['items.product', 'paymentMethod', 'customer', 'shift', 'creator', 'returns'])
-            ->firstOrFail();
+            ->where('client_uuid', $clientUuid)
+            ->with(self::SALE_RELATIONS)
+            ->first();
     }
 
     /**
-     * Paginate POS sales invoices with filters.
-     *
-     * @param array<string, mixed> $filters
+     * Row-lock the shift for the whole transaction (serializes expected_cash updates per shift).
      */
-    public function paginateSales(array $filters, int $perPage = 15): LengthAwarePaginator
+    protected function lockOpenShift(int $shiftId): PosShift
     {
-        $search = trim((string) ($filters['search'] ?? ''));
-        $shiftId = $filters['shift_id'] ?? null;
-        $paymentMethodId = $filters['payment_method_id'] ?? null;
-        $dateFrom = $filters['date_from'] ?? null;
-        $dateTo = $filters['date_to'] ?? null;
+        /** @var PosShift|null $shift */
+        $shift = PosShift::query()->lockForUpdate()->find($shiftId);
 
-        return PosSale::query()
-            ->with([
-                'customer:id,name,phone',
-                'creator:id,name',
-                'paymentMethod:id,name',
-                'shift:id,shift_number',
-                'inventoryDocuments:id,document_number,referenceable_type,referenceable_id',
-            ])
-            ->withCount(['items', 'returns'])
-            ->withSum('returns as returns_total_amount', 'total_returned')
-            ->when($search !== '', function ($q) use ($search): void {
-                $q->where(function ($sub) use ($search): void {
-                    $sub->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhereHas('customer', fn ($cq) => $cq->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))
-                        ->orWhereHas('creator', fn ($uq) => $uq->where('name', 'like', "%{$search}%"));
-                });
-            })
-            ->when($shiftId, fn ($q) => $q->where('shift_id', $shiftId))
-            ->when($paymentMethodId, fn ($q) => $q->where('payment_method_id', $paymentMethodId))
-            ->when($dateFrom, fn ($q) => $q->whereDate('sold_at', '>=', $dateFrom))
-            ->when($dateTo, fn ($q) => $q->whereDate('sold_at', '<=', $dateTo))
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        if ($shift === null) {
+            throw ValidationException::withMessages(['shift_id' => [__('pos.errors.shift_not_found')]]);
+        }
+
+        if ($shift->isClosed()) {
+            throw ValidationException::withMessages(['shift_id' => [__('pos.errors.shift_closed')]]);
+        }
+
+        return $shift;
+    }
+
+    protected function resolvePaymentMethod(int $paymentMethodId): PaymentMethod
+    {
+        return PaymentMethod::query()->find($paymentMethodId)
+            ?? throw ValidationException::withMessages([
+                'payment_method_id' => [__('pos.errors.payment_method_not_found')],
+            ]);
     }
 
     /**
-     * Get sale by ID with full relations.
+     * Fetch (not just check) the customer so the model can be reused as the response relation.
      */
-    public function getSaleDetails(PosSale $sale): PosSale
+    protected function resolveCustomer(mixed $customerId): ?Contact
     {
-        return $sale->load([
-            'items.product',
-            'paymentMethod',
-            'customer',
-            'shift.openedBy:id,name',
-            'shift.closedBy:id,name',
-            'creator:id,name,email',
-            'returns.items.product:id,name,barcode',
-            'returns.creator:id,name',
-            'returns.paymentMethod:id,name',
-            'inventoryDocuments.sourceWarehouse:id,name,code',
-            'inventoryDocuments.destinationWarehouse:id,name,code',
-            'inventoryDocuments.items.product:id,name,barcode',
-            'inventoryDocuments.creator:id,name',
+        if ($customerId === null || $customerId === '') {
+            return null;
+        }
+
+        return Contact::query()->find((int) $customerId)
+            ?? throw ValidationException::withMessages([
+                'customer_id' => [__('pos.errors.customer_not_found')],
+            ]);
+    }
+
+    /**
+     * @param array<string, mixed> $invoice output of PosSaleCalculator::calculate()
+     */
+    protected function insertSale(
+        PosShift $shift,
+        PaymentMethod $paymentMethod,
+        ?Contact $customer,
+        array $invoice,
+        ?string $notes,
+        User $user,
+        ?string $clientUuid
+    ): PosSale {
+        return PosSale::query()->create([
+            'invoice_number' => $this->numberService->generateInvoiceNumber(),
+            'shift_id' => $shift->id,
+            'customer_id' => $customer?->id,
+            'payment_method_id' => $paymentMethod->id,
+            'subtotal' => $invoice['subtotal'],
+            'items_discount_total' => $invoice['items_discount_total'],
+            'invoice_discount_type' => $invoice['invoice_discount_type'],
+            'invoice_discount_value' => $invoice['invoice_discount_value'],
+            'invoice_discount_amount' => $invoice['invoice_discount_amount'],
+            'grand_total' => $invoice['grand_total'],
+            'notes' => $notes,
+            'created_by' => $user->id,
+            'sold_at' => Carbon::now(),
+            'client_uuid' => $clientUuid,
         ]);
     }
 
     /**
-     * Paginate active products for POS catalog with search and category filtering.
-     */
-    public function paginateProducts(string $query, ?int $warehouseId = null, ?int $categoryId = null, int $perPage = 24): LengthAwarePaginator
-    {
-        $term = trim($query);
-
-        $whId = $warehouseId;
-        if (! $whId) {
-            $whId = Warehouse::query()->where('is_default', true)->value('id')
-                ?: Warehouse::query()->where('is_active', true)->value('id');
-        }
-
-        $categoryIds = null;
-        if ($categoryId) {
-            $categoryIds = [$categoryId];
-            $childIds = ProductCategory::query()->where('parent_id', $categoryId)->pluck('id')->all();
-            if (! empty($childIds)) {
-                $categoryIds = array_merge($categoryIds, $childIds);
-            }
-        }
-
-        return Product::query()
-            ->active()
-            ->when($categoryIds, function ($q) use ($categoryIds): void {
-                $q->whereIn('category_id', $categoryIds);
-            })
-            ->when($term !== '', function ($q) use ($term): void {
-                $q->where(function ($sub) use ($term): void {
-                    $sub->where('name', 'like', "%{$term}%")
-                        ->orWhere('barcode', 'like', "%{$term}%");
-                });
-            })
-            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
-                if ($whId) {
-                    $q->where('warehouse_id', $whId);
-                }
-            }])
-            ->orderBy('name')
-            ->paginate($perPage);
-    }
-
-    /**
-     * Search products for POS with available stock in warehouse.
+     * One INSERT for all lines regardless of item count.
      *
-     * @return Collection<int, Product>
+     * @param array<int, array<string, mixed>> $items
      */
-    public function searchProducts(string $query, ?int $warehouseId = null, ?int $categoryId = null): Collection
+    protected function insertSaleItems(PosSale $sale, array $items): void
     {
-        $term = trim($query);
+        $now = Carbon::now();
 
-        $whId = $warehouseId;
-        if (! $whId) {
-            $whId = Warehouse::query()->where('is_default', true)->value('id')
-                ?: Warehouse::query()->where('is_active', true)->value('id');
-        }
+        PosSaleItem::query()->insert(array_map(static fn (array $item): array => [
+            'sale_id' => $sale->id,
+            'product_id' => $item['product_id'],
+            'product_snapshot' => json_encode($item['product_snapshot'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'quantity' => $item['quantity'],
+            'original_unit_price' => $item['original_unit_price'],
+            'unit_price' => $item['unit_price'],
+            'discount_type' => $item['discount_type'],
+            'discount_value' => $item['discount_value'],
+            'discount_amount' => $item['discount_amount'],
+            'subtotal' => $item['subtotal'],
+            'total' => $item['total'],
+            'allocated_invoice_discount' => $item['allocated_invoice_discount'],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $items));
+    }
 
-        return Product::query()
-            ->active()
-            ->when($categoryId, function ($q) use ($categoryId): void {
-                $q->where('category_id', $categoryId);
-            })
-            ->when($term !== '', function ($q) use ($term): void {
-                $q->where(function ($sub) use ($term): void {
-                    $sub->where('name', 'like', "%{$term}%")
-                        ->orWhere('barcode', 'like', "%{$term}%");
-                });
-            })
-            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
-                if ($whId) {
-                    $q->where('warehouse_id', $whId);
-                }
-            }])
-            ->orderBy('name')
-            ->limit(100)
-            ->get();
+    protected function recordCashSale(PosShift $shift, PosSale $sale, string $amount, User $user): void
+    {
+        // Attributes are assigned explicitly because PosShiftTransaction is immutable (no mass update path).
+        $transaction = new PosShiftTransaction();
+        $transaction->shift_id = $shift->id;
+        $transaction->type = PosShiftTransaction::TYPE_CASH_SALE;
+        $transaction->amount = $amount;
+        $transaction->pos_sale_id = $sale->id;
+        $transaction->pos_return_id = null;
+        $transaction->name = __('pos.messages.cash_sale_transaction', ['invoice_number' => $sale->invoice_number]);
+        $transaction->description = null;
+        $transaction->created_by = $user->id;
+        $transaction->created_at = Carbon::now();
+        $transaction->save();
+
+        $shift->update(['expected_cash' => $this->shiftService->calculateExpectedCash($shift)]);
     }
 
     /**
-     * Lookup product by exact barcode.
+     * Create an approved goods-delivery document and post it (stock locks, movements, balances).
+     *
+     * @param array<int, array<string, mixed>> $items
      */
-    public function lookupBarcode(string $barcode, ?int $warehouseId = null): ?Product
+    protected function postDeliveryDocument(PosSale $sale, Warehouse $warehouse, array $items, User $user): InventoryDocument
     {
-        $whId = $warehouseId;
-        if (! $whId) {
-            $whId = Warehouse::query()->where('is_default', true)->value('id')
-                ?: Warehouse::query()->where('is_active', true)->value('id');
+        $now = Carbon::now();
+
+        $document = InventoryDocument::query()->create([
+            'document_number' => $this->invDocNumberService->generate(InventoryDocumentType::GOODS_DELIVERY),
+            'document_type' => InventoryDocumentType::GOODS_DELIVERY,
+            'referenceable_type' => 'pos_sale',
+            'referenceable_id' => $sale->id,
+            'source_warehouse_id' => $warehouse->id,
+            'destination_warehouse_id' => null,
+            'adjustment_direction' => null,
+            'return_direction' => null,
+            'status' => InventoryDocumentStatus::APPROVED,
+            'document_date' => $now->toDateString(),
+            'notes' => __('pos.messages.auto_goods_delivery_notes', ['invoice_number' => $sale->invoice_number]),
+            'created_by' => $user->id,
+            'approved_by' => $user->id,
+            'approved_at' => $now,
+        ]);
+
+        InventoryDocumentItem::query()->insert(array_map(static fn (array $item): array => [
+            'inventory_document_id' => $document->id,
+            'product_id' => $item['product_id'],
+            'quantity' => $item['quantity'],
+            'notes' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $items));
+
+        return $this->invWorkflowService->post($document, $user);
+    }
+
+    /**
+     * Attach response relations from models already in memory instead of re-querying them.
+     * Only sale items need a query (their ids come from the bulk insert).
+     *
+     * @param Collection<int, Product> $products
+     */
+    protected function hydrateSale(
+        PosSale $sale,
+        PosShift $shift,
+        PaymentMethod $paymentMethod,
+        ?Contact $customer,
+        User $user,
+        Collection $products,
+        InventoryDocument $document
+    ): PosSale {
+        $sale->setRelation('shift', $shift)
+            ->setRelation('paymentMethod', $paymentMethod)
+            ->setRelation('customer', $customer)
+            ->setRelation('creator', $user->withoutRelations())
+            ->setRelation('inventoryDocuments', new Collection([$document->withoutRelations()]))
+            ->load('items');
+
+        foreach ($sale->items as $item) {
+            $item->setRelation('product', $products->get($item->product_id));
         }
 
-        return Product::query()
-            ->active()
-            ->where('barcode', $barcode)
-            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
-                if ($whId) {
-                    $q->where('warehouse_id', $whId);
-                }
-            }])
-            ->first();
+        return $sale;
     }
 }

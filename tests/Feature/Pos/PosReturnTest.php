@@ -6,6 +6,7 @@ namespace Tests\Feature\Pos;
 
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
+use App\Enums\PaymentMethodType;
 use App\Enums\StockMovementDirection;
 use App\Models\PaymentMethod;
 use App\Models\PosReturn;
@@ -53,8 +54,8 @@ class PosReturnTest extends TestCase
 
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
 
-        $this->cashMethod = PaymentMethod::query()->where('name', 'نقدي')->firstOrFail();
-        $this->visaMethod = PaymentMethod::query()->where('name', 'فيزا')->firstOrFail();
+        $this->cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
+        $this->visaMethod = PaymentMethod::query()->where('type', PaymentMethodType::VISA)->firstOrFail();
 
         $this->shiftService = app(PosShiftService::class);
         $this->saleService = app(PosSaleService::class);

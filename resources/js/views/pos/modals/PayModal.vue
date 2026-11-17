@@ -36,8 +36,8 @@
           ]"
           @click="selectMethod(method)"
         >
-          <Banknote v-if="method.name === 'نقدي'" class="w-6 h-6" />
-          <CreditCard v-else-if="method.name === 'فيزا'" class="w-6 h-6" />
+          <Banknote v-if="(method.type || '') === 'cash' || (!method.type && method.name === 'نقدي')" class="w-6 h-6" />
+          <CreditCard v-else-if="(method.type || '') === 'visa' || (!method.type && method.name === 'فيزا')" class="w-6 h-6" />
           <Building2 v-else class="w-6 h-6" />
           <span>{{ method.name }}</span>
         </button>
@@ -165,12 +165,15 @@ const notes = ref('');
 
 // Filter available payment methods to strictly cash, visa, bank transfer
 const availableMethods = computed(() => {
-  const allowed = ['نقدي', 'فيزا', 'تحويل بنكي'];
-  const list = props.paymentMethods.filter((m) => allowed.includes(m.name));
+  const allowedTypes = ['cash', 'visa', 'bank_transfer'];
+  const allowedNames = ['نقدي', 'فيزا', 'تحويل بنكي'];
+  const list = props.paymentMethods.filter(
+    (m) => (m.type && allowedTypes.includes(m.type)) || (!m.type && allowedNames.includes(m.name))
+  );
   return list.length > 0 ? list : [
-    { id: 1, name: 'نقدي' },
-    { id: 2, name: 'فيزا' },
-    { id: 3, name: 'تحويل بنكي' },
+    { id: 1, name: 'نقدي', type: 'cash' },
+    { id: 2, name: 'فيزا', type: 'visa' },
+    { id: 3, name: 'تحويل بنكي', type: 'bank_transfer' },
   ];
 });
 
@@ -179,7 +182,12 @@ const selectedMethod = computed(() => {
 });
 
 const selectedMethodName = computed(() => selectedMethod.value?.name || 'نقدي');
-const isCashMethod = computed(() => selectedMethodName.value === 'نقدي');
+const isCashMethod = computed(() => {
+  if (selectedMethod.value?.type) {
+    return selectedMethod.value.type === 'cash';
+  }
+  return selectedMethodName.value === 'نقدي';
+});
 
 const isPaidSufficient = computed(() => {
   if (!isCashMethod.value) return true;
@@ -200,7 +208,8 @@ const quickAmounts = computed(() => {
 
 function selectMethod(method) {
   selectedMethodId.value = method.id;
-  if (method.name === 'نقدي') {
+  const isCash = method.type ? method.type === 'cash' : method.name === 'نقدي';
+  if (isCash) {
     paidAmount.value = props.totalAmount;
     nextTick(() => {
       paidInputRef.value?.focus();

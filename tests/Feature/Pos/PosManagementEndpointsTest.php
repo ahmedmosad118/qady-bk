@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Pos;
 
+use App\Enums\PaymentMethodType;
 use App\Models\Contact;
 use App\Models\InventoryDocument;
 use App\Models\PaymentMethod;
@@ -47,8 +48,7 @@ class PosManagementEndpointsTest extends TestCase
 
         $this->cashMethod = PaymentMethod::create([
             'name' => 'نقدي',
-            'code' => 'cash',
-            'is_cash' => true,
+            'type' => PaymentMethodType::CASH,
             'is_active' => true,
         ]);
 

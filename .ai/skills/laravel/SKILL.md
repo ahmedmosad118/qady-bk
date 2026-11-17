@@ -1,43 +1,43 @@
 ---
 name: laravel
-description: Laravel 13 / PHP 8.3 backend rules for Plamx. Use for controllers, services, repositories, requests, resources, policies, jobs, routes.
+description: Laravel 13 / PHP 8.3 backend rules and reference architecture for Qady ERP (دار القاضي). Use for controllers, services, calculators, query services, requests, and routes.
 ---
 
-# Laravel in Plamx
+# Laravel 13 & PHP 8.3 in Qady ERP
 
-## Before coding
-Open a sibling module (Tasks, Projects, KPIs) and copy its structure: route file, controller, request,
-service, repository, resource, policy, tests.
+## Canonical Reference (Read Before Coding)
+Before writing or refactoring any service, inspect the POS reference implementation:
+- `app/Support/Decimal.php` — Pure BCMath money/quantity arithmetic (`MONEY_SCALE = 2`, `QUANTITY_SCALE = 3`, `CALCULATION_SCALE = 8`).
+- `app/Services/Pos/PosSaleService.php` — Unified domain service (~400 lines max) that orchestrates write transactions and delegates to focused internal services.
+- `app/Services/Pos/PosSaleCalculator.php` — Pure domain math with zero DB calls.
+- `app/Services/Pos/PosSaleQueryService.php` & `PosProductCatalogService.php` — Read-only query & catalog services.
+- `app/Services/Pos/PosShiftService.php` — Single-query `GROUP BY` aggregations (`sumTransactionsByType`).
 
-## Layers
-- **Route**: grouped under the same middleware as siblings (auth, tenant, permission). Use existing files/prefixes.
-- **Controller**: validate (FormRequest), call ONE service method, return `response()->json([...])` in the same shape as sibling controllers of the same module (keys like `message` plus `entity` or `data` vary: copy the sibling, never invent a new key).
-- **FormRequest**: rules + `authorize()` consistent with siblings. Never return true blindly unless siblings
-  do and permission is enforced elsewhere.
-- **Service**: business logic, `DB::transaction` for multi-write operations, domain exceptions the project already uses.
-- **Repository**: query building, eager loading, filters, pagination. No business rules.
-- **Resources**: `app/Http/Resources` does NOT exist in this project. Do not create API Resource classes; return JSON directly like existing controllers. Never change existing response keys.
+## Architectural Layers & Size Ceilings
+- **Controller (`<= 140 lines`)**: Validate via `FormRequest`, inject ONE unified domain service (e.g. `PosSaleService`), call one method, return `response()->json([...])`.
+- **Unified Domain Service (`<= 400 lines`)**: Never write 800–1000+ line God classes. Keep the main service as the single facade for the controller, and split heavy responsibilities into injected collaborators:
+  - `*Calculator`: Pure BCMath calculations (no DB).
+  - `*QueryService` / `*CatalogService`: Read-only pagination, filtering, and detail loading.
+  - `*Resolver`: Focused invariant resolution (e.g. `PosDefaultWarehouseResolver`).
+- **FormRequest**: Strict authorization (`Gate::allows(...)`) + validation rules. Batch any DB checks in `authorize()` into a single `whereIn` query.
+- **Resources**: `app/Http/Resources` is not used; return consistent JSON envelopes directly.
 
-## Code quality
-- `declare(strict_types=1)` only if sibling files use it.
-- **Namespaces:** ALWAYS import classes via `use` statements at the top of the file. NEVER use inline fully qualified namespaces (e.g., `\App\Models\ProjectTemplate`).
-- Type-hint params and return types. Constructor injection.
-- Use enums/constants already in the project for statuses; no magic strings.
-- Early returns over deep nesting. One responsibility per method.
-- Eloquent relationships over raw joins; eager load (`with`) to avoid N+1; paginate lists.
-- Mass assignment: respect `$fillable`/`$guarded`; never `$request->all()` into create/update, use `validated()`.
-- Never `DB::raw` with user input. Use bindings.
-- No `dd`, `dump`, `var_dump`, `console.log` left behind.
+## Code Quality & Performance Rules
+- `declare(strict_types=1);` at the top of every PHP file.
+- **Namespaces**: ALWAYS import classes via `use` statements at the top of the file. NEVER use inline fully qualified class names.
+- **Enums over Magic Strings**: Never compare display names (`$name === 'نقدي'`) or hardcoded IDs (`!== 1`). Always use backed Enums in `app/Enums/` (e.g. `PaymentMethodType`, `DiscountType`, `InventoryDocumentType`) and `match ($model->type)` or model helper methods (`$paymentMethod->isCash()`).
+- **Zero Float Math**: Always use `App\Support\Decimal` for monetary and quantity calculations.
+- **Bulk Reads & Bulk Writes**:
+  - Load multiple records once via `whereIn('id', $ids)->get()->keyBy('id')`.
+  - Insert line items in 1 query via `Model::query()->insert(array_map(...))` — never `create()` in a loop.
+- **In-Memory Relation Hydration**:
+  - After inserting a record inside a transaction, attach already-loaded relations (`setRelation('shift', $shift)`, etc.) instead of re-querying them via `$model->load(...)`.
+- **Single Grouped Aggregations**:
+  - Use `selectRaw('type, COALESCE(SUM(amount), 0) as total')->groupBy('type')->pluck('total', 'type')` instead of multiple `->where('type', ...)->sum('amount')` queries.
 
-## Errors
-- Never catch-and-ignore. Log via the project's pattern, rethrow or return a consistent API error.
-- Proper HTTP codes (422 validation, 403 forbidden, 404 not found).
-
-## Checklist before finishing
-- [ ] `php -l` on every changed PHP file
-- [ ] imports/namespaces correct
-- [ ] route visible in `php artisan route:list`
-- [ ] validation + authorization present
-- [ ] tenant context safe (see `tenancy`)
-- [ ] tests added/updated (see `testing`)
-- [ ] `./vendor/bin/pint --test` (or the project formatter) on changed files, if configured
+## Checklist Before Finishing
+- [ ] No service exceeds ~400 lines; math and read queries are cleanly separated
+- [ ] Zero magic display strings or hardcoded IDs; backed Enums used everywhere
+- [ ] Zero `create()` or `find()` inside loops; bulk `whereIn` and bulk `insert()` used
+- [ ] All money/quantity math uses `App\Support\Decimal` (BCMath)
+- [ ] `php artisan test` passes

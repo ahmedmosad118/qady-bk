@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Pos;
 
+use App\Enums\PaymentMethodType;
 use App\Models\PosReturn;
 use App\Models\PosSale;
 use Carbon\Carbon;
@@ -37,14 +38,12 @@ class PosDashboardService
         foreach ($todaySales as $sale) {
             $grossSales = bcadd($grossSales, (string) $sale->grand_total, 2);
 
-            $methodName = $sale->paymentMethod?->name;
-            if ($methodName === 'نقدي') {
-                $cashTotal = bcadd($cashTotal, (string) $sale->grand_total, 2);
-            } elseif ($methodName === 'فيزا') {
-                $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2);
-            } elseif ($methodName === 'تحويل بنكي') {
-                $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2);
-            }
+            match ($sale->paymentMethod?->type) {
+                PaymentMethodType::CASH => $cashTotal = bcadd($cashTotal, (string) $sale->grand_total, 2),
+                PaymentMethodType::VISA => $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2),
+                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2),
+                default => null,
+            };
         }
 
         $totalReturns = '0.00';

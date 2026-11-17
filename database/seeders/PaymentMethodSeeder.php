@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\PaymentMethodType;
 use App\Models\PaymentMethod;
 use Illuminate\Database\Seeder;
 
@@ -14,16 +15,13 @@ class PaymentMethodSeeder extends Seeder
      */
     public function run(): void
     {
-        $methods = [
-            'نقدي',
-            'فيزا',
-            'تحويل بنكي',
-        ];
-
-        foreach ($methods as $name) {
-            PaymentMethod::query()->firstOrCreate(
-                ['name' => $name],
-                ['is_active' => true]
+        foreach (PaymentMethodType::cases() as $type) {
+            PaymentMethod::query()->updateOrCreate(
+                ['name' => $type->label()],
+                [
+                    'type' => $type->value,
+                    'is_active' => true,
+                ]
             );
         }
     }

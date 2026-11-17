@@ -1,29 +1,19 @@
-# PLAMX V5 — Project Memory
+# QADY ERP (دار القاضي) — Project Memory
 
-> Durable global facts only. Full protocols live in `.ai/skills/`. If anything here
-> conflicts with the real code, the code wins — then fix this file.
-> Last reviewed: 2026-10-12.
+> Durable global facts and reference patterns. Full protocols live in `.ai/skills/` and `AGENTS.md`.
+> Last reviewed: 2026-11-17.
 
-## Stack (verified)
-- Backend: Laravel 13, PHP 8.3+, MySQL, Stancl Tenancy (`DomainTenantResolver`), `spatie/laravel-permission`.
-- API responses: direct `response()->json([...])`. `app/Http/Resources` does NOT exist — do not create it.
-- Frontend: Vue 3 + Vite + Pinia + PrimeVue + Bootstrap 5 + KeenIcons/Metronic, `<script setup>`, RTL/Arabic-first, dynamic `__terms`.
-- Tests: standard `Tests\TestCase` only. No `TenantTestCase`, no tenant DB setup in `tests/`.
+## Stack (Verified)
+- **Backend**: Laravel 13, PHP 8.3+, MySQL (`kady` in local `.env`), SQLite `:memory:` in `phpunit.xml`, Sanctum SPA token auth, `spatie/laravel-permission`, `spatie/laravel-activitylog`.
+- **API Responses**: Direct `response()->json(['success' => true, 'data' => ..., 'meta' => ...])`. `app/Http/Resources` does NOT exist.
+- **Frontend**: Vue 3 (`<script setup>`) + Vite + Pinia + Tailwind CSS + Lucide icons, RTL/Arabic-first (`lang/ar/`, `lang/en/`).
 
-## Methodology (verified against code)
-- Plan impact: `AllocationRatioService::calculateAllocationRatio(parent, weight)` → `parent * weight / 100`, stored on pivots/entities (`allocation_ratio`, `achievement_allocation_ratio`).
-- Dashboard computed performance (`PlanImpactCalculationService::overallPerformance`): unattributed scope → `actual_contribution` (absolute plan share); attributed scope (dept/employee) → `execution_rate` (% within scope). A single selected-plan card and its task details use the same filtered task `actual_contribution`; detailed filters show target and achievement metrics (2026-10-15).
-- Task progress: latest `TaskExecution` through `defaultKpi` via `UpdateTaskProgress::calculateProgress`; parent tasks with `dynamic_execution` aggregate subtasks weighted by `tasks.relative_weight`.
-- KPI: `progress` = absolute actual, `verification_value` = achievement % (`KpiCalculatorService`). Polarity-aware; negative uses `target/actual`.
-- KPI hierarchy tree shows KPI `achievement` as Effectiveness / الفاعلية; `progress` remains the absolute current value (`KpiHierarchyController`, `kpi_hierarchy_tree.blade.php`, 2026-10-26).
-- Task statuses: Active, Done, Closed, Late. `Late` is derived from `due_date` vs today (today itself is NOT overdue); null `due_date` is never overdue.
-
-## Testing reality
-- `phpunit.xml` has NO dedicated test DB (DB vars commented out). Never run `RefreshDatabase` / `DatabaseMigrations` / `migrate:fresh` / `db:wipe` unless the target is a verified throwaway DB.
-- Tenant isolation has no automated coverage; existing tests mock user/permissions. Do not build tenant test infra unasked.
-- Dashboard changes are covered by `tests/Feature/Dashboards/` + `tests/Unit/Dashboard/` (pure unit style, no DB).
-
-## Dashboard API (as of 2026-10-12)
-- `GET /dashboard/management/filter-options`, `POST /dashboard/management/data`, `GET /dashboard/management/employee-tasks/{id}`, `POST /dashboard/management/send-reminders`.
-- Response carries `executive_summary`, `attention_required`, `trends`, `departments`, `operational_objectives`, `employees`, plus `plan_linkage` and `data_quality` (weights/targets/executions completeness + plan-mismatch warnings).
-- Frontend store must forward the full filter set (incl. `project_ids`, `task_status_ids`, `kpi_status_ids`, `priority`) to data, drilldown AND reminders identically.
+## Reference Service Architecture (Gold Standard)
+- **Unified Domain Service Facade**: Controllers inject ONE service (`PosSaleService`), which internally orchestrates focused collaborators:
+  - `App\Support\Decimal` (`90 lines`): Pure BCMath helpers (`MONEY_SCALE = 2`, `QUANTITY_SCALE = 3`, `CALCULATION_SCALE = 8`). Never use `float` for money/quantity calculations.
+  - `App\Services\Pos\PosSaleCalculator` (`334 lines`): Pure domain math (item consolidation, line totals, discounts, remainder-absorbing invoice discount allocation) with zero DB queries.
+  - `App\Services\Pos\PosSaleQueryService` (`75 lines`) & `PosProductCatalogService` (`68 lines`): Read-only pagination, single-subquery category filtering, and barcode lookups.
+  - `App\Services\Pos\PosDefaultWarehouseResolver` (`29 lines`): Single default warehouse resolution (`Warehouse::default()`).
+  - `App\Services\Pos\PosSaleService` (`411 lines`): Atomic write orchestration, bulk `whereIn` product loading, bulk `insert()` for sale & inventory items, and in-memory relation hydration (`hydrateSale`).
+  - `App\Services\Pos\PosShiftService`: Single `GROUP BY type` SQL query (`sumTransactionsByType`) for shift cash calculations.
+- **Strict Backed Enums**: All domain types/statuses use backed Enums in `app/Enums/` (`PaymentMethodType`, `DiscountType`, `InventoryDocumentType`, `InventoryDocumentStatus`, etc.). Never branch on Arabic display names (`'نقدي'`, `'فيزا'`) or hardcoded IDs (`1`).

@@ -61,13 +61,37 @@ The project strictly follows the clean 5-tier architecture:
 
 ---
 
-## 3. BACKEND STANDARDS (Laravel 13 & PHP 8.3+)
+## 3. BACKEND STANDARDS & REFERENCE ARCHITECTURE (Laravel 13 & PHP 8.3+)
 
-- **Controllers:** Maximum 50–100 lines. Inject domain services via constructor. Never execute raw queries or complex queries in controllers.
-- **FormRequests:** Separate `StoreXRequest` and `UpdateXRequest`. No `$request->all()`. Always pass `$request->validated()` into the service.
-- **Services:** Encapsulate business rules. Any operation touching multiple tables or models must use `DB::transaction`.
-- **Repositories / Query Builders:** Keep Eloquent queries out of controllers. Avoid N+1 with eager loading (`with`). Always paginate query results.
-- **Responses:** Standard JSON shapes.
+> **Canonical Reference Implementation:** Always inspect `app/Support/Decimal.php` and `app/Services/Pos/` (`PosSaleService`, `PosSaleCalculator`, `PosSaleQueryService`, `PosProductCatalogService`, `PosDefaultWarehouseResolver`, `PosShiftService`) before writing or refactoring any complex module.
+
+### 3.1 Size Limits & Decomposition (Unified Service Facade Pattern)
+- **Controllers:** Maximum 50–140 lines. Inject **one** primary domain service via constructor (e.g., `PosSaleService`). Never execute queries or business math in controllers.
+- **Services:** Maximum **350–400 lines**. NEVER write 800–1000+ line monolithic "God Services".
+- **Internal Sub-Service Orchestration:** When a domain has complex math, read queries, and write transactions, keep the main service (`PosSaleService`) as the **Unified Facade** for controllers/callers, and decompose its internals into focused collaborators injected into `PosSaleService`:
+  1. **Pure Calculator (`PosSaleCalculator`):** 100% pure domain math using `App\Support\Decimal` (BCMath). Zero DB queries, zero side effects.
+  2. **Read Query Service (`PosSaleQueryService` / `PosProductCatalogService`):** Paginated listings, search filters, barcode lookups, and detail eager-loading.
+  3. **Domain Resolvers (`PosDefaultWarehouseResolver`):** Single-purpose invariant resolvers.
+  4. **Write Orchestrator (`PosSaleService`):** Coordinates locking, validation, persistence, and `DB::transaction`.
+
+### 3.2 Zero Magic Strings — Enum-First Domain Logic
+- **NEVER** branch on Arabic/English display names (e.g., ❌ `if ($method->name === 'نقدي')`) or hardcoded database IDs (❌ `if ($paymentMethodId !== 1)`).
+- **ALWAYS** define a backed Enum in `app/Enums/` (e.g., `PaymentMethodType`, `DiscountType`, `InventoryDocumentType`), cast it on the Eloquent model, and use `match ($model->type)` or model helper methods (`$paymentMethod->isCash()`).
+
+### 3.3 High-Performance Database & BCMath Standards
+1. **Pure BCMath via `App\Support\Decimal`:**
+   - Never cast money or quantities to `float` during calculation. Use `Decimal::MONEY_SCALE` (2), `Decimal::QUANTITY_SCALE` (3), and `Decimal::CALCULATION_SCALE` (8).
+2. **Bulk Loading & Bulk Inserts (Zero N+1):**
+   - Load all referenced products/entities in **1** `whereIn('id', $ids)` query before loops.
+   - Insert child line items (`PosSaleItem`, `InventoryDocumentItem`, etc.) using a single bulk `Model::query()->insert(...)` query — never call `Model::create()` inside a `foreach` loop.
+3. **In-Memory Relation Hydration (`setRelation`):**
+   - Inside write transactions, reuse models already fetched in memory (`$sale->setRelation('shift', $shift)->setRelation('paymentMethod', $paymentMethod)...`) instead of firing 5–6 redundant `SELECT` queries via `$sale->load(...)` at the end of the transaction.
+4. **Single Grouped SQL Aggregations:**
+   - Never run multiple sequential `->where('type', X)->sum('amount')` queries on the same table. Use a single `SELECT type, COALESCE(SUM(amount), 0) as total ... GROUP BY type` query (see `PosShiftService::sumTransactionsByType`).
+5. **Subqueries Over Multi-Step `pluck()`:**
+   - Combine parent/child lookups into a single SQL subquery (`->orWhereIn('category_id', ProductCategory::select('id')->where('parent_id', $id))`) instead of executing an extra round-trip `pluck('id')` query.
+6. **FormRequests:** Separate `StoreXRequest` and `UpdateXRequest`. No `$request->all()`. Always pass `$request->validated()` into the service.
+7. **Responses:** Standard JSON envelope `{ success: bool, message?: string, data?: mixed, meta?: array, errors?: array }`.
 
 ---
 

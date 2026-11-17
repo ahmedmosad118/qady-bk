@@ -1,44 +1,30 @@
 ---
 name: database
-description: Migration, model and query rules for Plamx (MySQL). Use for migrations, schema changes, relationships, scopes, indexes and query performance.
+description: Migration, model, and high-performance query rules for Qady ERP (MySQL & SQLite test runner).
 ---
 
-# Database in Plamx
+# Database & Query Performance in Qady ERP
 
-## Before a migration
-1. `ls database/migrations | grep <table>` to see history.
-2. Read the Model: relationships, casts, fillable, scopes, traits.
-3. Check the real schema if possible (`php artisan db:show`, `php artisan model:show X`).
-4. Check naming conventions for columns, FKs, indexes, and the right folder (central vs tenant).
-
-## Rules
-- Never edit an already-run migration; add a new one.
-- `down()` must truly reverse `up()`.
-- No duplicate columns/relationships; reuse existing ones.
-- Don't change nullability/types without explicit need; if needed, plan a data backfill.
-- Foreign keys follow sibling conventions (`foreignId()->constrained()`, onDelete behavior).
-- Index columns used in WHERE/JOIN/ORDER on large tables (status ids, foreign keys, dates).
-- Big tables: add nullable column first, backfill, then constrain; avoid long locks.
-- Keep `project_status_id` nullable semantics intact.
+## Migrations
+1. Check `database/migrations/` history before creating a migration.
+2. Never edit an already-run migration; add a new migration with a reversible `down()`.
+3. Guard schema changes with `Schema::hasColumn` / `Schema::hasTable` where appropriate, and backfill existing rows when adding new `enum` or non-nullable columns (see `2026_11_17_000001_add_type_to_payment_methods_table.php`).
+4. Always use `EnumClass::values()` for `$table->enum(...)` columns and add indexes on foreign keys, status/type enums, and date columns used in filters.
 
 ## Models
-- Relationship names follow siblings; no near-duplicates.
-- Casts for dates/booleans/json/enums.
-- Scopes for repeated filters only if siblings use scopes.
+- Use PHP 8 attributes `#[Fillable([...])]` and `casts(): array` method.
+- Cast every status/type column to its backed Enum in `app/Enums/` (e.g. `'type' => PaymentMethodType::class`).
+- Provide expressive domain helpers on the model (`$paymentMethod->isCash()`, `$shift->isOpen()`).
 
-## Queries
-- Eager load relations used by resources (no N+1).
-- Select only needed columns for heavy lists; paginate.
-- Bindings only; never concatenate user input.
-- `DB::transaction` for multi-step writes.
-- `exists()` over `count() > 0`; `chunkById` for big loops.
-
-## Factories/seeders
-Update factories when columns change so tests keep working.
-
-## Checklist
-- [ ] migration runs up and down
-- [ ] model fillable/casts/relations updated
-- [ ] factory updated
-- [ ] API unaffected, or intentionally updated
-- [ ] tests cover the new column/relation
+## High-Performance Queries (Mandatory)
+1. **Zero N+1 Queries**:
+   - Pre-load collections before loops using `whereIn('id', $ids)->get()->keyBy('id')`.
+   - Eager load relations with explicit column lists (`'paymentMethod:id,name,type'`, `'customer:id,name,phone'`).
+2. **Bulk Inserts**:
+   - Use `Model::query()->insert($rows)` to persist line items in a single SQL statement.
+3. **In-Memory Relation Hydration**:
+   - Reuse models already loaded during a transaction via `$model->setRelation(...)` instead of re-querying them with `$model->load(...)`.
+4. **Single `GROUP BY` Aggregations**:
+   - Combine multi-type `SUM()` queries into one `selectRaw('type, COALESCE(SUM(amount), 0) as total')->groupBy('type')->pluck('total', 'type')` query and normalize with `Decimal::fromNumeric()`.
+5. **Subqueries over Multi-Query `pluck()`**:
+   - Filter parent + child categories in a single query using `->orWhereIn('category_id', ProductCategory::query()->select('id')->where('parent_id', $categoryId))`.

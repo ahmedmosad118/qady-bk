@@ -14,35 +14,56 @@ class StorePosSaleRequest extends FormRequest
     {
         $user = $this->user();
 
-        // 1. Check basic POS selling permission
         if (! Gate::allows('pos.sell', $user)) {
             return false;
         }
 
-        // 2. Check invoice discount authorization
         $invDiscVal = $this->input('invoice_discount_value');
-        if ($invDiscVal !== null && (float) $invDiscVal > 0) {
+        if ($invDiscVal !== null && is_numeric($invDiscVal) && bccomp((string) $invDiscVal, '0', 4) > 0) {
             if (! Gate::allows('pos.apply_invoice_discount', $user)) {
                 return false;
             }
         }
 
-        // 2. Check item-level price overrides and discounts
         $items = $this->input('items', []);
-        if (is_array($items)) {
+        if (is_array($items) && $items !== []) {
+            $itemsWithPriceOverrideCheck = [];
+
             foreach ($items as $item) {
-                // Check discount authorization
-                if (! empty($item['discount_value']) && (float) $item['discount_value'] > 0) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                if (
+                    isset($item['discount_value'])
+                    && is_numeric($item['discount_value'])
+                    && bccomp((string) $item['discount_value'], '0', 4) > 0
+                ) {
                     if (! Gate::allows('pos.apply_item_discount', $user)) {
                         return false;
                     }
                 }
 
-                // Check price override authorization
-                if (isset($item['unit_price']) && ! empty($item['product_id'])) {
-                    $product = Product::query()->find($item['product_id']);
-                    if ($product && bccomp((string) $item['unit_price'], (string) $product->selling_price, 2) !== 0) {
-                        if (! Gate::allows('pos.override_price', $user)) {
+                if (isset($item['unit_price']) && is_numeric($item['unit_price']) && ! empty($item['product_id'])) {
+                    $itemsWithPriceOverrideCheck[] = $item;
+                }
+            }
+
+            if ($itemsWithPriceOverrideCheck !== [] && ! Gate::allows('pos.override_price', $user)) {
+                $productIds = array_values(array_unique(array_map(
+                    static fn (array $item): int => (int) $item['product_id'],
+                    $itemsWithPriceOverrideCheck
+                )));
+
+                $sellingPrices = Product::query()
+                    ->whereIn('id', $productIds)
+                    ->pluck('selling_price', 'id');
+
+                foreach ($itemsWithPriceOverrideCheck as $item) {
+                    $productId = (int) $item['product_id'];
+                    if ($sellingPrices->has($productId)) {
+                        $sellingPrice = (string) $sellingPrices->get($productId);
+                        if (bccomp((string) $item['unit_price'], $sellingPrice, 2) !== 0) {
                             return false;
                         }
                     }
@@ -62,13 +83,11 @@ class StorePosSaleRequest extends FormRequest
             'shift_id' => ['required', 'integer', 'exists:pos_shifts,id'],
             'customer_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
-            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'invoice_discount_type' => ['nullable', 'string', 'in:fixed,percentage'],
             'invoice_discount_value' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'client_uuid' => ['nullable', 'string', 'max:36'],
 
-            // Items
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],

@@ -294,7 +294,7 @@ class PosSyncService
 
         $paymentMethods = PaymentMethod::query()
             ->active()
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'type']);
 
         $openShifts = PosShift::query()
             ->open()

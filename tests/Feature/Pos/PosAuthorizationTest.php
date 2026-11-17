@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Pos;
 
+use App\Enums\PaymentMethodType;
 use App\Models\PaymentMethod;
 use App\Models\PosShift;
 use App\Models\Product;
@@ -42,7 +43,7 @@ class PosAuthorizationTest extends TestCase
         $this->seed(WarehouseSeeder::class);
 
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
-        $this->cashMethod = PaymentMethod::query()->where('name', 'نقدي')->firstOrFail();
+        $this->cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
 
         $this->shiftService = app(PosShiftService::class);
         $this->saleService = app(PosSaleService::class);

@@ -7,6 +7,7 @@ namespace App\Services\Pos;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\InventoryReturnDirection;
+use App\Enums\PaymentMethodType;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
 use App\Models\PosReturn;
@@ -232,8 +233,8 @@ class PosReturnService
                     ]);
                 }
 
-                // 7. If original sale was cash ('نقدي'), record cash_return transaction in the current shift
-                if ($sale->paymentMethod?->name === 'نقدي') {
+                // 7. If original sale was cash, record cash_return transaction in the current shift
+                if ($sale->paymentMethod?->type === PaymentMethodType::CASH) {
                     $tx = new PosShiftTransaction();
                     $tx->shift_id = $shift->id;
                     $tx->type = PosShiftTransaction::TYPE_CASH_RETURN;
@@ -373,7 +374,7 @@ class PosReturnService
                 'sale:id,invoice_number,customer_id,grand_total,sold_at',
                 'sale.customer:id,name,phone',
                 'creator:id,name',
-                'paymentMethod:id,name',
+                'paymentMethod:id,name,type',
                 'shift:id,shift_number',
                 'inventoryDocuments:id,document_number,referenceable_type,referenceable_id,status',
             ])
@@ -405,10 +406,10 @@ class PosReturnService
         return $posReturn->load([
             'items.product:id,name,barcode',
             'items.saleItem:id,sale_id,product_id,quantity,unit_price,total,allocated_invoice_discount',
-            'paymentMethod:id,name',
+            'paymentMethod:id,name,type',
             'sale:id,invoice_number,customer_id,payment_method_id,subtotal,items_discount_total,invoice_discount_amount,grand_total,sold_at',
             'sale.customer:id,name,phone,email',
-            'sale.paymentMethod:id,name',
+            'sale.paymentMethod:id,name,type',
             'shift:id,shift_number,opened_at,closed_at',
             'creator:id,name,email',
             'inventoryDocuments.sourceWarehouse:id,name,code',

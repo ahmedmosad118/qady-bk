@@ -159,12 +159,12 @@
                 <b class="font-bold">{{ paymentMethodName }}</b>
               </div>
 
-              <div v-if="paymentMethodName === 'نقدي'" class="flex justify-between text-[11px]">
+              <div v-if="isCashPayment" class="flex justify-between text-[11px]">
                 <span class="text-neutral-600">المبلغ المدفوع:</span>
                 <span class="font-mono font-bold">{{ formatMoney(sale.paid_amount || sale.grand_total) }} ج.م</span>
               </div>
 
-              <div v-if="paymentMethodName === 'نقدي'" class="flex justify-between text-[11px]">
+              <div v-if="isCashPayment" class="flex justify-between text-[11px]">
                 <span class="text-neutral-600">المتبقي للعميل:</span>
                 <span class="font-mono font-bold text-emerald-900">{{ formatMoney(sale.change_amount || 0) }} ج.م</span>
               </div>
@@ -266,6 +266,14 @@ const cashierName = computed(() => {
 
 const paymentMethodName = computed(() => {
   return props.sale.payment_method?.name || props.sale.paymentMethod?.name || 'نقدي';
+});
+
+const isCashPayment = computed(() => {
+  const type = props.sale.payment_method?.type || props.sale.paymentMethod?.type;
+  if (type) {
+    return type === 'cash';
+  }
+  return paymentMethodName.value === 'نقدي';
 });
 
 const formattedDate = computed(() => {

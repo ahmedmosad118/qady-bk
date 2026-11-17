@@ -5,7 +5,7 @@
 
 ## Architecture & Data Flow
 - **Models & Tables**:
-  - `PaymentMethod`: `payment_methods` (No `code`). Seeded with: نقدي, فيزا, تحويل بنكي.
+  - `PaymentMethod`: `payment_methods` (`type` cast to `App\Enums\PaymentMethodType`: `cash`, `visa`, `bank_transfer`). Seeded with: نقدي (`cash`), فيزا (`visa`), تحويل بنكي (`bank_transfer`).
   - `PosShift`: `pos_shifts` (No `status`; state derived from `closed_at`). Formula: `Expected Cash = Opening + Cash Sales - Cash Returns - Expenses - Withdrawals`.
   - `PosShiftTransaction`: `pos_shift_transactions` (Types: `cash_sale`, `cash_return`, `expense`, `withdrawal`). Immutable financial records.
   - `PosSale`: `pos_sales` (No `status`, no `SaleStatus` enum). Immutable finalized sales.
@@ -15,12 +15,14 @@
   - `PosHeldSale` (Hold / Resume): Stored STRICTLY in browser Local Storage. No database tables, no models, and no backend endpoints exist. Does not reserve or deduct inventory.
   - `PosSyncTransaction`: `pos_sync_transactions`. Client UUID idempotency tracking, preserving local payloads upon stock conflict without polluting `pos_sales`.
 
-## Inventory Integration
-- When completing a sale (`PosSaleService::createSale`):
-  1. Creates `PosSale` & `PosSaleItem` records.
-  2. Creates an `approved` `stock_issue` document in `inventory_documents` linked via `referenceable` (`'pos_sale'`).
-  3. Uses `InventoryDocumentWorkflowService::post()` to atomically lock warehouse stock rows (`lockForUpdate`), enforce non-negative stock, verify stocktake locks, create immutable `StockMovement` (OUTBOUND), and update `WarehouseStock`.
-  4. `InventoryDocumentObserver` triggers on `updated` to `POSTED`, verifies `stockMovements()->exists()`, and safely no-ops to ensure single execution.
+## Service Layer Architecture (Reference Pattern)
+- **`App\Support\Decimal`**: Pure BCMath helpers (`MONEY_SCALE = 2`, `QUANTITY_SCALE = 3`, `CALCULATION_SCALE = 8`) with zero float arithmetic.
+- **`PosSaleCalculator`**: Pure domain math (no DB, no side effects) — item consolidation, line totals, item/invoice discounts, and remainder-absorbing invoice discount allocation.
+- **`PosDefaultWarehouseResolver`**: Enforces single-default-warehouse resolution (`Warehouse::default()`), ignoring client-supplied `warehouse_id`.
+- **`PosProductCatalogService`**: Read-only POS catalog pagination (single subquery for parent+child categories) and exact barcode lookup.
+- **`PosSaleQueryService`**: Read-only POS sales pagination, invoice-number lookup, and full detail loading.
+- **`PosSaleService`**: Write-only atomic sale creation (`createSale`), bulk `whereIn` product loading, bulk `insert()` for `PosSaleItem` and `InventoryDocumentItem`, and in-memory relation hydration (`hydrateSale`) to avoid redundant post-commit `SELECT` queries.
+- **`PosShiftService`**: Aggregates shift transaction totals in a single `GROUP BY type` SQL query (`sumTransactionsByType`).
 - When processing a return (`PosReturnService::processReturn`):
   1. Creates `PosReturn` & `PosReturnItem` records.
   2. Creates an `approved` `inventory_return` document with `return_direction = INBOUND` in `inventory_documents` linked via `referenceable` (`'pos_return'`).

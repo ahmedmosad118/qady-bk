@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Pos;
 
+use App\Enums\PaymentMethodType;
 use App\Models\PaymentMethod;
 use App\Models\PosSale;
 use App\Models\PosShift;
 use App\Models\PosShiftTransaction;
 use App\Models\User;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -182,36 +184,46 @@ class PosShiftService
     }
 
     /**
-     * Calculate Expected Cash for a shift:
+     * Calculate Expected Cash for a shift in a single grouped query:
      * Expected Cash = Opening Balance + Cash Sales - Cash Returns - Expenses - Withdrawals
      */
     public function calculateExpectedCash(PosShift $shift): string
     {
-        $opening = (string) $shift->opening_balance;
+        $totals = $this->sumTransactionsByType($shift);
 
-        $cashSales = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_CASH_SALE)
-            ->sum('amount');
+        return $this->computeExpectedCash((string) $shift->opening_balance, $totals);
+    }
 
-        $cashReturns = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_CASH_RETURN)
-            ->sum('amount');
+    /**
+     * Aggregate shift transaction amounts by type in a single SQL GROUP BY query.
+     *
+     * @return array{cash_sale: string, cash_return: string, expense: string, withdrawal: string}
+     */
+    protected function sumTransactionsByType(PosShift $shift): array
+    {
+        $grouped = $shift->transactions()
+            ->selectRaw('type, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('type')
+            ->pluck('total', 'type');
 
-        $expenses = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_EXPENSE)
-            ->sum('amount');
+        return [
+            PosShiftTransaction::TYPE_CASH_SALE => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_SALE] ?? 0),
+            PosShiftTransaction::TYPE_CASH_RETURN => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_RETURN] ?? 0),
+            PosShiftTransaction::TYPE_EXPENSE => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_EXPENSE] ?? 0),
+            PosShiftTransaction::TYPE_WITHDRAWAL => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_WITHDRAWAL] ?? 0),
+        ];
+    }
 
-        $withdrawals = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_WITHDRAWAL)
-            ->sum('amount');
+    /**
+     * @param array{cash_sale: string, cash_return: string, expense: string, withdrawal: string} $totals
+     */
+    protected function computeExpectedCash(string $openingBalance, array $totals): string
+    {
+        $subtotal = bcadd($openingBalance, $totals[PosShiftTransaction::TYPE_CASH_SALE], Decimal::MONEY_SCALE);
+        $subtotal = bcsub($subtotal, $totals[PosShiftTransaction::TYPE_CASH_RETURN], Decimal::MONEY_SCALE);
+        $subtotal = bcsub($subtotal, $totals[PosShiftTransaction::TYPE_EXPENSE], Decimal::MONEY_SCALE);
 
-        // Expected Cash = Opening Balance + Cash Sales - Cash Returns - Expenses - Withdrawals
-        $subtotal = bcadd($opening, $cashSales, 2);
-        $subtotal = bcsub($subtotal, $cashReturns, 2);
-        $subtotal = bcsub($subtotal, $expenses, 2);
-        $expected = bcsub($subtotal, $withdrawals, 2);
-
-        return number_format((float) $expected, 2, '.', '');
+        return bcsub($subtotal, $totals[PosShiftTransaction::TYPE_WITHDRAWAL], Decimal::MONEY_SCALE);
     }
 
     /**
@@ -272,43 +284,31 @@ class PosShiftService
             'transactions.sale:id,invoice_number,grand_total',
             'transactions.return:id,return_number,refund_amount',
             'sales.customer:id,name,phone',
-            'sales.paymentMethod:id,name',
+            'sales.paymentMethod:id,name,type',
             'sales.creator:id,name',
         ]);
 
+        $txTotals = $this->sumTransactionsByType($shift);
+
         $expectedCash = $shift->isClosed()
             ? (string) $shift->expected_cash
-            : $this->calculateExpectedCash($shift);
+            : $this->computeExpectedCash((string) $shift->opening_balance, $txTotals);
 
-        $cashSales = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_CASH_SALE)
-            ->sum('amount');
-
-        $cashReturns = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_CASH_RETURN)
-            ->sum('amount');
-
-        $expenses = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_EXPENSE)
-            ->sum('amount');
-
-        $withdrawals = (string) $shift->transactions()
-            ->where('type', PosShiftTransaction::TYPE_WITHDRAWAL)
-            ->sum('amount');
+        $cashSales = $txTotals[PosShiftTransaction::TYPE_CASH_SALE];
+        $cashReturns = $txTotals[PosShiftTransaction::TYPE_CASH_RETURN];
+        $expenses = $txTotals[PosShiftTransaction::TYPE_EXPENSE];
+        $withdrawals = $txTotals[PosShiftTransaction::TYPE_WITHDRAWAL];
 
         // Non-cash sales totals
-        $nonCashSales = $shift->sales->filter(fn ($s) => $s->payment_method_id !== 1);
-
         $visaTotal = '0.00';
         $bankTransferTotal = '0.00';
 
-        foreach ($nonCashSales as $sale) {
-            $name = $sale->paymentMethod?->name;
-            if ($name === 'فيزا') {
-                $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2);
-            } elseif ($name === 'تحويل بنكي') {
-                $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2);
-            }
+        foreach ($shift->sales as $sale) {
+            match ($sale->paymentMethod?->type) {
+                PaymentMethodType::VISA => $visaTotal = bcadd($visaTotal, (string) $sale->grand_total, 2),
+                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = bcadd($bankTransferTotal, (string) $sale->grand_total, 2),
+                default => null,
+            };
         }
 
         $totalSalesSum = (string) $shift->sales->sum('grand_total');
