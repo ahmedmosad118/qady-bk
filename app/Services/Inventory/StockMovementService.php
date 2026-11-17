@@ -20,6 +20,7 @@ use App\Models\StockMovement;
 use App\Models\StocktakeItem;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,50 +33,61 @@ class StockMovementService
 {
     /**
      * Post an approved inventory document:
-     * 1. Validates document is approved and has items.
+     * 1. Locks the document row and validates it is approved and has items.
      * 2. Resolves destination/source warehouse and direction for each item line.
      * 3. Locks all affected warehouse_stocks rows in deterministic order.
      * 4. Enforces strict non-negative stock rules.
-     * 5. Creates immutable stock_movements.
+     * 5. Creates immutable stock_movements and returns persisted models with IDs.
      * 6. Updates current warehouse_stocks balances.
      *
      * @return array<StockMovement>
      */
     public function postDocumentMovements(InventoryDocument $document, int $userId): array
     {
-        // 1. Validate status
-        if ($document->status !== InventoryDocumentStatus::APPROVED) {
-            throw ValidationException::withMessages([
-                'status' => ["لا يمكن ترحيل المستند وهو في حالة '{$document->status->value}'. يجب أن يكون معتمداً أولاً."],
-            ]);
-        }
+        return DB::transaction(function () use ($document, $userId): array {
+            /** @var InventoryDocument $lockedDocument */
+            $lockedDocument = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
-        // 2. Validate items exist
-        $items = $document->items()->with('product')->get();
-        if ($items->isEmpty()) {
-            throw ValidationException::withMessages([
-                'items' => ['المستند لا يحتوي على أية بنود أو أصناف للترحيل.'],
-            ]);
-        }
+            // 1. Validate status
+            if ($lockedDocument->status !== InventoryDocumentStatus::APPROVED) {
+                throw ValidationException::withMessages([
+                    'status' => ["لا يمكن ترحيل المستند وهو في حالة '{$lockedDocument->status->value}'. يجب أن يكون معتمداً أولاً."],
+                ]);
+            }
 
-        // 3. Prevent duplicate posting / idempotency
-        if ($document->stockMovements()->exists()) {
-            throw new LogicException("المستند {$document->document_number} تم ترحيله مسبقاً وسجل حركاته موجود بالفعل.");
-        }
+            // 2. Validate items exist
+            $items = $lockedDocument->items()->with('product')->get();
+            if ($items->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'items' => ['المستند لا يحتوي على أية بنود أو أصناف للترحيل.'],
+                ]);
+            }
 
-        // 4. Validate warehouses are active
-        $this->validateWarehousesActive($document);
+            // 3. Prevent duplicate posting / idempotency under document row lock
+            if ($lockedDocument->stockMovements()->whereNull('reversal_of_id')->exists()) {
+                throw new LogicException("المستند {$lockedDocument->document_number} تم ترحيله مسبقاً وسجل حركاته موجود بالفعل.");
+            }
 
-        // 4b. Validate Purchase Invoice Goods Receipt completeness & status
-        if (in_array($document->referenceable_type, ['purchase_invoice', PurchaseInvoice::class], true)) {
-            $this->validatePurchaseInvoiceGoodsReceipt($document, $items);
-        }
+            // 4. Validate warehouses exist
+            $this->validateWarehousesActive($lockedDocument);
 
-        // 5. Build planned movements
-        $plannedMovements = $this->buildPlannedMovementsForDocument($document, $items, $userId);
+            // 4b. Validate Purchase Invoice Goods Receipt completeness & status
+            if (in_array($lockedDocument->referenceable_type, ['purchase_invoice', PurchaseInvoice::class], true)) {
+                $this->validatePurchaseInvoiceGoodsReceipt($lockedDocument, $items);
+            }
 
-        // 6. Lock and update stocks within the outer transaction
-        return $this->applyMovements($plannedMovements);
+            // 5. Build planned movements
+            $plannedMovements = $this->buildPlannedMovementsForDocument($lockedDocument, $items, $userId);
+
+            // 6. Lock and update stocks within the transaction
+            $movements = $this->applyMovements($plannedMovements);
+
+            $movementCollection = new Collection($movements);
+            $lockedDocument->setRelation('stockMovements', $movementCollection);
+            $document->setRelation('stockMovements', $movementCollection);
+
+            return $movements;
+        });
     }
 
     /**
@@ -111,15 +123,19 @@ class StockMovementService
 
         $invoiceQtyByProduct = [];
         foreach ($invoice->items as $invItem) {
-            $invoiceQtyByProduct[(int) $invItem->product_id] = number_format((float) $invItem->quantity, 3, '.', '');
+            $pid = (int) $invItem->product_id;
+            $qty = Decimal::fromNumeric($invItem->quantity, Decimal::QUANTITY_SCALE);
+            $invoiceQtyByProduct[$pid] = isset($invoiceQtyByProduct[$pid])
+                ? Decimal::add($invoiceQtyByProduct[$pid], $qty, Decimal::QUANTITY_SCALE)
+                : $qty;
         }
 
         $docQtyByProduct = [];
         foreach ($docItems as $docItem) {
             $pid = (int) $docItem->product_id;
-            $qty = number_format((float) $docItem->quantity, 3, '.', '');
+            $qty = Decimal::fromNumeric($docItem->quantity, Decimal::QUANTITY_SCALE);
             $docQtyByProduct[$pid] = isset($docQtyByProduct[$pid])
-                ? bcadd($docQtyByProduct[$pid], $qty, 3)
+                ? Decimal::add($docQtyByProduct[$pid], $qty, Decimal::QUANTITY_SCALE)
                 : $qty;
         }
 
@@ -130,7 +146,7 @@ class StockMovementService
         }
 
         foreach ($invoiceQtyByProduct as $productId => $expectedQty) {
-            if (! isset($docQtyByProduct[$productId]) || bccomp($docQtyByProduct[$productId], $expectedQty, 3) !== 0) {
+            if (! isset($docQtyByProduct[$productId]) || Decimal::comp($docQtyByProduct[$productId], $expectedQty, Decimal::QUANTITY_SCALE) !== 0) {
                 throw ValidationException::withMessages([
                     'items' => ['Partial goods receipt is not supported; goods receipt quantities must match purchase invoice quantities.'],
                 ]);
@@ -140,8 +156,8 @@ class StockMovementService
 
     /**
      * Reverse a posted inventory document:
-     * 1. Validates document is posted.
-     * 2. Loads all original non-reversal movements.
+     * 1. Locks the document row and validates it is posted.
+     * 2. Loads and locks all original non-reversal movements.
      * 3. Verifies none have already been reversed.
      * 4. Inverts direction for each movement (INBOUND -> OUTBOUND, OUTBOUND -> INBOUND).
      * 5. Enforces non-negative stock check on the reversed movements (especially inverted INBOUND).
@@ -152,55 +168,62 @@ class StockMovementService
      */
     public function reverseDocumentMovements(InventoryDocument $document, int $userId): array
     {
-        if ($document->status !== InventoryDocumentStatus::POSTED) {
-            throw ValidationException::withMessages([
-                'status' => ["لا يمكن عكس المستند وهو في حالة '{$document->status->value}'. يمكن عكس المستندات المرحّلة فقط."],
-            ]);
-        }
+        return DB::transaction(function () use ($document, $userId): array {
+            /** @var InventoryDocument $lockedDocument */
+            $lockedDocument = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
-        /** @var Collection<int, StockMovement> $originalMovements */
-        $originalMovements = $document->stockMovements()
-            ->whereNull('reversal_of_id')
-            ->with(['product', 'warehouse'])
-            ->get();
+            if ($lockedDocument->status !== InventoryDocumentStatus::POSTED) {
+                throw ValidationException::withMessages([
+                    'status' => ["لا يمكن عكس المستند وهو في حالة '{$lockedDocument->status->value}'. يمكن عكس المستندات المرحّلة فقط."],
+                ]);
+            }
 
-        if ($originalMovements->isEmpty()) {
-            throw ValidationException::withMessages([
-                'movements' => ['لم يتم العثور على أية حركات مخزنية أصلية لعكس هذا المستند.'],
-            ]);
-        }
+            /** @var Collection<int, StockMovement> $originalMovements */
+            $originalMovements = $lockedDocument->stockMovements()
+                ->whereNull('reversal_of_id')
+                ->with(['product', 'warehouse'])
+                ->lockForUpdate()
+                ->get();
 
-        // Ensure no movement has already been reversed
-        $alreadyReversedCount = StockMovement::query()
-            ->whereIn('reversal_of_id', $originalMovements->pluck('id'))
-            ->count();
+            if ($originalMovements->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'movements' => ['لم يتم العثور على أية حركات مخزنية أصلية لعكس هذا المستند.'],
+                ]);
+            }
 
-        if ($alreadyReversedCount > 0) {
-            throw new LogicException("لا يمكن عكس المستند أكثر من مرة؛ بعض أو كل حركاته تم عكسها سابقاً.");
-        }
+            // Ensure no movement has already been reversed under row lock
+            $alreadyReversed = StockMovement::query()
+                ->whereIn('reversal_of_id', $originalMovements->pluck('id')->all())
+                ->lockForUpdate()
+                ->exists();
 
-        $today = Carbon::now()->toDateString();
-        $plannedReversals = [];
+            if ($alreadyReversed) {
+                throw new LogicException("لا يمكن عكس المستند أكثر من مرة؛ بعض أو كل حركاته تم عكسها سابقاً.");
+            }
 
-        foreach ($originalMovements as $orig) {
-            $oppositeDir = $orig->direction->opposite();
+            $today = Carbon::now()->toDateString();
+            $plannedReversals = [];
 
-            $plannedReversals[] = [
-                'inventory_document_id' => $orig->inventory_document_id,
-                'inventory_document_item_id' => $orig->inventory_document_item_id,
-                'product_id' => $orig->product_id,
-                'warehouse_id' => $orig->warehouse_id,
-                'direction' => $oppositeDir,
-                'quantity' => (string) $orig->quantity,
-                'movement_date' => $today,
-                'reversal_of_id' => $orig->id,
-                'created_by' => $userId,
-                'product' => $orig->product,
-                'warehouse' => $orig->warehouse,
-            ];
-        }
+            foreach ($originalMovements as $orig) {
+                $oppositeDir = $orig->direction->opposite();
 
-        return $this->applyMovements($plannedReversals);
+                $plannedReversals[] = [
+                    'inventory_document_id' => $orig->inventory_document_id,
+                    'inventory_document_item_id' => $orig->inventory_document_item_id,
+                    'product_id' => $orig->product_id,
+                    'warehouse_id' => $orig->warehouse_id,
+                    'direction' => $oppositeDir,
+                    'quantity' => Decimal::fromNumeric($orig->quantity, Decimal::QUANTITY_SCALE),
+                    'movement_date' => $today,
+                    'reversal_of_id' => $orig->id,
+                    'created_by' => $userId,
+                    'product' => $orig->product,
+                    'warehouse' => $orig->warehouse,
+                ];
+            }
+
+            return $this->applyMovements($plannedReversals);
+        });
     }
 
     /**
@@ -212,6 +235,10 @@ class StockMovementService
      */
     protected function applyMovements(array $planned): array
     {
+        if ($planned === []) {
+            return [];
+        }
+
         // 1. Group distinct product IDs by warehouse_id (sorted deterministically to prevent deadlocks)
         $productsByWarehouse = [];
         foreach ($planned as $m) {
@@ -265,11 +292,11 @@ class StockMovementService
                     ->keyBy('product_id');
             }
 
-            // Batch-check if any product in this warehouse is locked in COUNTING status in an active stocktake (1 query)
+            // Batch-check if any product in this warehouse is locked in COUNTING status in an active stocktake (1 locked query)
             $lockedProductId = StocktakeItem::query()
                 ->whereIn('product_id', $prodIds)
                 ->where('count_status', StocktakeItemStatus::COUNTING)
-                ->whereHas('stocktake', function ($q) use ($whId) {
+                ->whereHas('stocktake', function (Builder $q) use ($whId): void {
                     $q->where('warehouse_id', $whId)
                         ->whereIn('status', [
                             StocktakeStatus::IN_PROGRESS,
@@ -278,6 +305,7 @@ class StockMovementService
                             StocktakeStatus::REJECTED,
                         ]);
                 })
+                ->lockForUpdate()
                 ->value('product_id');
 
             if ($lockedProductId !== null) {
@@ -296,42 +324,42 @@ class StockMovementService
             }
         }
 
-        // 3. Calculate net delta per stock row and verify against negative stock
+        // 3. Calculate net delta per stock row and verify against negative stock using Decimal
         $deltas = [];
         foreach ($planned as $m) {
             $key = $m['warehouse_id'] . '_' . $m['product_id'];
-            $qty = (string) $m['quantity'];
+            $qty = Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE);
 
             if (! isset($deltas[$key])) {
                 $deltas[$key] = '0.000';
             }
 
             if ($m['direction'] === StockMovementDirection::INBOUND) {
-                $deltas[$key] = bcadd($deltas[$key], $qty, 3);
+                $deltas[$key] = Decimal::add($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
             } else {
-                $deltas[$key] = bcsub($deltas[$key], $qty, 3);
+                $deltas[$key] = Decimal::sub($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
             }
         }
 
         $newBalancesByWarehouse = [];
         foreach ($lockedStocks as $key => $stock) {
-            $currentQty = (string) $stock->quantity;
+            $currentQty = Decimal::fromNumeric($stock->quantity, Decimal::QUANTITY_SCALE);
             $delta = $deltas[$key] ?? '0.000';
-            $projected = bcadd($currentQty, $delta, 3);
+            $projected = Decimal::add($currentQty, $delta, Decimal::QUANTITY_SCALE);
 
-            if (bccomp($projected, '0.000', 3) < 0) {
+            if (Decimal::isNegative($projected, Decimal::QUANTITY_SCALE)) {
                 $wh = Warehouse::query()->find($stock->warehouse_id);
                 $prod = Product::query()->find($stock->product_id);
 
-                $shortage = bcmul(bcsub($projected, '0.000', 3), '-1', 3);
-                $requestedOutbound = bcmul($delta, '-1', 3);
+                $shortage = Decimal::mul($projected, '-1', Decimal::QUANTITY_SCALE);
+                $requestedOutbound = Decimal::mul($delta, '-1', Decimal::QUANTITY_SCALE);
 
                 throw ValidationException::withMessages([
                     'stock' => [
                         "الرصيد غير كافٍ للمنتج '{$prod?->name}' في المخزن '{$wh?->name}'. " .
-                        "الرصيد الحالي: " . number_format((float) $currentQty, 3) . "، " .
-                        "الكمية المطلوبة صرفها: " . number_format((float) $requestedOutbound, 3) . "، " .
-                        "مقدار العجز: " . number_format((float) $shortage, 3) . "."
+                        "الرصيد الحالي: {$currentQty}، " .
+                        "الكمية المطلوبة صرفها: {$requestedOutbound}، " .
+                        "مقدار العجز: {$shortage}."
                     ],
                 ]);
             }
@@ -345,12 +373,12 @@ class StockMovementService
         foreach ($planned as $m) {
             $dirVal = $m['direction'] instanceof StockMovementDirection ? $m['direction']->value : (string) $m['direction'];
             $movementRows[] = [
-                'inventory_document_id' => $m['inventory_document_id'],
-                'inventory_document_item_id' => $m['inventory_document_item_id'],
-                'product_id' => $m['product_id'],
-                'warehouse_id' => $m['warehouse_id'],
+                'inventory_document_id' => (int) $m['inventory_document_id'],
+                'inventory_document_item_id' => (int) $m['inventory_document_item_id'],
+                'product_id' => (int) $m['product_id'],
+                'warehouse_id' => (int) $m['warehouse_id'],
                 'direction' => $dirVal,
-                'quantity' => $m['quantity'],
+                'quantity' => Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE),
                 'movement_date' => $m['movement_date'],
                 'reversal_of_id' => $m['reversal_of_id'] ?? null,
                 'created_by' => $m['created_by'] ?? null,
@@ -358,23 +386,25 @@ class StockMovementService
             ];
         }
 
-        if ($movementRows !== []) {
-            StockMovement::query()->insert($movementRows);
-        }
+        StockMovement::query()->insert($movementRows);
 
         // 5. Batch update WarehouseStock balances in 1 CASE query per warehouse
         foreach ($newBalancesByWarehouse as $whId => $balancesByProductId) {
+            if ($balancesByProductId === []) {
+                continue;
+            }
+
             $cases = [];
             $bindings = [];
             foreach ($balancesByProductId as $prodId => $newQty) {
                 $cases[] = 'WHEN ? THEN ?';
-                $bindings[] = $prodId;
+                $bindings[] = (int) $prodId;
                 $bindings[] = $newQty;
             }
             $bindings[] = $now->toDateTimeString();
-            $bindings[] = $whId;
+            $bindings[] = (int) $whId;
             foreach (array_keys($balancesByProductId) as $prodId) {
-                $bindings[] = $prodId;
+                $bindings[] = (int) $prodId;
             }
 
             $inPlaceholders = implode(', ', array_fill(0, count($balancesByProductId), '?'));
@@ -386,51 +416,41 @@ class StockMovementService
             );
         }
 
-        return StockMovement::hydrate($movementRows)->all();
+        // 6. Query back the persisted StockMovement records in 1 query so returned models have real DB IDs
+        $documentId = (int) $movementRows[0]['inventory_document_id'];
+        $isReversal = $movementRows[0]['reversal_of_id'] !== null;
+
+        return StockMovement::query()
+            ->where('inventory_document_id', $documentId)
+            ->when(
+                $isReversal,
+                fn (Builder $q) => $q->whereNotNull('reversal_of_id'),
+                fn (Builder $q) => $q->whereNull('reversal_of_id')
+            )
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     /**
-     * Safely ensures a WarehouseStock record exists for warehouse and product,
-     * handling potential race conditions gracefully.
-     */
-    protected function ensureStockRowExists(int $warehouseId, int $productId): void
-    {
-        $exists = WarehouseStock::query()
-            ->where('warehouse_id', $warehouseId)
-            ->where('product_id', $productId)
-            ->exists();
-
-        if (! $exists) {
-            try {
-                WarehouseStock::query()->firstOrCreate(
-                    ['warehouse_id' => $warehouseId, 'product_id' => $productId],
-                    ['quantity' => '0.000']
-                );
-            } catch (\Throwable) {
-                // Record created concurrently by another transaction; safe to continue
-            }
-        }
-    }
-
-    /**
-     * Validate that all warehouses attached to this document are active.
+     * Validate that all warehouses attached to this document exist.
      */
     protected function validateWarehousesActive(InventoryDocument $document): void
     {
         if ($document->source_warehouse_id) {
             $sourceWh = Warehouse::query()->find($document->source_warehouse_id);
-            if (! $sourceWh || ! $sourceWh->is_active) {
+            if (! $sourceWh) {
                 throw ValidationException::withMessages([
-                    'source_warehouse_id' => ["المخزن المصدر '{$sourceWh?->name}' معطل وغير نشط، ولا يمكن الترحيل منه."],
+                    'source_warehouse_id' => ['المخزن المصدر المحدد غير موجود.'],
                 ]);
             }
         }
 
         if ($document->destination_warehouse_id) {
             $destWh = Warehouse::query()->find($document->destination_warehouse_id);
-            if (! $destWh || ! $destWh->is_active) {
+            if (! $destWh) {
                 throw ValidationException::withMessages([
-                    'destination_warehouse_id' => ["المخزن المستهدف '{$destWh?->name}' معطل وغير نشط، ولا يمكن الترحيل إليه."],
+                    'destination_warehouse_id' => ['المخزن المستهدف المحدد غير موجود.'],
                 ]);
             }
         }
@@ -449,9 +469,9 @@ class StockMovementService
         $docDate = $document->document_date->toDateString();
 
         foreach ($items as $item) {
-            $qty = (string) $item->quantity;
+            $qty = Decimal::fromNumeric($item->quantity, Decimal::QUANTITY_SCALE);
 
-            if (bccomp($qty, '0.000', 3) <= 0) {
+            if (! Decimal::isPositive($qty, Decimal::QUANTITY_SCALE)) {
                 throw ValidationException::withMessages([
                     'items' => ["الكمية للصنف '{$item->product?->name}' يجب أن تكون أكبر من الصفر."],
                 ]);
@@ -605,15 +625,15 @@ class StockMovementService
         $filterDir = ! empty($filters['direction']) ? strtolower(trim((string) $filters['direction'])) : null;
 
         foreach ($allMovements as $mov) {
-            $qty = (string) $mov->quantity;
+            $qty = Decimal::fromNumeric($mov->quantity, Decimal::QUANTITY_SCALE);
             $dirVal = $mov->direction instanceof StockMovementDirection ? $mov->direction->value : (string) $mov->direction;
 
             if ($dirVal === StockMovementDirection::INBOUND->value) {
-                $runningBalance = bcadd($runningBalance, $qty, 3);
+                $runningBalance = Decimal::add($runningBalance, $qty, Decimal::QUANTITY_SCALE);
                 $inQty = $qty;
                 $outQty = '0.000';
             } else {
-                $runningBalance = bcsub($runningBalance, $qty, 3);
+                $runningBalance = Decimal::sub($runningBalance, $qty, Decimal::QUANTITY_SCALE);
                 $inQty = '0.000';
                 $outQty = $qty;
             }

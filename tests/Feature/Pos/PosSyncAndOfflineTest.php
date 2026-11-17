@@ -350,7 +350,7 @@ class PosSyncAndOfflineTest extends TestCase
 
     public function test_offline_sync_query_count_remains_constant_for_1_10_and_50_products(): void
     {
-        $products = Product::factory()->count(50)->create([
+        $products = Product::factory()->count(100)->create([
             'purchase_price' => 40.00,
             'selling_price' => 80.00,
         ]);
@@ -367,7 +367,7 @@ class PosSyncAndOfflineTest extends TestCase
         app(\Spatie\Permission\PermissionRegistrar::class)->getPermissions();
         $queryCounts = [];
 
-        foreach ([1, 10, 50] as $count) {
+        foreach ([1, 10, 50, 100] as $count) {
             $itemsPayload = $products->take($count)->map(fn (Product $p): array => [
                 'product_id' => $p->id,
                 'quantity' => '1.000',
@@ -400,6 +400,11 @@ class PosSyncAndOfflineTest extends TestCase
             $queryCounts[10],
             $queryCounts[50],
             'Offline sync query count must not grow between 10 and 50 products.'
+        );
+        $this->assertSame(
+            $queryCounts[50],
+            $queryCounts[100],
+            'Offline sync query count must not grow between 50 and 100 products.'
         );
     }
 }

@@ -6,38 +6,28 @@ namespace App\Observers;
 
 use App\Enums\InventoryDocumentStatus;
 use App\Models\InventoryDocument;
-use App\Services\Inventory\StockMovementService;
-use Illuminate\Support\Facades\Auth;
+use LogicException;
 
 class InventoryDocumentObserver
 {
-    public function __construct(
-        protected StockMovementService $stockMovementService,
-    ) {}
-
     /**
-     * Handle the InventoryDocument "updated" event.
-     * Ensures idempotent stock movements posting when document transitions to POSTED.
+     * Guard against direct status updates to POSTED that bypass InventoryDocumentWorkflowService::post()
+     * and StockMovementService::postDocumentMovements().
      */
-    public function updated(InventoryDocument $document): void
+    public function updating(InventoryDocument $document): void
     {
-        if ($document->wasChanged('status') && $document->status === InventoryDocumentStatus::POSTED) {
-            // Idempotency: If movements have already been posted by posting service, do not duplicate
-            if ($document->stockMovements()->exists()) {
-                return;
-            }
+        if (! $document->isDirty('status') || $document->status !== InventoryDocumentStatus::POSTED) {
+            return;
+        }
 
-            $userId = (int) ($document->posted_by ?? Auth::id() ?? $document->created_by ?? 1);
+        if ($document->relationLoaded('stockMovements') && $document->getRelation('stockMovements')->isNotEmpty()) {
+            return;
+        }
 
-            // Ensure document status allows movement creation
-            $originalStatus = $document->status;
-            $document->status = InventoryDocumentStatus::APPROVED;
-
-            try {
-                $this->stockMovementService->postDocumentMovements($document, $userId);
-            } finally {
-                $document->status = $originalStatus;
-            }
+        if (! $document->stockMovements()->whereNull('reversal_of_id')->exists()) {
+            throw new LogicException(
+                "لا يمكن تغيير حالة المستند {$document->document_number} إلى مرحّل مباشرة دون تسجيل حركات المخزون عبر خدمة ترحيل المستندات."
+            );
         }
     }
 }

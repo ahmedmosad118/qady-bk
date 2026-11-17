@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Pos;
 
 use App\Enums\PaymentMethodType;
-use App\Models\PaymentMethod;
 use App\Models\PosSale;
 use App\Models\PosShift;
 use App\Models\PosShiftTransaction;
@@ -278,6 +277,37 @@ class PosShiftService
     }
 
     /**
+     * Aggregate shift sales count and totals by payment method type in a single SQL query.
+     *
+     * @return array{sales_count: int, total_sales_amount: string, visa_sales: string, bank_transfer_sales: string}
+     */
+    protected function aggregateShiftSales(PosShift $shift): array
+    {
+        $stats = PosSale::query()
+            ->leftJoin('payment_methods', 'pos_sales.payment_method_id', '=', 'payment_methods.id')
+            ->where('pos_sales.shift_id', $shift->id)
+            ->selectRaw(
+                'COUNT(pos_sales.id) as sales_count, ' .
+                'COALESCE(SUM(pos_sales.grand_total), 0) as total_sales_amount, ' .
+                'COALESCE(SUM(CASE WHEN payment_methods.type = ? THEN pos_sales.grand_total ELSE 0 END), 0) as visa_sales, ' .
+                'COALESCE(SUM(CASE WHEN payment_methods.type = ? THEN pos_sales.grand_total ELSE 0 END), 0) as bank_transfer_sales',
+                [
+                    PaymentMethodType::VISA->value,
+                    PaymentMethodType::BANK_TRANSFER->value,
+                ]
+            )
+            ->toBase()
+            ->first();
+
+        return [
+            'sales_count' => (int) ($stats->sales_count ?? 0),
+            'total_sales_amount' => Decimal::fromNumeric($stats->total_sales_amount ?? 0, Decimal::MONEY_SCALE),
+            'visa_sales' => Decimal::fromNumeric($stats->visa_sales ?? 0, Decimal::MONEY_SCALE),
+            'bank_transfer_sales' => Decimal::fromNumeric($stats->bank_transfer_sales ?? 0, Decimal::MONEY_SCALE),
+        ];
+    }
+
+    /**
      * Get full details and summary for a shift.
      *
      * @return array<string, mixed>
@@ -296,50 +326,30 @@ class PosShiftService
         ]);
 
         $txTotals = $this->sumTransactionsByType($shift);
+        $salesStats = $this->aggregateShiftSales($shift);
 
+        $openingBalance = Decimal::fromNumeric($shift->opening_balance, Decimal::MONEY_SCALE);
         $expectedCash = $shift->isClosed()
-            ? (string) $shift->expected_cash
-            : $this->computeExpectedCash((string) $shift->opening_balance, $txTotals);
+            ? Decimal::fromNumeric($shift->expected_cash, Decimal::MONEY_SCALE)
+            : $this->computeExpectedCash($openingBalance, $txTotals);
 
-        $cashSales = $txTotals[PosShiftTransaction::TYPE_CASH_SALE];
-        $cashReturns = $txTotals[PosShiftTransaction::TYPE_CASH_RETURN];
-        $expenses = $txTotals[PosShiftTransaction::TYPE_EXPENSE];
-        $withdrawals = $txTotals[PosShiftTransaction::TYPE_WITHDRAWAL];
-
-        // Non-cash and total sales sums via Decimal
-        $visaTotal = '0.00';
-        $bankTransferTotal = '0.00';
-        $totalSalesSum = '0.00';
-
-        foreach ($shift->sales as $sale) {
-            $saleAmount = Decimal::fromNumeric($sale->grand_total, Decimal::MONEY_SCALE);
-            $totalSalesSum = Decimal::add($totalSalesSum, $saleAmount, Decimal::MONEY_SCALE);
-
-            match ($sale->paymentMethod?->type) {
-                PaymentMethodType::VISA => $visaTotal = Decimal::add($visaTotal, $saleAmount, Decimal::MONEY_SCALE),
-                PaymentMethodType::BANK_TRANSFER => $bankTransferTotal = Decimal::add($bankTransferTotal, $saleAmount, Decimal::MONEY_SCALE),
-                default => null,
-            };
-        }
-
-        $totalSalesCount = $shift->sales->count();
         $totalReturnsCount = $shift->returns()->count();
 
         return [
             'shift' => $shift,
             'is_open' => $shift->isOpen(),
-            'opening_balance' => (string) $shift->opening_balance,
-            'cash_sales' => $cashSales,
-            'cash_returns' => $cashReturns,
-            'expenses' => $expenses,
-            'withdrawals' => $withdrawals,
+            'opening_balance' => $openingBalance,
+            'cash_sales' => $txTotals[PosShiftTransaction::TYPE_CASH_SALE],
+            'cash_returns' => $txTotals[PosShiftTransaction::TYPE_CASH_RETURN],
+            'expenses' => $txTotals[PosShiftTransaction::TYPE_EXPENSE],
+            'withdrawals' => $txTotals[PosShiftTransaction::TYPE_WITHDRAWAL],
             'expected_cash' => $expectedCash,
-            'actual_cash' => $shift->actual_cash ? (string) $shift->actual_cash : null,
-            'difference' => $shift->difference ? (string) $shift->difference : null,
-            'total_sales_amount' => $totalSalesSum,
-            'visa_sales' => $visaTotal,
-            'bank_transfer_sales' => $bankTransferTotal,
-            'sales_count' => $totalSalesCount,
+            'actual_cash' => $shift->actual_cash !== null ? Decimal::fromNumeric($shift->actual_cash, Decimal::MONEY_SCALE) : null,
+            'difference' => $shift->difference !== null ? Decimal::fromNumeric($shift->difference, Decimal::MONEY_SCALE) : null,
+            'total_sales_amount' => $salesStats['total_sales_amount'],
+            'visa_sales' => $salesStats['visa_sales'],
+            'bank_transfer_sales' => $salesStats['bank_transfer_sales'],
+            'sales_count' => $salesStats['sales_count'],
             'returns_count' => $totalReturnsCount,
         ];
     }

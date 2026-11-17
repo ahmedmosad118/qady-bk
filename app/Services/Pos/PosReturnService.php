@@ -360,7 +360,7 @@ class PosReturnService
                     'updated_at' => $now,
                 ], $processedItems));
 
-                $postedDoc = $this->invWorkflowService->post($invDoc, $user);
+                $postedDoc = $this->invWorkflowService->post($invDoc, $user, false);
 
                 return $this->hydrateReturn($posReturn, $sale, $shift, $user, $saleItemsById, $postedDoc);
             });

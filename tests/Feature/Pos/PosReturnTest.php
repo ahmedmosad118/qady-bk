@@ -520,7 +520,7 @@ class PosReturnTest extends TestCase
 
     public function test_return_queries_remain_constant_for_1_10_and_50_items(): void
     {
-        $products = Product::factory()->count(50)->create([
+        $products = Product::factory()->count(100)->create([
             'purchase_price' => 50.00,
             'selling_price' => 100.00,
         ]);
@@ -536,7 +536,7 @@ class PosReturnTest extends TestCase
         $returnableQueryCounts = [];
         $processReturnQueryCounts = [];
 
-        foreach ([1, 10, 50] as $itemCount) {
+        foreach ([1, 10, 50, 100] as $itemCount) {
             $saleItemsPayload = $products->take($itemCount)->map(fn (Product $p): array => [
                 'product_id' => $p->id,
                 'quantity' => '2.000',
@@ -583,7 +583,7 @@ class PosReturnTest extends TestCase
             $processReturnQueryCounts[$itemCount] = count($processQueries);
         }
 
-        // Query count for 1, 10, and 50 items must be identical (O(1), zero N+1 growth)
+        // Query count for 1, 10, 50, and 100 items must be identical (O(1), zero N+1 growth)
         $this->assertSame(
             $returnableQueryCounts[1],
             $returnableQueryCounts[10],
@@ -593,6 +593,11 @@ class PosReturnTest extends TestCase
             $returnableQueryCounts[10],
             $returnableQueryCounts[50],
             'getReturnableItems query count must not grow between 10 and 50 items.'
+        );
+        $this->assertSame(
+            $returnableQueryCounts[50],
+            $returnableQueryCounts[100],
+            'getReturnableItems query count must not grow between 50 and 100 items.'
         );
 
         $this->assertSame(
@@ -604,6 +609,11 @@ class PosReturnTest extends TestCase
             $processReturnQueryCounts[10],
             $processReturnQueryCounts[50],
             'processReturn query count must not grow between 10 and 50 items.'
+        );
+        $this->assertSame(
+            $processReturnQueryCounts[50],
+            $processReturnQueryCounts[100],
+            'processReturn query count must not grow between 50 and 100 items.'
         );
     }
 

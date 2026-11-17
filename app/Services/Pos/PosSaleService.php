@@ -116,13 +116,15 @@ class PosSaleService
      */
     public function authorizeSalePayload(array $data, Collection $products, User $user): void
     {
-        if (! Gate::allows('pos.sell', $user)) {
+        $gate = Gate::forUser($user);
+
+        if (! $gate->allows('pos.sell')) {
             throw new AuthorizationException(__('This action is unauthorized.'));
         }
 
         $invDiscVal = Decimal::parse($data['invoice_discount_value'] ?? null);
         if ($invDiscVal !== null && Decimal::isPositive($invDiscVal)) {
-            if (! Gate::allows('pos.discount', $user) || ! Gate::allows('pos.apply_invoice_discount', $user)) {
+            if (! $gate->allows('pos.discount') || ! $gate->allows('pos.apply_invoice_discount')) {
                 throw new AuthorizationException(__('This action is unauthorized.'));
             }
         }
@@ -135,7 +137,7 @@ class PosSaleService
 
             $itemDiscVal = Decimal::parse($item['discount_value'] ?? null);
             if ($itemDiscVal !== null && Decimal::isPositive($itemDiscVal)) {
-                if (! Gate::allows('pos.discount', $user) || ! Gate::allows('pos.apply_item_discount', $user)) {
+                if (! $gate->allows('pos.discount') || ! $gate->allows('pos.apply_item_discount')) {
                     throw new AuthorizationException(__('This action is unauthorized.'));
                 }
             }
@@ -148,7 +150,7 @@ class PosSaleService
                     $catalogPrice = Decimal::fromNumeric($product->selling_price, Decimal::MONEY_SCALE);
 
                     if (Decimal::comp($requestedPrice, $catalogPrice, Decimal::MONEY_SCALE) !== 0) {
-                        if (! Gate::allows('pos.price_override', $user) || ! Gate::allows('pos.override_price', $user)) {
+                        if (! $gate->allows('pos.price_override') || ! $gate->allows('pos.override_price')) {
                             throw new AuthorizationException(__('This action is unauthorized.'));
                         }
                     }
@@ -425,7 +427,7 @@ class PosSaleService
             'updated_at' => $now,
         ], $items));
 
-        return $this->invWorkflowService->post($document, $user);
+        return $this->invWorkflowService->post($document, $user, false);
     }
 
     /**

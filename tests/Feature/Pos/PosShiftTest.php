@@ -18,6 +18,7 @@ use App\Services\Pos\PosShiftService;
 use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Spatie\Permission\Models\Role;
@@ -233,5 +234,77 @@ class PosShiftTest extends TestCase
         $this->assertSame('53.32', $summary['total_sales_amount']);
         $this->assertSame('10.15', $summary['expenses']);
         $this->assertSame('25.25', $summary['withdrawals']);
+    }
+
+    public function test_shift_summary_query_count_remains_constant_for_1_10_and_50_sales(): void
+    {
+        $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
+        $visaMethod = PaymentMethod::query()->where('type', PaymentMethodType::VISA)->firstOrFail();
+        $bankMethod = PaymentMethod::query()->where('type', PaymentMethodType::BANK_TRANSFER)->firstOrFail();
+        /** @var PosSaleService $saleService */
+        $saleService = app(PosSaleService::class);
+
+        $product = Product::factory()->create([
+            'name' => 'أصول الفقه',
+            'selling_price' => 25.50,
+        ]);
+
+        WarehouseStock::query()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => '1000.000',
+        ]);
+
+        $shift = $this->shiftService->openShift($this->user, '500.00');
+        $queryCounts = [];
+
+        foreach ([1, 10, 50, 100] as $targetSales) {
+            $existingCount = $shift->sales()->count();
+            $toAdd = $targetSales - $existingCount;
+
+            for ($i = 0; $i < $toAdd; $i++) {
+                $method = match ($i % 3) {
+                    0 => $cashMethod,
+                    1 => $visaMethod,
+                    default => $bankMethod,
+                };
+
+                $saleService->createSale([
+                    'shift_id' => $shift->id,
+                    'payment_method_id' => $method->id,
+                    'items' => [['product_id' => $product->id, 'quantity' => '1.000', 'unit_price' => '25.50']],
+                ], $this->user);
+            }
+
+            $freshShift = PosShift::query()->findOrFail($shift->id);
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $summary = $this->shiftService->getShiftSummary($freshShift);
+
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+
+            $this->assertSame($targetSales, $summary['sales_count']);
+            $queryCounts[$targetSales] = count($queries);
+        }
+
+        $this->assertSame(
+            $queryCounts[1],
+            $queryCounts[10],
+            'getShiftSummary query count must not grow between 1 and 10 sales.'
+        );
+        $this->assertSame(
+            $queryCounts[10],
+            $queryCounts[50],
+            'getShiftSummary query count must not grow between 10 and 50 sales.'
+        );
+        $this->assertSame(
+            $queryCounts[50],
+            $queryCounts[100],
+            'getShiftSummary query count must not grow between 50 and 100 sales.'
+        );
     }
 }

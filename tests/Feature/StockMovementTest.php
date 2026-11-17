@@ -20,6 +20,7 @@ use App\Services\Inventory\StockMovementService;
 use App\Services\InventoryDocumentWorkflowService;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
@@ -460,5 +461,114 @@ class StockMovementTest extends TestCase
         $res = $this->getJson("/api/warehouse-stocks?warehouse_id={$this->warehouse->id}");
         $res->assertStatus(200);
         $res->assertJsonCount(2, 'data');
+    }
+
+    public function test_post_and_reverse_return_persisted_stock_movement_models_with_database_ids(): void
+    {
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [
+                ['product_id' => $this->product->id, 'quantity' => '10.000'],
+                ['product_id' => $this->secondProduct->id, 'quantity' => '5.000'],
+            ],
+            destWhId: $this->warehouse->id
+        );
+
+        $postedMovements = $this->stockMovementService->postDocumentMovements($doc, $this->user->id);
+        $doc->update([
+            'status' => InventoryDocumentStatus::POSTED,
+            'posted_by' => $this->user->id,
+            'posted_at' => now(),
+        ]);
+
+        $this->assertCount(2, $postedMovements);
+        foreach ($postedMovements as $movement) {
+            $this->assertInstanceOf(StockMovement::class, $movement);
+            $this->assertNotNull($movement->id, 'Returned StockMovement must have a persisted database ID.');
+            $this->assertTrue($movement->exists);
+            $this->assertNull($movement->reversal_of_id);
+        }
+
+        $reversalMovements = $this->stockMovementService->reverseDocumentMovements($doc->fresh(), $this->user->id);
+        $this->assertCount(2, $reversalMovements);
+        foreach ($reversalMovements as $index => $reversal) {
+            $this->assertInstanceOf(StockMovement::class, $reversal);
+            $this->assertNotNull($reversal->id, 'Returned reversal StockMovement must have a persisted database ID.');
+            $this->assertTrue($reversal->exists);
+            $this->assertSame($postedMovements[$index]->id, $reversal->reversal_of_id);
+        }
+    }
+
+    public function test_direct_status_update_to_posted_without_movements_is_blocked_by_observer(): void
+    {
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [['product_id' => $this->product->id, 'quantity' => '5.000']],
+            destWhId: $this->warehouse->id
+        );
+
+        $this->expectException(LogicException::class);
+        $doc->update(['status' => InventoryDocumentStatus::POSTED]);
+    }
+
+    public function test_post_and_reverse_query_counts_remain_constant_for_1_10_50_and_100_items(): void
+    {
+        $products = Product::factory()->count(100)->create([
+            'purchase_price' => 50,
+            'selling_price' => 100,
+        ]);
+
+        $postQueryCounts = [];
+        $reverseQueryCounts = [];
+
+        foreach ([1, 10, 50, 100] as $itemCount) {
+            $items = $products->take($itemCount)->map(fn (Product $p): array => [
+                'product_id' => $p->id,
+                'quantity' => '5.000',
+            ])->values()->all();
+
+            $doc = $this->createAndApproveDocument(
+                InventoryDocumentType::GOODS_RECEIPT,
+                $items,
+                destWhId: $this->warehouse->id
+            );
+
+            // Pre-ensure warehouse_stocks rows exist so we measure steady-state posting across all sizes
+            foreach ($products->take($itemCount) as $p) {
+                WarehouseStock::query()->firstOrCreate(
+                    ['warehouse_id' => $this->warehouse->id, 'product_id' => $p->id],
+                    ['quantity' => '10.000']
+                );
+            }
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $postedDoc = $this->workflowService->post($doc, $this->user);
+
+            $postQueries = DB::getQueryLog();
+            DB::disableQueryLog();
+
+            $postQueryCounts[$itemCount] = count($postQueries);
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $this->workflowService->reverse($postedDoc, $this->user, 'اختبار الأداء');
+
+            $reverseQueries = DB::getQueryLog();
+            DB::disableQueryLog();
+
+            $reverseQueryCounts[$itemCount] = count($reverseQueries);
+        }
+
+        // O(1) constant query count across 1, 10, 50, and 100 items
+        $this->assertSame($postQueryCounts[1], $postQueryCounts[10]);
+        $this->assertSame($postQueryCounts[10], $postQueryCounts[50]);
+        $this->assertSame($postQueryCounts[50], $postQueryCounts[100]);
+
+        $this->assertSame($reverseQueryCounts[1], $reverseQueryCounts[10]);
+        $this->assertSame($reverseQueryCounts[10], $reverseQueryCounts[50]);
+        $this->assertSame($reverseQueryCounts[50], $reverseQueryCounts[100]);
     }
 }

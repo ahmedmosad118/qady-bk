@@ -11,12 +11,15 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Services\Pos\PosDashboardService;
 use App\Services\Pos\PosReturnService;
 use App\Services\Pos\PosSaleService;
 use App\Services\Pos\PosShiftService;
+use Carbon\Carbon;
 use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -187,5 +190,67 @@ class PosDashboardAndPaymentMethodTest extends TestCase
         $this->assertEquals(100.00, (float) $shiftSummary['cash_returns']);
         $this->assertSame('300.00', $shiftSummary['visa_sales']);
         $this->assertSame('100.00', $shiftSummary['bank_transfer_sales']);
+    }
+
+    public function test_dashboard_stats_query_count_remains_constant_at_2_queries_across_transaction_volumes(): void
+    {
+        /** @var PosDashboardService $dashboardService */
+        $dashboardService = app(PosDashboardService::class);
+
+        WarehouseStock::query()
+            ->where('warehouse_id', $this->warehouse->id)
+            ->where('product_id', $this->product->id)
+            ->update(['quantity' => '1000.000']);
+
+        $queryCounts = [];
+
+        foreach ([1, 10, 50, 100] as $targetTotalSales) {
+            $currentCount = $this->shift->sales()->count();
+            $toCreate = $targetTotalSales - $currentCount;
+
+            for ($i = 0; $i < $toCreate; $i++) {
+                $method = match ($i % 3) {
+                    0 => $this->cashMethod,
+                    1 => $this->visaMethod,
+                    default => $this->bankTransferMethod,
+                };
+
+                $sale = $this->saleService->createSale([
+                    'shift_id' => $this->shift->id,
+                    'payment_method_id' => $method->id,
+                    'items' => [
+                        ['product_id' => $this->product->id, 'quantity' => '2.000', 'unit_price' => '19.99'],
+                    ],
+                ], $this->user);
+
+                if ($i % 5 === 0) {
+                    $saleItem = $sale->items->first();
+                    $this->returnService->processReturn([
+                        'shift_id' => $this->shift->id,
+                        'pos_sale_id' => $sale->id,
+                        'items' => [
+                            ['pos_sale_item_id' => $saleItem->id, 'quantity' => '1.000'],
+                        ],
+                    ], $this->user);
+                }
+            }
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            $stats = $dashboardService->getTodayStats(Carbon::now());
+
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+
+            $this->assertSame($targetTotalSales, $stats['invoice_count']);
+            $queryCounts[$targetTotalSales] = count($queries);
+        }
+
+        // Dashboard aggregation must execute exactly 2 SQL queries (1 for sales, 1 for returns) at any volume
+        $this->assertSame(2, $queryCounts[1]);
+        $this->assertSame(2, $queryCounts[10]);
+        $this->assertSame(2, $queryCounts[50]);
+        $this->assertSame(2, $queryCounts[100]);
     }
 }

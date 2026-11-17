@@ -22,11 +22,16 @@
 - **`PosProductCatalogService`**: Read-only POS catalog pagination (single subquery for parent+child categories) and exact barcode lookup.
 - **`PosSaleQueryService`**: Read-only POS sales pagination, invoice-number lookup, and full detail loading.
 - **`PosSaleService`**: Write-only atomic sale creation (`createSale`), bulk `whereIn` product loading, bulk `insert()` for `PosSaleItem` and `InventoryDocumentItem`, and in-memory relation hydration (`hydrateSale`) to avoid redundant post-commit `SELECT` queries.
-- **`PosShiftService`**: Aggregates shift transaction totals in a single `GROUP BY type` SQL query (`sumTransactionsByType`).
+- **`PosDashboardService`**: Computes daily POS stats (`invoice_count`, `gross_sales`, `cash_sales`, `visa_sales`, `bank_transfer_sales`, `returns_count`, `total_returns`, `net_sales`) in **2 constant SQL aggregate queries** using index-friendly `whereBetween` day boundaries (`sold_at`, `returned_at`) and `PaymentMethodType` conditional aggregation (`app/Services/Pos/PosDashboardService.php`).
+- **`PosShiftService`**: Aggregates shift transaction totals in a single `GROUP BY type` SQL query (`sumTransactionsByType`) and shift sales totals/counts in a single SQL conditional aggregate query (`aggregateShiftSales`).
+- **`StockMovementService` & `InventoryDocumentObserver`**:
+  - `postDocumentMovements()` and `reverseDocumentMovements()` wrap execution in `DB::transaction`, lock `InventoryDocument` (`lockForUpdate()`), batch-ensure (`insertOrIgnore`) and deterministically lock `WarehouseStock` rows (`warehouse_id ASC, product_id ASC`), bulk-insert `StockMovement` rows, batch-update `WarehouseStock` balances via `CASE product_id`, and query back persisted `StockMovement` models with real database IDs (`app/Services/Inventory/StockMovementService.php`).
+  - `InventoryDocumentWorkflowService::post()` is the single authoritative posting path (`$loadRelations = false` used by POS sale/return flows to skip redundant post-commit re-queries), and `InventoryDocumentObserver::updating()` blocks direct `status => POSTED` transitions that bypass movement creation (`app/Observers/InventoryDocumentObserver.php`).
+- **`PosSaleService::authorizeSalePayload`**: Uses `Gate::forUser($user)->allows(...)` against the bulk-loaded `$products` map so authorization works identically in HTTP requests, offline sync, and CLI/service invocations (`app/Services/Pos/PosSaleService.php`).
 - When processing a return (`PosReturnService::processReturn`):
-  1. Creates `PosReturn` & `PosReturnItem` records.
-  2. Creates an `approved` `inventory_return` document with `return_direction = INBOUND` in `inventory_documents` linked via `referenceable` (`'pos_return'`).
-  3. Uses `InventoryDocumentWorkflowService::post()` to create `StockMovement` (INBOUND) and increment `WarehouseStock`.
+  1. Creates `PosReturn` & bulk-inserts `PosReturnItem` records, aggregating prior returns in 1 `GROUP BY pos_sale_item_id` query (`sumReturnedQuantitiesBySaleItemIds`).
+  2. Creates an `approved` `GOODS_RECEIPT` document in `inventory_documents` linked via `referenceable` (`'pos_return'`).
+  3. Uses `InventoryDocumentWorkflowService::post($invDoc, $user, false)` to create `StockMovement` (INBOUND) and increment `WarehouseStock`.
   4. Records `cash_return` transaction in current shift if original payment was cash. Visa and bank transfer do not affect shift cash.
 
 ## Authorization Integration Points

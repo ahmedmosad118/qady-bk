@@ -180,9 +180,9 @@ class InventoryDocumentWorkflowService
      * Generates all historical stock movements, checks stock availability,
      * updates warehouse stock balances, and marks status as POSTED.
      */
-    public function post(InventoryDocument $document, User $user): InventoryDocument
+    public function post(InventoryDocument $document, User $user, bool $loadRelations = true): InventoryDocument
     {
-        return DB::transaction(function () use ($document, $user): InventoryDocument {
+        return DB::transaction(function () use ($document, $user, $loadRelations): InventoryDocument {
             /** @var InventoryDocument $locked */
             $locked = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
@@ -204,6 +204,10 @@ class InventoryDocumentWorkflowService
             // If this document is an adjustment referencing a stocktake, check if all adjustments are posted to complete the stocktake
             if ($locked->referenceable_type && in_array($locked->referenceable_type, ['stocktake', Stocktake::class], true) && $locked->referenceable_id) {
                 $this->stocktakeWorkflowService->checkAndComplete((int) $locked->referenceable_id, $user);
+            }
+
+            if (! $loadRelations) {
+                return $locked;
             }
 
             return $locked->fresh(['items.product', 'sourceWarehouse', 'destinationWarehouse', 'creator', 'poster', 'stockMovements']);

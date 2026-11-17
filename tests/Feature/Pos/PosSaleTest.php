@@ -630,7 +630,7 @@ class PosSaleTest extends TestCase
 
     public function test_bulk_product_retrieval_eliminates_n_plus_one_for_1_10_and_50_items(): void
     {
-        $products = Product::factory()->count(50)->create([
+        $products = Product::factory()->count(100)->create([
             'purchase_price' => 50.00,
             'selling_price' => 100.00,
         ]);
@@ -643,7 +643,11 @@ class PosSaleTest extends TestCase
             ]);
         }
 
-        foreach ([1, 10, 50] as $itemCount) {
+        $this->user->load(['roles', 'permissions']);
+        app(\Spatie\Permission\PermissionRegistrar::class)->getPermissions();
+        $saleQueryCounts = [];
+
+        foreach ([1, 10, 50, 100] as $itemCount) {
             $itemsPayload = $products->take($itemCount)->map(fn (Product $p): array => [
                 'product_id' => $p->id,
                 'quantity' => '1.000',
@@ -659,7 +663,7 @@ class PosSaleTest extends TestCase
             $calcQueries = DB::getQueryLog();
             DB::disableQueryLog();
 
-            // Product retrieval + item calculation must execute exactly 1 query regardless of item count (1, 10, or 50)
+            // Product retrieval + item calculation must execute exactly 1 query regardless of item count (1, 10, 50, or 100)
             $this->assertCount(
                 1,
                 $calcQueries,
@@ -676,8 +680,11 @@ class PosSaleTest extends TestCase
                 'items' => $itemsPayload,
             ], $this->user);
 
-            $saleQueries = collect(DB::getQueryLog())->pluck('query');
+            $rawQueries = DB::getQueryLog();
+            $saleQueries = collect($rawQueries)->pluck('query');
             DB::disableQueryLog();
+
+            $saleQueryCounts[$itemCount] = count($rawQueries);
 
             $posSaleItemInserts = $saleQueries->filter(
                 fn (string $sql): bool => str_contains(strtolower($sql), 'insert into "pos_sale_items"')
@@ -691,6 +698,10 @@ class PosSaleTest extends TestCase
             $this->assertCount(1, $posSaleItemInserts, "Expected 1 bulk insert into pos_sale_items for {$itemCount} items.");
             $this->assertCount(1, $invDocItemInserts, "Expected 1 bulk insert into inventory_document_items for {$itemCount} items.");
         }
+
+        $this->assertSame($saleQueryCounts[1], $saleQueryCounts[10]);
+        $this->assertSame($saleQueryCounts[10], $saleQueryCounts[50]);
+        $this->assertSame($saleQueryCounts[50], $saleQueryCounts[100]);
     }
 
     public function test_missing_default_warehouse_throws_validation_exception_without_fallback(): void
