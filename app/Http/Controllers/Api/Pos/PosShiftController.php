@@ -11,6 +11,7 @@ use App\Http\Requests\Pos\ShiftExpenseRequest;
 use App\Http\Requests\Pos\ShiftWithdrawalRequest;
 use App\Models\PosShift;
 use App\Services\Pos\PosShiftService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -32,19 +33,9 @@ class PosShiftController extends Controller
             'date_to' => $request->input('date_to'),
         ];
 
-        $perPage = $request->integer('per_page', 12);
-        $paginated = $this->shiftService->paginateShifts($filters, $perPage);
+        $perPage = max(1, min($request->integer('per_page', 12), 100));
 
-        return response()->json([
-            'success' => true,
-            'data' => $paginated->items(),
-            'meta' => [
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
-                'per_page' => $paginated->perPage(),
-                'total' => $paginated->total(),
-            ],
-        ]);
+        return $this->paginatedResponse($this->shiftService->paginateShifts($filters, $perPage));
     }
 
     /**
@@ -115,19 +106,13 @@ class PosShiftController extends Controller
     }
 
     /**
-     * List all financial transactions recorded in this shift.
+     * List financial transactions recorded in this shift with pagination.
      */
-    public function transactions(PosShift $posShift): JsonResponse
+    public function transactions(PosShift $posShift, Request $request): JsonResponse
     {
-        $transactions = $posShift->transactions()
-            ->with(['creator', 'sale', 'return'])
-            ->orderBy('id', 'asc')
-            ->get();
+        $perPage = max(1, min($request->integer('per_page', 25), 100));
 
-        return response()->json([
-            'success' => true,
-            'data' => $transactions,
-        ]);
+        return $this->paginatedResponse($this->shiftService->paginateShiftTransactions($posShift, $perPage));
     }
 
     /**
@@ -179,13 +164,13 @@ class PosShiftController extends Controller
      */
     public function sales(PosShift $posShift, Request $request): JsonResponse
     {
-        $perPage = $request->integer('per_page', 20);
+        $perPage = max(1, min($request->integer('per_page', 20), 100));
 
-        $paginated = $posShift->sales()
-            ->with(['customer:id,name,phone', 'creator:id,name', 'paymentMethod:id,name'])
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        return $this->paginatedResponse($this->shiftService->paginateShiftSales($posShift, $perPage));
+    }
 
+    protected function paginatedResponse(LengthAwarePaginator $paginated): JsonResponse
+    {
         return response()->json([
             'success' => true,
             'data' => $paginated->items(),

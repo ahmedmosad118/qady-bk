@@ -309,7 +309,7 @@ async function loadProductsIfNeeded() {
   if (allProducts.value.length > 0) return;
   loadingProducts.value = true;
   try {
-    const res = await api.get('/products', { params: { per_page: 500, is_active: 1 } });
+    const res = await api.get('/products', { params: { per_page: 500 } });
     localProducts.value = res.data?.data || [];
   } catch (e) {
     console.error('Failed to load products in modal:', e);
@@ -327,16 +327,14 @@ const form = reactive({
 });
 
 const warehouseOptions = computed(() =>
-  props.warehouses
-    .filter(w => w.is_active)
-    .map(w => ({
-      value: w.id,
-      label: `${w.name} (${w.code})${w.is_default ? ' ★ الافتراضي' : ''}`,
-    }))
+  props.warehouses.map(w => ({
+    value: w.id,
+    label: `${w.name} (${w.code})${w.is_default ? ' ★ الافتراضي' : ''}`,
+  }))
 );
 
 function syncDefaultWarehouse() {
-  const def = props.warehouses.find(w => w.is_default) || props.warehouses[0];
+  const def = props.warehouses.find(w => w.is_default);
   if (def && (!form.warehouse_id || props.warehouses.length <= 1)) {
     form.warehouse_id = def.id;
   }
@@ -348,7 +346,7 @@ const selectedProducts = computed(() =>
 
 const unselectedProductOptions = computed(() =>
   allProducts.value
-    .filter(p => p.is_active && !form.product_ids.includes(p.id))
+    .filter(p => !form.product_ids.includes(p.id))
     .map(p => ({
       value: p.id,
       label: p.name,

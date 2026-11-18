@@ -15,13 +15,52 @@ use App\Services\Inventory\StocktakeWorkflowService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 
 class InventoryDocumentWorkflowService
 {
+    /**
+     * Tracks document IDs currently executing an authoritative post/reverse lifecycle transition
+     * so observers and movement services enforce a single entry point.
+     *
+     * @var array<int, InventoryDocumentStatus>
+     */
+    private static array $activeTransitions = [];
+
     public function __construct(
         protected StockMovementService $stockMovementService,
         protected StocktakeWorkflowService $stocktakeWorkflowService,
     ) {}
+
+    /**
+     * Determine whether the given document is currently transitioning via this service.
+     */
+    public static function isAuthoritativeTransitionActive(int $documentId, InventoryDocumentStatus $targetStatus): bool
+    {
+        return (self::$activeTransitions[$documentId] ?? null) === $targetStatus;
+    }
+
+    /**
+     * Execute an authoritative status transition callback inside a scoped lifecycle guard.
+     *
+     * @template TReturn
+     * @param callable(): TReturn $callback
+     * @return TReturn
+     */
+    protected function runAuthoritativeTransition(int $documentId, InventoryDocumentStatus $targetStatus, callable $callback): mixed
+    {
+        if (isset(self::$activeTransitions[$documentId])) {
+            throw new LogicException("Authoritative workflow transition is already in progress for document #{$documentId}.");
+        }
+
+        self::$activeTransitions[$documentId] = $targetStatus;
+
+        try {
+            return $callback();
+        } finally {
+            unset(self::$activeTransitions[$documentId]);
+        }
+    }
     /**
      * Submit a draft or rejected document for approval.
      */
@@ -192,14 +231,16 @@ class InventoryDocumentWorkflowService
                 ]);
             }
 
-            // Create stock movements, lock stocks, and enforce non-negative balances
-            $this->stockMovementService->postDocumentMovements($locked, $user->id);
+            $this->runAuthoritativeTransition($locked->id, InventoryDocumentStatus::POSTED, function () use ($locked, $user): void {
+                // Create stock movements, lock stocks, and enforce non-negative balances
+                $this->stockMovementService->postDocumentMovements($locked, $user->id);
 
-            $locked->update([
-                'status' => InventoryDocumentStatus::POSTED,
-                'posted_by' => $user->id,
-                'posted_at' => Carbon::now(),
-            ]);
+                $locked->update([
+                    'status' => InventoryDocumentStatus::POSTED,
+                    'posted_by' => $user->id,
+                    'posted_at' => Carbon::now(),
+                ]);
+            });
 
             // If this document is an adjustment referencing a stocktake, check if all adjustments are posted to complete the stocktake
             if ($locked->referenceable_type && in_array($locked->referenceable_type, ['stocktake', Stocktake::class], true) && $locked->referenceable_id) {
@@ -238,15 +279,17 @@ class InventoryDocumentWorkflowService
                 ]);
             }
 
-            // Generate reversal movements, lock stocks, and enforce non-negative balances
-            $this->stockMovementService->reverseDocumentMovements($locked, $user->id);
+            $this->runAuthoritativeTransition($locked->id, InventoryDocumentStatus::REVERSED, function () use ($locked, $user, $trimmedReason): void {
+                // Generate reversal movements, lock stocks, and enforce non-negative balances
+                $this->stockMovementService->reverseDocumentMovements($locked, $user->id);
 
-            $locked->update([
-                'status' => InventoryDocumentStatus::REVERSED,
-                'reversed_by' => $user->id,
-                'reversed_at' => Carbon::now(),
-                'reversal_reason' => $trimmedReason,
-            ]);
+                $locked->update([
+                    'status' => InventoryDocumentStatus::REVERSED,
+                    'reversed_by' => $user->id,
+                    'reversed_at' => Carbon::now(),
+                    'reversal_reason' => $trimmedReason,
+                ]);
+            });
 
             return $locked->fresh(['items.product', 'sourceWarehouse', 'destinationWarehouse', 'creator', 'reverser', 'stockMovements']);
         });

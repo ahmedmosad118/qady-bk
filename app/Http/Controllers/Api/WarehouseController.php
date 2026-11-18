@@ -8,22 +8,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehouse\UpdateWarehouseRequest;
 use App\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
     /**
-     * Display a listing of active warehouses (for document select inputs).
+     * Display a listing of warehouses (for document select inputs).
      */
-    public function index(Request $request): JsonResponse
+    public function index(): JsonResponse
     {
         $warehouses = Warehouse::query()
-            ->when($request->boolean('active_only', true), function ($q): void {
-                $q->active();
-            })
             ->orderBy('is_default', 'desc')
             ->orderBy('name', 'asc')
-            ->get(['id', 'code', 'name', 'address', 'is_default', 'is_active']);
+            ->get(['id', 'code', 'name', 'address', 'is_default']);
 
         return response()->json([
             'success' => true,
@@ -32,15 +28,11 @@ class WarehouseController extends Controller
     }
 
     /**
-     * Get the default warehouse.
+     * Get the single system default warehouse (no arbitrary fallback).
      */
     public function defaultWarehouse(): JsonResponse
     {
-        $warehouse = Warehouse::query()->where('is_default', true)->first();
-
-        if (! $warehouse) {
-            $warehouse = Warehouse::query()->first();
-        }
+        $warehouse = Warehouse::query()->default()->first();
 
         if (! $warehouse) {
             return response()->json([
@@ -80,7 +72,6 @@ class WarehouseController extends Controller
             'phone' => $validated['phone'] ?? null,
             'manager_name' => $validated['manager_name'] ?? null,
             'description' => $validated['description'] ?? null,
-            'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : $warehouse->is_active,
         ]);
 
         return response()->json([

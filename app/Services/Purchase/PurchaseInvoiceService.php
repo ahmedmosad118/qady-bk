@@ -275,7 +275,7 @@ class PurchaseInvoiceService
             }
 
             $supplier = $this->resolveActiveSupplier((int) ($data['supplier_id'] ?? 0));
-            $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
+            $defaultWarehouse = $this->resolveDefaultWarehouse();
 
             $calc = $this->calculateInvoiceData(
                 $data['items'] ?? [],
@@ -389,7 +389,7 @@ class PurchaseInvoiceService
             }
 
             $supplier = $this->resolveActiveSupplier((int) ($data['supplier_id'] ?? 0));
-            $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
+            $defaultWarehouse = $this->resolveDefaultWarehouse();
 
             $calc = $this->calculateInvoiceData(
                 $data['items'] ?? [],
@@ -650,19 +650,18 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Resolve the system's active default warehouse.
+     * Resolve the single system default warehouse (no arbitrary fallback).
      */
-    protected function resolveDefaultActiveWarehouse(): Warehouse
+    protected function resolveDefaultWarehouse(): Warehouse
     {
         /** @var Warehouse|null $warehouse */
         $warehouse = Warehouse::query()
-            ->where('is_default', true)
-            ->where('is_active', true)
+            ->default()
             ->first();
 
         if (! $warehouse) {
             throw ValidationException::withMessages([
-                'warehouse' => ['No active default warehouse exists in the system to create the goods receipt.'],
+                'warehouse' => ['No default warehouse exists in the system to create the goods receipt.'],
             ]);
         }
 

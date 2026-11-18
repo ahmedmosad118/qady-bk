@@ -13,12 +13,14 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Services\Pos\PosReturnService;
 use App\Services\Pos\PosSaleService;
 use App\Services\Pos\PosShiftService;
 use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Spatie\Permission\Models\Role;
@@ -278,6 +280,10 @@ class PosShiftTest extends TestCase
             }
 
             $freshShift = PosShift::query()->findOrFail($shift->id);
+            $retrievedCount = 0;
+            Event::listen('eloquent.retrieved:*', function () use (&$retrievedCount): void {
+                $retrievedCount++;
+            });
 
             DB::flushQueryLog();
             DB::enableQueryLog();
@@ -286,8 +292,10 @@ class PosShiftTest extends TestCase
 
             $queries = DB::getQueryLog();
             DB::disableQueryLog();
+            Event::forget('eloquent.retrieved:*');
 
             $this->assertSame($targetSales, $summary['sales_count']);
+            $this->assertLessThanOrEqual(2, $retrievedCount, 'getShiftSummary must not hydrate sales or transactions into PHP memory.');
             $queryCounts[$targetSales] = count($queries);
         }
 
@@ -306,5 +314,60 @@ class PosShiftTest extends TestCase
             $queryCounts[100],
             'getShiftSummary query count must not grow between 50 and 100 sales.'
         );
+    }
+
+    public function test_empty_shift_summary_and_cash_return_transactions_pagination(): void
+    {
+        $shift = $this->shiftService->openShift($this->user, '250.00');
+
+        $emptySummary = $this->shiftService->getShiftSummary($shift->fresh());
+        $this->assertTrue($emptySummary['is_open']);
+        $this->assertSame('250.00', $emptySummary['opening_balance']);
+        $this->assertSame('250.00', $emptySummary['expected_cash']);
+        $this->assertSame('0.00', $emptySummary['cash_sales']);
+        $this->assertSame('0.00', $emptySummary['cash_returns']);
+        $this->assertSame('0.00', $emptySummary['expenses']);
+        $this->assertSame('0.00', $emptySummary['withdrawals']);
+        $this->assertSame('0.00', $emptySummary['total_sales_amount']);
+        $this->assertSame(0, $emptySummary['sales_count']);
+        $this->assertSame(0, $emptySummary['returns_count']);
+        $this->assertSame(0, $emptySummary['transactions_count']);
+
+        $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
+        $product = Product::factory()->create(['selling_price' => 40.00]);
+        WarehouseStock::query()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => '10.000',
+        ]);
+
+        $sale = app(PosSaleService::class)->createSale([
+            'shift_id' => $shift->id,
+            'payment_method_id' => $cashMethod->id,
+            'items' => [['product_id' => $product->id, 'quantity' => '2.000', 'unit_price' => '40.00']],
+        ], $this->user);
+
+        $saleItem = $sale->items()->firstOrFail();
+        $return = app(PosReturnService::class)->processReturn([
+            'shift_id' => $shift->id,
+            'pos_sale_id' => $sale->id,
+            'items' => [['pos_sale_item_id' => $saleItem->id, 'quantity' => '1.000']],
+        ], $this->user);
+
+        $summaryAfterReturn = $this->shiftService->getShiftSummary($shift->fresh());
+        $this->assertSame(1, $summaryAfterReturn['returns_count']);
+        $this->assertSame(2, $summaryAfterReturn['transactions_count']);
+        $this->assertSame('80.00', $summaryAfterReturn['cash_sales']);
+        $this->assertSame('40.00', $summaryAfterReturn['cash_returns']);
+        $this->assertSame('290.00', $summaryAfterReturn['expected_cash']);
+
+        $txResponse = $this->getJson("/api/pos/shifts/{$shift->id}/transactions?per_page=10");
+        $txResponse->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.1.type', PosShiftTransaction::TYPE_CASH_RETURN)
+            ->assertJsonPath('data.1.return.return_number', $return->return_number)
+            ->assertJsonPath('data.1.return.total_returned', '40.00');
     }
 }

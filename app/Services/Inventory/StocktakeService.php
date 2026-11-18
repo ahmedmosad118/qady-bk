@@ -14,6 +14,7 @@ use App\Models\StocktakeItemHistory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -37,11 +38,6 @@ class StocktakeService
 
             /** @var Warehouse $warehouse */
             $warehouse = Warehouse::query()->findOrFail($warehouseId);
-            if (! $warehouse->is_active) {
-                throw ValidationException::withMessages([
-                    'warehouse_id' => ["المخزن '{$warehouse->name}' غير نشط ولا يمكن إنشاء جرد عليه."],
-                ]);
-            }
 
             $scope = is_string($data['scope']) ? StocktakeScope::from($data['scope']) : $data['scope'];
             $stocktakeDate = isset($data['stocktake_date']) ? Carbon::parse($data['stocktake_date']) : Carbon::now();
@@ -178,7 +174,7 @@ class StocktakeService
             }
 
             $previousStatus = $lockedItem->count_status->value;
-            $systemSnapshot = (string) $stock->quantity;
+            $systemSnapshot = Decimal::fromNumeric($stock->quantity, Decimal::QUANTITY_SCALE);
 
             $lockedItem->update([
                 'system_quantity' => $systemSnapshot,
@@ -224,8 +220,15 @@ class StocktakeService
                 ]);
             }
 
-            $qtyStr = number_format((float) $countedQuantity, 3, '.', '');
-            if (bccomp($qtyStr, '0.000', 3) < 0) {
+            $parsedQty = Decimal::parse($countedQuantity);
+            if ($parsedQty === null) {
+                throw ValidationException::withMessages([
+                    'counted_quantity' => ['Counted quantity must be a valid decimal number.'],
+                ]);
+            }
+
+            $qtyStr = Decimal::round($parsedQty, Decimal::QUANTITY_SCALE);
+            if (Decimal::isNegative($qtyStr, Decimal::QUANTITY_SCALE)) {
                 throw ValidationException::withMessages([
                     'counted_quantity' => ['الكمية الفعلية لا يمكن أن تكون سالبة.'],
                 ]);
@@ -361,7 +364,7 @@ class StocktakeService
 
             $previousQuantity = $lockedItem->counted_quantity;
             $previousStatus = $lockedItem->count_status->value;
-            $newSystemSnapshot = (string) $stock->quantity;
+            $newSystemSnapshot = Decimal::fromNumeric($stock->quantity, Decimal::QUANTITY_SCALE);
 
             $lockedItem->update([
                 'system_quantity' => $newSystemSnapshot,
@@ -390,7 +393,7 @@ class StocktakeService
     }
 
     /**
-     * Safely ensures a WarehouseStock record exists for warehouse and product.
+     * Safely ensure a WarehouseStock record exists without gap-lock deadlocks.
      */
     protected function ensureStockRowExists(int $warehouseId, int $productId): void
     {
@@ -399,15 +402,23 @@ class StocktakeService
             ->where('product_id', $productId)
             ->exists();
 
-        if (! $exists) {
-            try {
-                WarehouseStock::query()->firstOrCreate(
-                    ['warehouse_id' => $warehouseId, 'product_id' => $productId],
-                    ['quantity' => '0.000']
-                );
-            } catch (\Throwable) {
-                // Record created concurrently; safe to continue
-            }
+        if ($exists) {
+            return;
         }
+
+        Product::query()
+            ->where('id', $productId)
+            ->lockForUpdate()
+            ->get(['id']);
+
+        $now = Carbon::now();
+
+        WarehouseStock::query()->insertOrIgnore([[
+            'warehouse_id' => $warehouseId,
+            'product_id' => $productId,
+            'quantity' => '0.000',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]]);
     }
 }

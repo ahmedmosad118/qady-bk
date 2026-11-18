@@ -593,8 +593,8 @@ async function loadDocuments() {
 async function loadLookups() {
   try {
     const [whRes, prodRes] = await Promise.all([
-      api.get('/warehouses', { params: { active_only: 1 } }),
-      api.get('/products', { params: { is_active: 1, per_page: 500 } }),
+      api.get('/warehouses'),
+      api.get('/products', { params: { per_page: 500 } }),
     ]);
 
     warehouses.value = whRes.data?.data || [];

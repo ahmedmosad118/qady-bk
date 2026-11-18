@@ -19,7 +19,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'phone',
     'manager_name',
     'is_default',
-    'is_active',
 ])]
 class Warehouse extends Model
 {
@@ -32,16 +31,7 @@ class Warehouse extends Model
     {
         return [
             'is_default' => 'boolean',
-            'is_active' => 'boolean',
         ];
-    }
-
-    /**
-     * Scope query to only active warehouses.
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('is_active', true);
     }
 
     /**

@@ -444,8 +444,8 @@ function onTypeChanged() {
   form.source_warehouse_id = null;
   form.destination_warehouse_id = null;
 
-  // Auto-set default warehouse where applicable
-  const def = props.warehouses.find(w => w.is_default) || props.warehouses[0];
+  // Auto-set default warehouse strictly from is_default (no arbitrary fallback)
+  const def = props.warehouses.find(w => w.is_default);
   if (def) {
     if (isDestinationRequired.value && !isSourceRequired.value) {
       form.destination_warehouse_id = def.id;
@@ -459,21 +459,22 @@ function onTypeChanged() {
 }
 
 function onDirectionChanged() {
+  const def = props.warehouses.find(w => w.is_default);
   if (form.document_type === 'stock_adjustment') {
     if (form.adjustment_direction === 'increase') {
       form.source_warehouse_id = null;
-      if (props.warehouses[0]) form.destination_warehouse_id = props.warehouses[0].id;
+      if (def) form.destination_warehouse_id = def.id;
     } else {
       form.destination_warehouse_id = null;
-      if (props.warehouses[0]) form.source_warehouse_id = props.warehouses[0].id;
+      if (def) form.source_warehouse_id = def.id;
     }
   } else if (form.document_type === 'inventory_return') {
     if (form.return_direction === 'inbound') {
       form.source_warehouse_id = null;
-      if (props.warehouses[0]) form.destination_warehouse_id = props.warehouses[0].id;
+      if (def) form.destination_warehouse_id = def.id;
     } else {
       form.destination_warehouse_id = null;
-      if (props.warehouses[0]) form.source_warehouse_id = props.warehouses[0].id;
+      if (def) form.source_warehouse_id = def.id;
     }
   }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\StocktakeItemStatus;
+use App\Support\Decimal;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -91,7 +92,7 @@ class StocktakeItem extends Model
             return null;
         }
 
-        return bcsub((string) $this->counted_quantity, (string) $this->system_quantity, 3);
+        return Decimal::sub((string) $this->counted_quantity, (string) $this->system_quantity, Decimal::QUANTITY_SCALE);
     }
 
     /**
@@ -104,7 +105,7 @@ class StocktakeItem extends Model
             return null;
         }
 
-        $cmp = bccomp($variance, '0.000', 3);
+        $cmp = Decimal::comp($variance, '0', Decimal::QUANTITY_SCALE);
         if ($cmp > 0) {
             return 'increase';
         }

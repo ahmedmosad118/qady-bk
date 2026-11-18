@@ -131,11 +131,23 @@ class PosManagementEndpointsTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.shift.shift_number', $this->shift->shift_number)
             ->assertJsonPath('data.is_open', true)
-            ->assertJsonPath('data.sales_count', 1);
+            ->assertJsonPath('data.sales_count', 1)
+            ->assertJsonPath('data.transactions_count', 1);
 
-        $sales = $response->json('data.shift.sales');
-        $this->assertNotEmpty($sales);
-        $this->assertEquals($sale->invoice_number, $sales[0]['invoice_number']);
+        $this->assertNull($response->json('data.shift.sales'));
+        $this->assertNull($response->json('data.shift.transactions'));
+
+        $txResponse = $this->getJson("/api/pos/shifts/{$this->shift->id}/transactions");
+        $txResponse->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.sale.invoice_number', $sale->invoice_number);
+
+        $salesResponse = $this->getJson("/api/pos/shifts/{$this->shift->id}/sales");
+        $salesResponse->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.invoice_number', $sale->invoice_number);
     }
 
     public function test_can_paginate_sales_and_view_sale_details_with_inventory_document(): void

@@ -24,6 +24,12 @@ class DecimalTest extends TestCase
         $this->assertSame('0.001', Decimal::round('0.0005', Decimal::QUANTITY_SCALE));
         $this->assertSame('-0.001', Decimal::round('-0.0005', Decimal::QUANTITY_SCALE));
 
+        // Carry-over halfway rounding across integer boundary
+        $this->assertSame('1.00', Decimal::round('0.995', Decimal::MONEY_SCALE));
+        $this->assertSame('-1.00', Decimal::round('-0.995', Decimal::MONEY_SCALE));
+        $this->assertSame('1.000', Decimal::round('0.9995', Decimal::QUANTITY_SCALE));
+        $this->assertSame('-1.000', Decimal::round('-0.9995', Decimal::QUANTITY_SCALE));
+
         // Scale 0 rounding
         $this->assertSame('1', Decimal::round('0.5', 0));
         $this->assertSame('-1', Decimal::round('-0.5', 0));
@@ -161,5 +167,34 @@ class DecimalTest extends TestCase
             Decimal::MONEY_SCALE
         );
         $this->assertSame('10.00', $proRated);
+    }
+
+    public function test_min_and_max_symmetry_across_argument_order_and_subscale_negatives(): void
+    {
+        $this->assertSame('0.00', Decimal::max('0.00', '-0.001', Decimal::MONEY_SCALE));
+        $this->assertSame('0.00', Decimal::max('-0.001', '0.00', Decimal::MONEY_SCALE));
+        $this->assertSame('0.000', Decimal::max('-0.0001', '0.000', Decimal::QUANTITY_SCALE));
+        $this->assertSame('-0.001', Decimal::min('0.00', '-0.001', Decimal::MONEY_SCALE));
+        $this->assertSame('-0.001', Decimal::min('-0.001', '0.00', Decimal::MONEY_SCALE));
+        $this->assertSame('10.501', Decimal::min('10.509', '10.501', Decimal::MONEY_SCALE));
+        $this->assertSame('10.509', Decimal::max('10.501', '10.509', Decimal::MONEY_SCALE));
+    }
+
+    public function test_quantity_normalization_and_additional_invalid_boundaries(): void
+    {
+        foreach (['+', '+10.50', '-', '.', '-.', '12e-3', "10\n2", 'NaN'] as $invalid) {
+            $this->assertNull(Decimal::parse($invalid), "Expected null for [{$invalid}]");
+        }
+
+        $this->assertSame('0.126', Decimal::fromNumeric('0.1255', Decimal::QUANTITY_SCALE));
+        $this->assertSame('7.500', Decimal::fromNumeric('  007.5  ', Decimal::QUANTITY_SCALE));
+        $this->assertSame('0.0000001', Decimal::parse(1.0E-7));
+        $this->assertSame('0', Decimal::parse(1.0E-16));
+
+        $this->assertSame('33.33333333', Decimal::div('100', '3', Decimal::CALCULATION_SCALE));
+        $this->assertSame('1.00000000', Decimal::mul('0.0001', '10000', Decimal::CALCULATION_SCALE));
+
+        $this->expectException(InvalidArgumentException::class);
+        Decimal::fromNumeric('10.00', -1);
     }
 }

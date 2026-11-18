@@ -84,7 +84,7 @@ class PosShiftService
                 'notes' => $notes ?? $locked->notes,
             ]);
 
-            return $locked->fresh(['openedBy', 'closedBy', 'transactions']);
+            return $locked->fresh(['openedBy:id,name,email', 'closedBy:id,name,email']);
         });
     }
 
@@ -98,44 +98,15 @@ class PosShiftService
         string $name,
         ?string $description = null
     ): PosShiftTransaction {
-        $parsedAmount = Decimal::parse($amount);
-        $formattedAmount = $parsedAmount !== null ? Decimal::round($parsedAmount, Decimal::MONEY_SCALE) : null;
-
-        if ($formattedAmount === null || ! Decimal::isPositive($formattedAmount, Decimal::MONEY_SCALE)) {
-            throw ValidationException::withMessages([
-                'amount' => ['مبلغ المصروف يجب أن يكون أكبر من الصفر.'],
-            ]);
-        }
-
-        return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
-            /** @var PosShift $locked */
-            $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
-
-            if ($locked->isClosed()) {
-                throw ValidationException::withMessages([
-                    'shift' => ['لا يمكن تسجيل حركات مالية على وردية مغلقة.'],
-                ]);
-            }
-
-            $tx = new PosShiftTransaction();
-            $tx->shift_id = $locked->id;
-            $tx->type = PosShiftTransaction::TYPE_EXPENSE;
-            $tx->amount = $formattedAmount;
-            $tx->pos_sale_id = null;
-            $tx->pos_return_id = null;
-            $tx->name = trim($name);
-            $tx->description = $description;
-            $tx->created_by = $user->id;
-            $tx->created_at = Carbon::now();
-            $tx->save();
-
-            // Refresh expected cash
-            $locked->update([
-                'expected_cash' => $this->calculateExpectedCash($locked),
-            ]);
-
-            return $tx->load(['creator']);
-        });
+        return $this->recordCashOutflow(
+            $shift,
+            $user,
+            $amount,
+            PosShiftTransaction::TYPE_EXPENSE,
+            'Expense amount must be greater than zero.',
+            $name,
+            $description
+        );
     }
 
     /**
@@ -148,16 +119,39 @@ class PosShiftService
         string $name,
         ?string $description = null
     ): PosShiftTransaction {
+        return $this->recordCashOutflow(
+            $shift,
+            $user,
+            $amount,
+            PosShiftTransaction::TYPE_WITHDRAWAL,
+            'Withdrawal amount must be greater than zero.',
+            $name,
+            $description
+        );
+    }
+
+    /**
+     * Shared atomic handler for recording cash outflows (expenses and withdrawals) on an open shift.
+     */
+    protected function recordCashOutflow(
+        PosShift $shift,
+        User $user,
+        float|int|string $amount,
+        string $type,
+        string $invalidAmountMessage,
+        string $name,
+        ?string $description = null
+    ): PosShiftTransaction {
         $parsedAmount = Decimal::parse($amount);
         $formattedAmount = $parsedAmount !== null ? Decimal::round($parsedAmount, Decimal::MONEY_SCALE) : null;
 
         if ($formattedAmount === null || ! Decimal::isPositive($formattedAmount, Decimal::MONEY_SCALE)) {
             throw ValidationException::withMessages([
-                'amount' => ['مبلغ السحب يجب أن يكون أكبر من الصفر.'],
+                'amount' => [$invalidAmountMessage],
             ]);
         }
 
-        return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
+        return DB::transaction(function () use ($shift, $user, $formattedAmount, $type, $name, $description): PosShiftTransaction {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
 
@@ -169,7 +163,7 @@ class PosShiftService
 
             $tx = new PosShiftTransaction();
             $tx->shift_id = $locked->id;
-            $tx->type = PosShiftTransaction::TYPE_WITHDRAWAL;
+            $tx->type = $type;
             $tx->amount = $formattedAmount;
             $tx->pos_sale_id = null;
             $tx->pos_return_id = null;
@@ -179,7 +173,6 @@ class PosShiftService
             $tx->created_at = Carbon::now();
             $tx->save();
 
-            // Refresh expected cash
             $locked->update([
                 'expected_cash' => $this->calculateExpectedCash($locked),
             ]);
@@ -200,23 +193,47 @@ class PosShiftService
     }
 
     /**
+     * Summarize shift transaction amounts and total count in a single SQL GROUP BY query.
+     *
+     * @return array{
+     *     totals: array{cash_sale: string, cash_return: string, expense: string, withdrawal: string},
+     *     count: int
+     * }
+     */
+    protected function summarizeTransactions(PosShift $shift): array
+    {
+        $rows = $shift->transactions()
+            ->selectRaw('type, COUNT(*) as tx_count, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('type')
+            ->toBase()
+            ->get();
+
+        $grouped = [];
+        $totalCount = 0;
+        foreach ($rows as $row) {
+            $grouped[$row->type] = $row->total;
+            $totalCount += (int) $row->tx_count;
+        }
+
+        return [
+            'totals' => [
+                PosShiftTransaction::TYPE_CASH_SALE   => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_SALE] ?? 0),
+                PosShiftTransaction::TYPE_CASH_RETURN => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_RETURN] ?? 0),
+                PosShiftTransaction::TYPE_EXPENSE     => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_EXPENSE] ?? 0),
+                PosShiftTransaction::TYPE_WITHDRAWAL  => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_WITHDRAWAL] ?? 0),
+            ],
+            'count' => $totalCount,
+        ];
+    }
+
+    /**
      * Aggregate shift transaction amounts by type in a single SQL GROUP BY query.
      *
      * @return array{cash_sale: string, cash_return: string, expense: string, withdrawal: string}
      */
     protected function sumTransactionsByType(PosShift $shift): array
     {
-        $grouped = $shift->transactions()
-            ->selectRaw('type, COALESCE(SUM(amount), 0) as total')
-            ->groupBy('type')
-            ->pluck('total', 'type');
-
-        return [
-            PosShiftTransaction::TYPE_CASH_SALE   => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_SALE] ?? 0),
-            PosShiftTransaction::TYPE_CASH_RETURN => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_RETURN] ?? 0),
-            PosShiftTransaction::TYPE_EXPENSE     => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_EXPENSE] ?? 0),
-            PosShiftTransaction::TYPE_WITHDRAWAL  => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_WITHDRAWAL] ?? 0),
-        ];
+        return $this->summarizeTransactions($shift)['totals'];
     }
 
     /**
@@ -308,24 +325,45 @@ class PosShiftService
     }
 
     /**
-     * Get full details and summary for a shift.
+     * Paginate financial transactions belonging to a shift.
+     */
+    public function paginateShiftTransactions(PosShift $shift, int $perPage = 25): LengthAwarePaginator
+    {
+        return $shift->transactions()
+            ->with([
+                'creator:id,name',
+                'sale:id,invoice_number,grand_total',
+                'return:id,return_number,total_returned',
+            ])
+            ->orderBy('id', 'asc')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Paginate POS sales belonging to a shift.
+     */
+    public function paginateShiftSales(PosShift $shift, int $perPage = 20): LengthAwarePaginator
+    {
+        return $shift->sales()
+            ->with(['customer:id,name,phone', 'creator:id,name', 'paymentMethod:id,name,type'])
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Get SQL-aggregated summary for a shift without hydrating unbounded sales/transactions collections.
      *
      * @return array<string, mixed>
      */
     public function getShiftSummary(PosShift $shift): array
     {
-        $shift->load([
+        $shift->loadMissing([
             'openedBy:id,name,email',
             'closedBy:id,name,email',
-            'transactions.creator:id,name',
-            'transactions.sale:id,invoice_number,grand_total',
-            'transactions.return:id,return_number,refund_amount',
-            'sales.customer:id,name,phone',
-            'sales.paymentMethod:id,name,type',
-            'sales.creator:id,name',
         ]);
 
-        $txTotals = $this->sumTransactionsByType($shift);
+        $txSummary = $this->summarizeTransactions($shift);
+        $txTotals = $txSummary['totals'];
         $salesStats = $this->aggregateShiftSales($shift);
 
         $openingBalance = Decimal::fromNumeric($shift->opening_balance, Decimal::MONEY_SCALE);
@@ -351,6 +389,7 @@ class PosShiftService
             'bank_transfer_sales' => $salesStats['bank_transfer_sales'],
             'sales_count' => $salesStats['sales_count'],
             'returns_count' => $totalReturnsCount,
+            'transactions_count' => $txSummary['count'],
         ];
     }
 }

@@ -463,7 +463,7 @@ class StockMovementTest extends TestCase
         $res->assertJsonCount(2, 'data');
     }
 
-    public function test_post_and_reverse_return_persisted_stock_movement_models_with_database_ids(): void
+    public function test_post_and_reverse_through_authoritative_workflow_persist_stock_movement_models_with_database_ids(): void
     {
         $doc = $this->createAndApproveDocument(
             InventoryDocumentType::GOODS_RECEIPT,
@@ -474,13 +474,10 @@ class StockMovementTest extends TestCase
             destWhId: $this->warehouse->id
         );
 
-        $postedMovements = $this->stockMovementService->postDocumentMovements($doc, $this->user->id);
-        $doc->update([
-            'status' => InventoryDocumentStatus::POSTED,
-            'posted_by' => $this->user->id,
-            'posted_at' => now(),
-        ]);
+        $postedDoc = $this->workflowService->post($doc, $this->user);
+        $this->assertEquals(InventoryDocumentStatus::POSTED, $postedDoc->status);
 
+        $postedMovements = $postedDoc->stockMovements()->whereNull('reversal_of_id')->orderBy('id')->get();
         $this->assertCount(2, $postedMovements);
         foreach ($postedMovements as $movement) {
             $this->assertInstanceOf(StockMovement::class, $movement);
@@ -489,7 +486,10 @@ class StockMovementTest extends TestCase
             $this->assertNull($movement->reversal_of_id);
         }
 
-        $reversalMovements = $this->stockMovementService->reverseDocumentMovements($doc->fresh(), $this->user->id);
+        $reversedDoc = $this->workflowService->reverse($postedDoc, $this->user, 'Reversal quantity correction');
+        $this->assertEquals(InventoryDocumentStatus::REVERSED, $reversedDoc->status);
+
+        $reversalMovements = $reversedDoc->stockMovements()->whereNotNull('reversal_of_id')->orderBy('id')->get();
         $this->assertCount(2, $reversalMovements);
         foreach ($reversalMovements as $index => $reversal) {
             $this->assertInstanceOf(StockMovement::class, $reversal);
@@ -509,6 +509,73 @@ class StockMovementTest extends TestCase
 
         $this->expectException(LogicException::class);
         $doc->update(['status' => InventoryDocumentStatus::POSTED]);
+    }
+
+    public function test_relation_loaded_does_not_bypass_observer_and_loaded_and_unloaded_behave_identically(): void
+    {
+        $docLoaded = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [['product_id' => $this->product->id, 'quantity' => '5.000']],
+            destWhId: $this->warehouse->id
+        );
+
+        $fakeMovement = new StockMovement(['product_id' => $this->product->id, 'quantity' => '5.000']);
+        $docLoaded->setRelation('stockMovements', new \Illuminate\Database\Eloquent\Collection([$fakeMovement]));
+
+        $this->expectException(LogicException::class);
+        $docLoaded->update(['status' => InventoryDocumentStatus::POSTED]);
+    }
+
+    public function test_observer_blocks_creating_posted_or_reversed_document_and_direct_reversals_or_service_bypass(): void
+    {
+        try {
+            InventoryDocument::query()->create([
+                'document_number' => 'DOC-BAD-CREATE-01',
+                'document_type' => InventoryDocumentType::GOODS_RECEIPT,
+                'status' => InventoryDocumentStatus::POSTED,
+                'destination_warehouse_id' => $this->warehouse->id,
+                'document_date' => '2026-11-14',
+                'created_by' => $this->user->id,
+            ]);
+            $this->fail('Expected LogicException on direct POSTED document creation.');
+        } catch (LogicException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [['product_id' => $this->product->id, 'quantity' => '5.000']],
+            destWhId: $this->warehouse->id
+        );
+
+        try {
+            $this->stockMovementService->postDocumentMovements($doc, $this->user->id);
+            $this->fail('Expected LogicException when bypassing InventoryDocumentWorkflowService::post().');
+        } catch (LogicException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $posted = $this->workflowService->post($doc, $this->user);
+
+        try {
+            $posted->update(['status' => InventoryDocumentStatus::REVERSED]);
+            $this->fail('Expected LogicException on direct status update to REVERSED.');
+        } catch (LogicException) {
+            $this->addToAssertionCount(1);
+        }
+
+        try {
+            $posted->fresh()->update(['status' => InventoryDocumentStatus::DRAFT]);
+            $this->fail('Expected LogicException on backward status mutation from POSTED.');
+        } catch (LogicException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $stock = WarehouseStock::query()
+            ->where('warehouse_id', $this->warehouse->id)
+            ->where('product_id', $this->product->id)
+            ->firstOrFail();
+        $this->assertSame('5.000', (string) $stock->quantity);
     }
 
     public function test_post_and_reverse_query_counts_remain_constant_for_1_10_50_and_100_items(): void
@@ -570,5 +637,40 @@ class StockMovementTest extends TestCase
         $this->assertSame($reverseQueryCounts[1], $reverseQueryCounts[10]);
         $this->assertSame($reverseQueryCounts[10], $reverseQueryCounts[50]);
         $this->assertSame($reverseQueryCounts[50], $reverseQueryCounts[100]);
+    }
+
+    public function test_failed_multi_item_posting_rolls_back_all_stock_and_movements_cleanly(): void
+    {
+        WarehouseStock::query()->create([
+            'warehouse_id' => $this->warehouse->id,
+            'product_id' => $this->product->id,
+            'quantity' => '10.000',
+        ]);
+        WarehouseStock::query()->create([
+            'warehouse_id' => $this->warehouse->id,
+            'product_id' => $this->secondProduct->id,
+            'quantity' => '1.000',
+        ]);
+
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_DELIVERY,
+            [
+                ['product_id' => $this->product->id, 'quantity' => '5.000'],
+                ['product_id' => $this->secondProduct->id, 'quantity' => '5.000'],
+            ],
+            sourceWhId: $this->warehouse->id
+        );
+
+        try {
+            $this->workflowService->post($doc, $this->user);
+            $this->fail('Expected ValidationException on second insufficient item.');
+        } catch (ValidationException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertEquals(InventoryDocumentStatus::APPROVED, $doc->fresh()->status);
+        $this->assertSame(0, StockMovement::query()->where('inventory_document_id', $doc->id)->count());
+        $this->assertSame('10.000', (string) WarehouseStock::query()->where('warehouse_id', $this->warehouse->id)->where('product_id', $this->product->id)->value('quantity'));
+        $this->assertSame('1.000', (string) WarehouseStock::query()->where('warehouse_id', $this->warehouse->id)->where('product_id', $this->secondProduct->id)->value('quantity'));
     }
 }

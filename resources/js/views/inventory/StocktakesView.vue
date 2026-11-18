@@ -350,7 +350,7 @@ async function loadInitialData() {
   try {
     const [whRes, prodRes] = await Promise.all([
       api.get('/warehouses'),
-      api.get('/products', { params: { per_page: 1000, is_active: 1 } }),
+      api.get('/products', { params: { per_page: 1000 } }),
     ]);
     warehouses.value = whRes.data.data || [];
     products.value = prodRes.data.data || [];

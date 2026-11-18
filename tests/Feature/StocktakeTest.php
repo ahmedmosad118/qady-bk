@@ -19,7 +19,6 @@ use App\Models\StocktakeItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
-use App\Services\Inventory\StockMovementService;
 use App\Services\Inventory\StocktakeService;
 use App\Services\Inventory\StocktakeWorkflowService;
 use App\Services\InventoryDocumentWorkflowService;
@@ -43,7 +42,6 @@ class StocktakeTest extends TestCase
     protected Product $inactiveProductZeroStock;
     protected StocktakeService $stocktakeService;
     protected StocktakeWorkflowService $workflowService;
-    protected StockMovementService $movementService;
     protected InventoryDocumentWorkflowService $docWorkflowService;
 
     protected function setUp(): void
@@ -101,7 +99,6 @@ class StocktakeTest extends TestCase
 
         $this->stocktakeService = app(StocktakeService::class);
         $this->workflowService = app(StocktakeWorkflowService::class);
-        $this->movementService = app(StockMovementService::class);
         $this->docWorkflowService = app(InventoryDocumentWorkflowService::class);
     }
 
@@ -172,7 +169,7 @@ class StocktakeTest extends TestCase
         $resDuplicate->assertStatus(422);
     }
 
-    public function test_starting_full_stocktake_includes_active_and_inactive_with_stock(): void
+    public function test_starting_full_stocktake_includes_all_products_without_is_active_filtering(): void
     {
         $stocktake = $this->stocktakeService->createStocktake([
             'warehouse_id' => $this->warehouse->id,
@@ -182,21 +179,28 @@ class StocktakeTest extends TestCase
 
         $this->assertEquals(0, $stocktake->items()->count());
 
-        // Start stocktake
         $started = $this->workflowService->start($stocktake, $this->user);
         $this->assertEquals(StocktakeStatus::IN_PROGRESS, $started->status);
 
         $productIds = $started->items()->pluck('product_id')->all();
 
-        // Must include active products
         $this->assertContains($this->activeProduct1->id, $productIds);
         $this->assertContains($this->activeProduct2->id, $productIds);
-
-        // Must include inactive product with stock > 0
         $this->assertContains($this->inactiveProductWithStock->id, $productIds);
+        $this->assertContains($this->inactiveProductZeroStock->id, $productIds);
+    }
 
-        // Must NOT include inactive product with zero stock
-        $this->assertNotContains($this->inactiveProductZeroStock->id, $productIds);
+    public function test_creating_stocktake_without_warehouse_id_does_not_fallback_to_non_default_warehouse(): void
+    {
+        Warehouse::query()->where('is_default', true)->update(['is_default' => false]);
+
+        $response = $this->postJson('/api/stocktakes', [
+            'scope' => StocktakeScope::FULL->value,
+            'stocktake_date' => '2026-11-14',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['warehouse_id']);
     }
 
     public function test_cannot_start_two_active_stocktakes_for_same_warehouse(): void
@@ -305,7 +309,7 @@ class StocktakeTest extends TestCase
 
         // Attempting to post the document touching activeProduct1 in warehouse must fail!
         try {
-            $this->movementService->postDocumentMovements($doc, $this->user->id);
+            $this->docWorkflowService->post($doc, $this->user);
             $this->fail('Expected ValidationException was not thrown while product was counting.');
         } catch (ValidationException $e) {
             $this->assertArrayHasKey('stocktake_locked', $e->errors());
@@ -327,8 +331,8 @@ class StocktakeTest extends TestCase
             'quantity' => 15,
         ]);
 
-        $movements = $this->movementService->postDocumentMovements($docOther, $this->user->id);
-        $this->assertNotEmpty($movements);
+        $postedOther = $this->docWorkflowService->post($docOther, $this->user);
+        $this->assertNotEmpty($postedOther->stockMovements);
 
         // AND moving activeProduct1 in ANOTHER warehouse is allowed!
         $docBranch = InventoryDocument::query()->create([
@@ -345,14 +349,14 @@ class StocktakeTest extends TestCase
             'product_id' => $this->activeProduct1->id,
             'quantity' => 5,
         ]);
-        $branchMovements = $this->movementService->postDocumentMovements($docBranch, $this->user->id);
-        $this->assertNotEmpty($branchMovements);
+        $postedBranch = $this->docWorkflowService->post($docBranch, $this->user);
+        $this->assertNotEmpty($postedBranch->stockMovements);
 
         // Once counting is finished, lock is released and activeProduct1 in warehouse can move freely!
         $this->stocktakeService->recordCount($item, $this->user, 50);
 
-        $releasedMovements = $this->movementService->postDocumentMovements($doc, $this->user->id);
-        $this->assertNotEmpty($releasedMovements);
+        $postedReleased = $this->docWorkflowService->post($doc, $this->user);
+        $this->assertNotEmpty($postedReleased->stockMovements);
     }
 
     public function test_cancel_count_resets_status_and_releases_lock(): void
@@ -539,5 +543,43 @@ class StocktakeTest extends TestCase
         // Resubmit
         $this->workflowService->submit($stocktake, $this->user);
         $this->assertEquals(StocktakeStatus::PENDING_APPROVAL, $stocktake->refresh()->status);
+    }
+
+    public function test_record_count_and_variance_adjustments_preserve_decimal_precision(): void
+    {
+        WarehouseStock::query()
+            ->where('warehouse_id', $this->warehouse->id)
+            ->where('product_id', $this->activeProduct1->id)
+            ->update(['quantity' => '10.100']);
+
+        $stocktake = $this->stocktakeService->createStocktake([
+            'warehouse_id' => $this->warehouse->id,
+            'scope' => StocktakeScope::SELECTED->value,
+            'stocktake_date' => '2026-11-18',
+            'product_ids' => [$this->activeProduct1->id],
+        ], $this->user);
+
+        $this->workflowService->start($stocktake, $this->user);
+        $item = $stocktake->items()->firstOrFail();
+        $this->stocktakeService->startCounting($item, $this->user);
+
+        foreach (['abc', '-0.001'] as $badInput) {
+            try {
+                $this->stocktakeService->recordCount($item->fresh(), $this->user, $badInput);
+                $this->fail("Expected ValidationException for [{$badInput}].");
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('counted_quantity', $e->errors());
+            }
+        }
+
+        $counted = $this->stocktakeService->recordCount($item->fresh(), $this->user, '10.1255');
+        $this->assertSame('10.126', (string) $counted->counted_quantity);
+        $this->assertSame('0.026', $counted->getVariance());
+
+        $this->workflowService->submit($stocktake, $this->user);
+        $approved = $this->workflowService->approve($stocktake, $this->user);
+
+        $doc = $approved->inventoryDocuments()->with('items')->firstOrFail();
+        $this->assertSame('0.026', (string) $doc->items->firstOrFail()->quantity);
     }
 }

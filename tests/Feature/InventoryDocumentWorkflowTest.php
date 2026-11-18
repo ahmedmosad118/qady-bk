@@ -197,4 +197,39 @@ class InventoryDocumentWorkflowTest extends TestCase
         ]);
         $revRes->assertStatus(422)->assertJsonValidationErrors(['status']);
     }
+
+    public function test_duplicate_post_and_duplicate_reverse_and_failed_post_rollback(): void
+    {
+        // 1. Failed outbound post due to insufficient stock rolls back and leaves document APPROVED
+        $deliveryRes = $this->postJson('/api/inventory-documents', [
+            'document_type' => InventoryDocumentType::GOODS_DELIVERY->value,
+            'document_date' => '2026-11-18',
+            'source_warehouse_id' => $this->warehouse->id,
+            'items' => [['product_id' => $this->product->id, 'quantity' => '10.000']],
+        ])->assertCreated();
+        $deliveryId = $deliveryRes->json('data.id');
+        $this->postJson("/api/inventory-documents/{$deliveryId}/submit")->assertOk();
+        $this->postJson("/api/inventory-documents/{$deliveryId}/approve")->assertOk();
+
+        $this->postJson("/api/inventory-documents/{$deliveryId}/post")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['stock']);
+        $this->assertEquals(InventoryDocumentStatus::APPROVED, InventoryDocument::query()->findOrFail($deliveryId)->status);
+
+        // 2. Duplicate post on a posted receipt is rejected
+        $receipt = $this->createDraftDocument();
+        $this->postJson("/api/inventory-documents/{$receipt->id}/submit")->assertOk();
+        $this->postJson("/api/inventory-documents/{$receipt->id}/approve")->assertOk();
+        $this->postJson("/api/inventory-documents/{$receipt->id}/post")->assertOk();
+
+        $this->postJson("/api/inventory-documents/{$receipt->id}/post")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['status']);
+
+        // 3. Duplicate reverse on a reversed receipt is rejected
+        $this->postJson("/api/inventory-documents/{$receipt->id}/reverse", ['reversal_reason' => 'Correction'])->assertOk();
+        $this->postJson("/api/inventory-documents/{$receipt->id}/reverse", ['reversal_reason' => 'Second attempt'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['status']);
+    }
 }

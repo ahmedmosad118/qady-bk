@@ -7,7 +7,6 @@ namespace App\Http\Requests\Warehouse;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 
 class UpdateWarehouseRequest extends FormRequest
 {
@@ -37,21 +36,6 @@ class UpdateWarehouseRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:50'],
             'manager_name' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'is_active' => ['nullable', 'boolean'],
         ];
-    }
-
-    /**
-     * Extra validation: ensure the default warehouse cannot be deactivated.
-     */
-    public function withValidator(Validator $validator): void
-    {
-        $validator->after(function (Validator $v): void {
-            /** @var Warehouse|null $warehouse */
-            $warehouse = $this->route('warehouse');
-            if ($warehouse && $warehouse->is_default && $this->has('is_active') && ! $this->boolean('is_active')) {
-                $v->errors()->add('is_active', __('inventory.errors.cannot_deactivate_default_warehouse'));
-            }
-        });
     }
 }

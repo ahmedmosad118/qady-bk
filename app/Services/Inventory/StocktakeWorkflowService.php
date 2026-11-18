@@ -18,6 +18,7 @@ use App\Models\StocktakeItemHistory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentService;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -43,12 +44,6 @@ class StocktakeWorkflowService
             /** @var Warehouse $warehouse */
             $warehouse = Warehouse::query()->lockForUpdate()->findOrFail($stocktake->warehouse_id);
 
-            if (! $warehouse->is_active) {
-                throw ValidationException::withMessages([
-                    'warehouse' => ["المخزن '{$warehouse->name}' غير نشط ولا يمكن بدء الجرد عليه."],
-                ]);
-            }
-
             /** @var Stocktake $lockedStocktake */
             $lockedStocktake = Stocktake::query()->lockForUpdate()->findOrFail($stocktake->id);
 
@@ -71,29 +66,15 @@ class StocktakeWorkflowService
                 ]);
             }
 
-            // If FULL scope: auto-populate all in-scope products
+            // If FULL scope: auto-populate all catalog products
             if ($lockedStocktake->scope === StocktakeScope::FULL) {
-                // Active products
-                $activeProductIds = Product::query()
-                    ->where('is_active', true)
+                $allProductIds = Product::query()
                     ->pluck('id')
                     ->all();
-
-                // Inactive products that have non-zero stock in this warehouse
-                $inactiveWithStockIds = Product::query()
-                    ->where('is_active', false)
-                    ->whereHas('warehouseStocks', function ($q) use ($warehouse) {
-                        $q->where('warehouse_id', $warehouse->id)
-                            ->where('quantity', '!=', 0);
-                    })
-                    ->pluck('id')
-                    ->all();
-
-                $allProductIds = array_values(array_unique(array_merge($activeProductIds, $inactiveWithStockIds)));
 
                 if (empty($allProductIds)) {
                     throw ValidationException::withMessages([
-                        'scope' => ['لا توجد منتجات نشطة أو أرصدة متاحة في النظام لبدء الجرد الكامل.'],
+                        'scope' => ['No products available to start a full stocktake.'],
                     ]);
                 }
 
@@ -250,19 +231,19 @@ class StocktakeWorkflowService
                     ]);
                 }
 
-                $cmp = bccomp($variance, '0.000', 3);
+                $cmp = Decimal::comp($variance, '0', Decimal::QUANTITY_SCALE);
                 if ($cmp > 0) {
                     $increases[] = [
                         'product_id' => $item->product_id,
-                        'quantity' => (float) $variance,
-                        'notes' => "زيادة جردية للمنتج {$item->product?->name}",
+                        'quantity' => $variance,
+                        'notes' => "Stocktake variance increase: {$item->product?->name}",
                     ];
                 } elseif ($cmp < 0) {
-                    $absVariance = bcmul($variance, '-1', 3);
+                    $absVariance = Decimal::mul($variance, '-1', Decimal::QUANTITY_SCALE);
                     $decreases[] = [
                         'product_id' => $item->product_id,
-                        'quantity' => (float) $absVariance,
-                        'notes' => "عجز/نقص جردي للمنتج {$item->product?->name}",
+                        'quantity' => $absVariance,
+                        'notes' => "Stocktake variance decrease: {$item->product?->name}",
                     ];
                 }
             }

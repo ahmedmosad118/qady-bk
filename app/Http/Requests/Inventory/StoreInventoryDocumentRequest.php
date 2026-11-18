@@ -7,8 +7,6 @@ namespace App\Http\Requests\Inventory;
 use App\Enums\InventoryDocumentType;
 use App\Enums\InventoryReturnDirection;
 use App\Enums\StockAdjustmentDirection;
-use App\Models\Product;
-use App\Models\Warehouse;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -57,22 +55,6 @@ class StoreInventoryDocumentRequest extends FormRequest
             $adjDirection = $this->input('adjustment_direction');
             $retDirection = $this->input('return_direction');
             $writeOffReason = trim((string) $this->input('write_off_reason'));
-
-            // Check active status for source warehouse if provided
-            if ($sourceId) {
-                $source = Warehouse::query()->find($sourceId);
-                if ($source && ! $source->is_active) {
-                    $v->errors()->add('source_warehouse_id', __('inventory.errors.source_warehouse_inactive'));
-                }
-            }
-
-            // Check active status for destination warehouse if provided
-            if ($destId) {
-                $dest = Warehouse::query()->find($destId);
-                if ($dest && ! $dest->is_active) {
-                    $v->errors()->add('destination_warehouse_id', __('inventory.errors.destination_warehouse_inactive'));
-                }
-            }
 
             // Check each document type specific rules
             switch ($docType) {
@@ -190,22 +172,6 @@ class StoreInventoryDocumentRequest extends FormRequest
                         $v->errors()->add('return_direction', __('inventory.errors.return_direction_forbidden'));
                     }
                     break;
-            }
-
-            // Verify active status of items
-            $items = $this->input('items', []);
-            if (is_array($items)) {
-                $productIds = array_filter(array_column($items, 'product_id'));
-                if (! empty($productIds)) {
-                    $inactiveCount = Product::query()
-                        ->whereIn('id', $productIds)
-                        ->where('is_active', false)
-                        ->count();
-
-                    if ($inactiveCount > 0) {
-                        $v->errors()->add('items', __('inventory.errors.contains_inactive_products'));
-                    }
-                }
             }
         });
     }

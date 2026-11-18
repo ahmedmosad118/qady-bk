@@ -185,7 +185,9 @@ final class Decimal
      */
     public static function min(string $a, string $b, int $scale = self::MONEY_SCALE): string
     {
-        return self::comp($a, $b, $scale) > 0 ? self::normalizeOrFail($b) : self::normalizeOrFail($a);
+        [$normA, $normB, $cmp] = self::extremeComparison($a, $b, $scale);
+
+        return $cmp > 0 ? $normB : $normA;
     }
 
     /**
@@ -193,7 +195,24 @@ final class Decimal
      */
     public static function max(string $a, string $b, int $scale = self::MONEY_SCALE): string
     {
-        return self::comp($a, $b, $scale) >= 0 ? self::normalizeOrFail($a) : self::normalizeOrFail($b);
+        [$normA, $normB, $cmp] = self::extremeComparison($a, $b, $scale);
+
+        return $cmp >= 0 ? $normA : $normB;
+    }
+
+    /**
+     * Normalize both operands and compare with full fractional tie-breaking.
+     *
+     * @return array{0: string, 1: string, 2: int}
+     */
+    private static function extremeComparison(string $a, string $b, int $scale): array
+    {
+        self::assertScale($scale);
+        $normA = self::normalizeOrFail($a);
+        $normB = self::normalizeOrFail($b);
+        $cmpScale = max($scale, self::fractionalLength($normA), self::fractionalLength($normB));
+
+        return [$normA, $normB, bccomp($normA, $normB, $cmpScale)];
     }
 
     private static function normalizeOrFail(string $value): string
