@@ -7,7 +7,7 @@ use App\Models\ProductCategory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class BookCatalogSeeder extends Seeder
+class cateSeeder extends Seeder
 {
     /**
      * Run the database seeds.
