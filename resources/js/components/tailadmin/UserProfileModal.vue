@@ -84,7 +84,7 @@
               <div
                 class="relative group cursor-pointer shrink-0"
                 @click="triggerFileInput"
-                title="اضغط لتغيير الصورة الشخصية"
+                :title="$t('profile.clickToChangeAvatar')"
               >
                 <div class="relative h-24 w-24 rounded-3xl overflow-hidden ring-4 ring-[#A3162B]/30 ring-offset-2 ring-offset-white dark:ring-offset-gray-900 shadow-lg bg-white dark:bg-slate-800">
                   <img
@@ -96,12 +96,12 @@
                   <!-- Hover Camera Overlay -->
                   <div class="absolute inset-0 bg-black/50 backdrop-blur-xs flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <Camera class="h-6 w-6 text-[#A3162B]" />
-                    <span class="text-[10px] font-bold text-white mt-1">تغيير الصورة</span>
+                    <span class="text-[10px] font-bold text-white mt-1">{{ $t('profile.changePhoto') }}</span>
                   </div>
                   <!-- Uploading Spinner -->
                   <div v-if="uploadingAvatar" class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1.5 z-10">
                     <div class="h-6 w-6 animate-spin rounded-full border-2 border-[#A3162B] border-t-transparent"></div>
-                    <span class="text-[9px] font-bold text-[#A3162B]">جاري الرفع</span>
+                    <span class="text-[9px] font-bold text-[#A3162B]">{{ $t('profile.uploadingShort') }}</span>
                   </div>
                 </div>
 
@@ -266,7 +266,7 @@
             <div class="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-3 text-xs">
               <ShieldAlert class="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div class="text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed">
-                احرص على استخدام كلمة مرور قوية تحتوي على أرقام وحروف ورموز بحد أدنى 8 خانات لضمان أمان حسابك في المنظومة.
+                {{ $t('profile.passwordSecurityTip') }}
               </div>
             </div>
 
@@ -381,7 +381,7 @@
                     </div>
                     <div>
                       <span class="block text-xs font-bold text-gray-900 dark:text-white">{{ $t('profile.themeLight') }}</span>
-                      <span class="text-[11px] text-gray-400">واجهة مضيئة واضحة</span>
+                      <span class="text-[11px] text-gray-400">{{ $t('profile.themeLightDesc') }}</span>
                     </div>
                   </div>
                   <div v-if="!themeStore.isDark" class="flex h-6 w-6 items-center justify-center rounded-full bg-[#A3162B] text-white shadow-xs">
@@ -402,7 +402,7 @@
                     </div>
                     <div>
                       <span class="block text-xs font-bold text-gray-900 dark:text-white">{{ $t('profile.themeDark') }}</span>
-                      <span class="text-[11px] text-gray-400">نمط داكن أنيق ومريح للعين</span>
+                      <span class="text-[11px] text-gray-400">{{ $t('profile.themeDarkDesc') }}</span>
                     </div>
                   </div>
                   <div v-if="themeStore.isDark" class="flex h-6 w-6 items-center justify-center rounded-full bg-[#A3162B] text-white shadow-xs">
@@ -429,8 +429,8 @@
                       ع
                     </div>
                     <div>
-                      <span class="block text-xs font-bold text-gray-900 dark:text-white">العربية</span>
-                      <span class="text-[11px] text-gray-400">واجهة من اليمين لليسار (RTL)</span>
+                      <span class="block text-xs font-bold text-gray-900 dark:text-white">{{ $t('profile.arabicLabel') }}</span>
+                      <span class="text-[11px] text-gray-400">{{ $t('profile.arabicDesc') }}</span>
                     </div>
                   </div>
                   <Check v-if="$i18n.locale === 'ar'" class="h-4 w-4 text-[#A3162B]" />
@@ -591,7 +591,7 @@ const handleFileSelected = async (e) => {
   if (!file) return;
 
   if (file.size > 4 * 1024 * 1024) {
-    notificationStore.error('حجم الصورة كبير جداً، الحد الأقصى 4 ميجابايت.');
+    notificationStore.error(t('profile.avatarTooLarge'));
     return;
   }
 
@@ -608,7 +608,7 @@ const handleFileSelected = async (e) => {
     notificationStore.success(res.message || t('profile.avatarSuccess'));
   } else {
     localPreviewUrl.value = null;
-    notificationStore.error(res.message || 'فشل رفع الصورة الشخصية.');
+    notificationStore.error(res.message || t('profile.avatarUploadFailed'));
   }
 
   // Reset file input
