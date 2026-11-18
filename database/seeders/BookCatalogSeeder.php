@@ -1,6 +1,8 @@
 ﻿<?php
 
+
 namespace Database\Seeders;
+declare(strict_types=1);
 
 use App\Models\Product;
 use App\Models\ProductCategory;
