@@ -21,13 +21,6 @@ class AdminUserSeeder extends Seeder
 
     public function run(): void
     {
-        foreach (self::POS_PERMISSIONS as $permissionName) {
-            Permission::findOrCreate($permissionName, 'web');
-        }
-
-        $adminRole = Role::findOrCreate('admin', 'web');
-        $adminRole->givePermissionTo(self::POS_PERMISSIONS);
-
         $admin = User::firstOrCreate(
             ['email' => 'admin@kady.sys'],
             [
@@ -38,13 +31,6 @@ class AdminUserSeeder extends Seeder
                 'email_verified_at' => now(),
             ],
         );
-
-        if (! Hash::check('Admin@12345', $admin->password)) {
-            $admin->update(['password' => Hash::make('Admin@12345')]);
-        }
-
-        $admin->assignRole($adminRole);
-
-        $this->command?->info('Admin user ready: admin@kady.sys / Admin@12345');
     }
 }
+
