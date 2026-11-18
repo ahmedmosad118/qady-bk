@@ -21,7 +21,7 @@
         window.APP_BASE_PATH = "{{ parse_url(url('/'), PHP_URL_PATH) ?: '/' }}";
 
         (function() {
-            var theme = localStorage.getItem('sarh_theme');
+            var theme = localStorage.getItem('qady_theme');
             if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
             } else {

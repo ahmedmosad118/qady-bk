@@ -1,9 +1,0 @@
-    public function getActivitylogOptions(): LogOptions
-    {
-        $data = LogOptions::defaults()
-            ->logOnly(['*'])
-            ->useLogName('Council');
-
-        return $data;
-    }
-

@@ -50,7 +50,6 @@ class AuthController extends Controller
             'data' => [
                 'token' => $user->createToken('spa')->plainTextToken,
                 'user' => $this->payload($user),
-                'tenant' => null,
             ],
         ]);
     }
@@ -64,7 +63,6 @@ class AuthController extends Controller
             'success' => true,
             'data' => [
                 'user' => $this->payload($request->user()),
-                'tenant' => null,
             ],
         ]);
     }

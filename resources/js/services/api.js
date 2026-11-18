@@ -1,10 +1,11 @@
 import axios from 'axios';
+import { AUTH_STORAGE_KEYS, STORAGE_KEYS } from '../config/storage.js';
 
 // Calculate dynamic API base URL
 const getApiBaseUrl = () => {
-  if (typeof window !== 'undefined' && (window.APP_BASE_URL || window.SARH_BASE_URL)) {
+  if (typeof window !== 'undefined' && window.APP_BASE_URL) {
     try {
-      const url = new URL((window.APP_BASE_URL || window.SARH_BASE_URL));
+      const url = new URL(window.APP_BASE_URL);
       const pathname = url.pathname.replace(/\/+$/, '');
       return `${pathname}/api`;
     } catch (e) {
@@ -29,21 +30,15 @@ const api = axios.create({
   },
 });
 
-// Request Interceptor: Attach Token & Tenant Context
+// Request Interceptor: Attach Token & Locale Context
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('sarh_token') || sessionStorage.getItem('sarh_token');
+  const token = localStorage.getItem(STORAGE_KEYS.TOKEN) || sessionStorage.getItem(STORAGE_KEYS.TOKEN);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Tenant slug from local storage or query / host
-  const tenantSlug = localStorage.getItem('sarh_tenant_slug');
-  if (tenantSlug) {
-    config.headers['X-Tenant-Slug'] = tenantSlug;
-  }
-
   // Locale header
-  const locale = localStorage.getItem('sarh_locale') || 'ar';
+  const locale = localStorage.getItem(STORAGE_KEYS.LOCALE) || 'ar';
   config.headers['X-Locale'] = locale;
   config.headers['Accept-Language'] = locale;
 
@@ -62,7 +57,7 @@ api.interceptors.response.use(
   (error) => {
     // Only handle global session expiry on 401 when calling protected routes (skip login failures)
     if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
-      ['sarh_token', 'sarh_user', 'sarh_tenant', 'sarh_permissions', 'sarh_roles'].forEach((key) => {
+      AUTH_STORAGE_KEYS.forEach((key) => {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
       });

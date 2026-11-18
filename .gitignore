@@ -19,10 +19,8 @@ yarn-error.log
 /.vscode
 /old
 /storage
-database/seeders/tenant/KpisDemoSeeder.php
 *.md
 # AI Tools & Agent Caches
 /graphify-out/
 skills-lock.json
 /.agents/
-

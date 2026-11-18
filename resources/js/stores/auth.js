@@ -1,14 +1,10 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
+import { AUTH_STORAGE_KEYS, STORAGE_KEYS } from '../config/storage.js';
 
 /**
  * Auth persistence helpers.
- *
- * "Remember me" decides where the token lives: localStorage (persists across
- * browser restarts) or sessionStorage (cleared when the tab closes).
  */
-const AUTH_KEYS = ['sarh_token', 'sarh_user', 'sarh_tenant', 'sarh_permissions', 'sarh_roles'];
-
 const readKey = (key) => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(key) ?? sessionStorage.getItem(key);
@@ -17,39 +13,36 @@ const readKey = (key) => {
 const authStorage = () =>
   typeof window !== 'undefined' ? localStorage : sessionStorage;
 
-const persistSession = (data, remember = true) => {
+const persistSession = (data) => {
   // Always persist in localStorage to share session seamlessly across tabs and prevent sudden logouts on tab close.
   const target = localStorage;
 
   // Clean up any stale sessionStorage keys
-  AUTH_KEYS.forEach((key) => sessionStorage.removeItem(key));
+  AUTH_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
 
-  target.setItem('sarh_token', data.token);
-  target.setItem('sarh_user', JSON.stringify(data.user));
-  target.setItem('sarh_tenant', JSON.stringify(data.tenant));
-  target.setItem('sarh_permissions', JSON.stringify(data.permissions || []));
-  target.setItem('sarh_roles', JSON.stringify(data.roles || []));
+  target.setItem(STORAGE_KEYS.TOKEN, data.token);
+  target.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
+  target.setItem(STORAGE_KEYS.PERMISSIONS, JSON.stringify(data.permissions || []));
+  target.setItem(STORAGE_KEYS.ROLES, JSON.stringify(data.roles || []));
 };
 
 const clearSession = () => {
-  AUTH_KEYS.forEach((key) => {
+  AUTH_STORAGE_KEYS.forEach((key) => {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);
   });
 };
 
 const persistUser = (user) => {
-  authStorage().setItem('sarh_user', JSON.stringify(user));
+  authStorage().setItem(STORAGE_KEYS.USER, JSON.stringify(user));
 };
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: JSON.parse(readKey('sarh_user') || 'null'),
-    tenant: JSON.parse(readKey('sarh_tenant') || 'null'),
-    token: readKey('sarh_token') || null,
-    tenantSlug: localStorage.getItem('sarh_tenant_slug') || '',
-    permissions: JSON.parse(readKey('sarh_permissions') || '[]'),
-    roles: JSON.parse(readKey('sarh_roles') || '[]'),
+    user: JSON.parse(readKey(STORAGE_KEYS.USER) || 'null'),
+    token: readKey(STORAGE_KEYS.TOKEN) || null,
+    permissions: JSON.parse(readKey(STORAGE_KEYS.PERMISSIONS) || '[]'),
+    roles: JSON.parse(readKey(STORAGE_KEYS.ROLES) || '[]'),
     loading: false,
     error: null,
   }),
@@ -61,22 +54,9 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    setTenantSlug(slug) {
-      this.tenantSlug = slug;
-      if (slug) {
-        localStorage.setItem('sarh_tenant_slug', slug);
-      } else {
-        localStorage.removeItem('sarh_tenant_slug');
-      }
-    },
-
-    async login(email, password, slug = null, remember = true) {
+    async login(email, password, remember = true) {
       this.loading = true;
       this.error = null;
-
-      if (slug) {
-        this.setTenantSlug(slug);
-      }
 
       try {
         const response = await api.post('/auth/login', {
@@ -90,12 +70,11 @@ export const useAuthStore = defineStore('auth', {
 
         this.token = data.token;
         this.user = data.user;
-        this.tenant = data.tenant;
         this.permissions = permissions;
         this.roles = roles;
 
         persistSession(
-          { token: data.token, user: this.user, tenant: this.tenant, permissions, roles },
+          { token: data.token, user: this.user, permissions, roles },
           remember
         );
 
@@ -120,15 +99,13 @@ export const useAuthStore = defineStore('auth', {
         const response = await api.get('/auth/me');
         const data = response.data.data;
         this.user = data.user;
-        this.tenant = data.tenant;
         this.permissions = data.user.permissions || [];
         this.roles = data.user.roles || [];
 
         const storage = authStorage();
-        storage.setItem('sarh_user', JSON.stringify(this.user));
-        storage.setItem('sarh_tenant', JSON.stringify(this.tenant));
-        storage.setItem('sarh_permissions', JSON.stringify(this.permissions));
-        storage.setItem('sarh_roles', JSON.stringify(this.roles));
+        storage.setItem(STORAGE_KEYS.USER, JSON.stringify(this.user));
+        storage.setItem(STORAGE_KEYS.PERMISSIONS, JSON.stringify(this.permissions));
+        storage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(this.roles));
       } catch (err) {
         // Only log out if backend explicitly rejected the token (401 Unauthorized).
         // Temporary server hiccups (500), DB disconnects, or network drops should NOT kick the user out.
@@ -147,7 +124,6 @@ export const useAuthStore = defineStore('auth', {
         // Ignore
       } finally {
         this.user = null;
-        this.tenant = null;
         this.token = null;
         this.permissions = [];
         this.roles = [];

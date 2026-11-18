@@ -27,7 +27,7 @@
                 <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   <span class="font-mono text-gray-600 dark:text-gray-300">{{ authStore.user?.email }}</span>
                   <span>•</span>
-                  <span class="text-emerald-700 dark:text-[#E0344B] font-bold">{{ authStore.tenant?.name || $t('common.system') }}</span>
+                  <span class="text-emerald-700 dark:text-[#E0344B] font-bold">{{ $t('common.system') }}</span>
                 </div>
               </div>
             </div>

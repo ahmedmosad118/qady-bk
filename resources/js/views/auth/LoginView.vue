@@ -224,7 +224,7 @@ const handleLogin = async () => {
   }
 
   loading.value = true;
-  const res = await authStore.login(form.email, form.password, null, rememberMe.value);
+  const res = await authStore.login(form.email, form.password, rememberMe.value);
   loading.value = false;
 
   if (res.success) {

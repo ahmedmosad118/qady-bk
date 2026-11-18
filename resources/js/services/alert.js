@@ -1,5 +1,6 @@
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import { STORAGE_KEYS } from '../config/storage.js';
 
 /**
  * Check if the document is in Dark Mode.
@@ -7,7 +8,7 @@ import 'sweetalert2/dist/sweetalert2.min.css';
 const isDarkMode = () => {
   return document.documentElement.classList.contains('dark') ||
     document.body.classList.contains('dark') ||
-    localStorage.getItem('sarh_theme') === 'dark';
+    localStorage.getItem(STORAGE_KEYS.THEME) === 'dark';
 };
 
 /**
@@ -16,7 +17,7 @@ const isDarkMode = () => {
 const isRTL = () => {
   const dir = document.documentElement.getAttribute('dir') || document.body.getAttribute('dir');
   if (dir) return dir === 'rtl';
-  const lang = localStorage.getItem('sarh_locale') || 'ar';
+  const lang = localStorage.getItem(STORAGE_KEYS.LOCALE) || 'ar';
   return lang === 'ar';
 };
 
