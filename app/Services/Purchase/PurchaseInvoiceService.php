@@ -302,20 +302,20 @@ class PurchaseInvoiceService
 
             /** @var PurchaseInvoice $invoice */
             $invoice = PurchaseInvoice::query()->create([
-                'invoice_number' => $invoiceNumber,
-                'supplier_id' => $supplier->id,
-                'purchase_order_id' => $purchaseOrderId,
-                'invoice_date' => $invoiceDate->toDateString(),
-                'due_date' => $dueDate->toDateString(),
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
+                'invoice_number'            => $invoiceNumber,
+                'supplier_id'               => $supplier->id,
+                'purchase_order_id'         => $purchaseOrderId,
+                'invoice_date'              => $invoiceDate->toDateString(),
+                'due_date'                  => $dueDate->toDateString(),
+                'subtotal'                  => $calc['subtotal'],
+                'discount_type'             => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                'discount_value'            => $calc['discount_value'],
+                'discount_amount'           => $calc['discount_amount'],
                 'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total' => $calc['total'],
-                'notes' => $data['notes'] ?? null,
-                'status' => PurchaseInvoiceStatus::DRAFT,
-                'created_by' => $user->id,
+                'total'                     => $calc['total'],
+                'notes'                     => $data['notes'] ?? null,
+                'status'                    => PurchaseInvoiceStatus::DRAFT,
+                'created_by'                => $user->id,
             ]);
 
             foreach ($calc['items'] as $itemRow) {
@@ -618,13 +618,13 @@ class PurchaseInvoiceService
         ])->all();
 
         return $this->inventoryDocumentService->create([
-            'document_type' => InventoryDocumentType::GOODS_RECEIPT->value,
-            'document_date' => Carbon::parse($invoice->invoice_date)->toDateString(),
+            'document_type'            => InventoryDocumentType::GOODS_RECEIPT->value,
+            'document_date'            => Carbon::parse($invoice->invoice_date)->toDateString(),
             'destination_warehouse_id' => $warehouse->id,
-            'referenceable_type' => $invoice->getMorphClass(),
-            'referenceable_id' => $invoice->id,
-            'notes' => "Automatic goods receipt for purchase invoice: {$invoice->invoice_number}",
-            'items' => $itemsPayload,
+            'referenceable_type'       => $invoice->getMorphClass(),
+            'referenceable_id'         => $invoice->id,
+            'notes'                    => "Automatic goods receipt for purchase invoice: {$invoice->invoice_number}",
+            'items'                    => $itemsPayload,
         ], $user);
     }
 

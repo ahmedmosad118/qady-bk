@@ -163,7 +163,7 @@ class PosShiftService
 
             if ($locked->isClosed()) {
                 throw ValidationException::withMessages([
-                    'shift' => ['لا يمكن تسجيل حركات مالية على وردية مغلقة.'],
+                    'shift' => [__('Financial transactions cannot be recorded on a closed shift')],
                 ]);
             }
 
@@ -212,10 +212,10 @@ class PosShiftService
             ->pluck('total', 'type');
 
         return [
-            PosShiftTransaction::TYPE_CASH_SALE => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_SALE] ?? 0),
+            PosShiftTransaction::TYPE_CASH_SALE   => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_SALE] ?? 0),
             PosShiftTransaction::TYPE_CASH_RETURN => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_CASH_RETURN] ?? 0),
-            PosShiftTransaction::TYPE_EXPENSE => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_EXPENSE] ?? 0),
-            PosShiftTransaction::TYPE_WITHDRAWAL => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_WITHDRAWAL] ?? 0),
+            PosShiftTransaction::TYPE_EXPENSE     => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_EXPENSE] ?? 0),
+            PosShiftTransaction::TYPE_WITHDRAWAL  => Decimal::fromNumeric($grouped[PosShiftTransaction::TYPE_WITHDRAWAL] ?? 0),
         ];
     }
 
@@ -224,7 +224,7 @@ class PosShiftService
      */
     protected function computeExpectedCash(string $openingBalance, array $totals): string
     {
-        $opening = Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE);
+        $opening  = Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE);
         $subtotal = Decimal::add($opening, $totals[PosShiftTransaction::TYPE_CASH_SALE], Decimal::MONEY_SCALE);
         $subtotal = Decimal::sub($subtotal, $totals[PosShiftTransaction::TYPE_CASH_RETURN], Decimal::MONEY_SCALE);
         $subtotal = Decimal::sub($subtotal, $totals[PosShiftTransaction::TYPE_EXPENSE], Decimal::MONEY_SCALE);

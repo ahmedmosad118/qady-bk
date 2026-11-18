@@ -58,10 +58,10 @@ class PosSaleCalculator
             }
 
             $consolidated[$productId] = [
-                'product_id' => $productId,
-                'quantity' => $quantity,
-                'unit_price' => $raw['unit_price'] ?? null,
-                'discount_type' => $raw['discount_type'] ?? null,
+                'product_id'     => $productId,
+                'quantity'       => $quantity,
+                'unit_price'     => $raw['unit_price'] ?? null,
+                'discount_type'  => $raw['discount_type'] ?? null,
                 'discount_value' => $raw['discount_value'] ?? null,
             ];
         }
@@ -105,9 +105,9 @@ class PosSaleCalculator
 
             $line = $this->calculateLine($itemData, $product);
 
-            $subtotal = Decimal::add($subtotal, $line['subtotal'], Decimal::MONEY_SCALE);
+            $subtotal           = Decimal::add($subtotal, $line['subtotal'], Decimal::MONEY_SCALE);
             $itemsDiscountTotal = Decimal::add($itemsDiscountTotal, $line['discount_amount'], Decimal::MONEY_SCALE);
-            $netItemsTotal = Decimal::add($netItemsTotal, $line['total'], Decimal::MONEY_SCALE);
+            $netItemsTotal      = Decimal::add($netItemsTotal, $line['total'], Decimal::MONEY_SCALE);
 
             $items[] = $line;
         }
@@ -122,13 +122,13 @@ class PosSaleCalculator
         );
 
         return [
-            'items' => $this->allocateInvoiceDiscount($items, $netItemsTotal, $invoiceDiscount['amount']),
-            'subtotal' => $subtotal,
-            'items_discount_total' => $itemsDiscountTotal,
-            'invoice_discount_type' => $invoiceDiscount['type'],
-            'invoice_discount_value' => $invoiceDiscount['value'],
+            'items'                   => $this->allocateInvoiceDiscount($items, $netItemsTotal, $invoiceDiscount['amount']),
+            'subtotal'                => $subtotal,
+            'items_discount_total'    => $itemsDiscountTotal,
+            'invoice_discount_type'   => $invoiceDiscount['type'],
+            'invoice_discount_value'  => $invoiceDiscount['value'],
             'invoice_discount_amount' => $invoiceDiscount['amount'],
-            'grand_total' => Decimal::sub($netItemsTotal, $invoiceDiscount['amount'], Decimal::MONEY_SCALE),
+            'grand_total'             => Decimal::sub($netItemsTotal, $invoiceDiscount['amount'], Decimal::MONEY_SCALE),
         ];
     }
 
@@ -157,16 +157,16 @@ class PosSaleCalculator
         );
 
         return [
-            'product_id' => $product->id,
-            'product_snapshot' => $this->buildProductSnapshot($product),
-            'quantity' => $quantity,
+            'product_id'          => $product->id,
+            'product_snapshot'    => $this->buildProductSnapshot($product),
+            'quantity'            => $quantity,
             'original_unit_price' => $originalPrice,
-            'unit_price' => $unitPrice,
-            'discount_type' => $discount['type'],
-            'discount_value' => $discount['value'],
-            'discount_amount' => $discount['amount'],
-            'subtotal' => $lineSubtotal,
-            'total' => Decimal::sub($lineSubtotal, $discount['amount'], Decimal::MONEY_SCALE),
+            'unit_price'          => $unitPrice,
+            'discount_type'       => $discount['type'],
+            'discount_value'      => $discount['value'],
+            'discount_amount'     => $discount['amount'],
+            'subtotal'            => $lineSubtotal,
+            'total'               => Decimal::sub($lineSubtotal, $discount['amount'], Decimal::MONEY_SCALE),
         ];
     }
 
@@ -181,9 +181,9 @@ class PosSaleCalculator
         $attributes = $product->getAttributes();
 
         return [
-            'name' => (string) $product->name,
-            'sku' => isset($attributes['sku']) ? (string) $attributes['sku'] : null,
-            'barcode' => $product->barcode !== null ? (string) $product->barcode : null,
+            'name'      => (string) $product->name,
+            'sku'       => isset($attributes['sku']) ? (string) $attributes['sku'] : null,
+            'barcode'   => $product->barcode !== null ? (string) $product->barcode : null,
             'unit_name' => (string) ($attributes['unit_name'] ?? __('pos.unit_piece')),
         ];
     }

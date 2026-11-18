@@ -330,20 +330,20 @@ class PosSaleService
         ?string $clientUuid
     ): PosSale {
         return PosSale::query()->create([
-            'invoice_number' => $this->numberService->generateInvoiceNumber(),
-            'shift_id' => $shift->id,
-            'customer_id' => $customer?->id,
-            'payment_method_id' => $paymentMethod->id,
-            'subtotal' => $invoice['subtotal'],
-            'items_discount_total' => $invoice['items_discount_total'],
-            'invoice_discount_type' => $invoice['invoice_discount_type'],
-            'invoice_discount_value' => $invoice['invoice_discount_value'],
+            'invoice_number'          => $this->numberService->generateInvoiceNumber(),
+            'shift_id'                => $shift->id,
+            'customer_id'             => $customer?->id,
+            'payment_method_id'       => $paymentMethod->id,
+            'subtotal'                => $invoice['subtotal'],
+            'items_discount_total'    => $invoice['items_discount_total'],
+            'invoice_discount_type'   => $invoice['invoice_discount_type'],
+            'invoice_discount_value'  => $invoice['invoice_discount_value'],
             'invoice_discount_amount' => $invoice['invoice_discount_amount'],
-            'grand_total' => $invoice['grand_total'],
-            'notes' => $notes,
-            'created_by' => $user->id,
-            'sold_at' => Carbon::now(),
-            'client_uuid' => $clientUuid,
+            'grand_total'             => $invoice['grand_total'],
+            'notes'                   => $notes,
+            'created_by'              => $user->id,
+            'sold_at'                 => Carbon::now(),
+            'client_uuid'             => $clientUuid,
         ]);
     }
 
@@ -357,36 +357,36 @@ class PosSaleService
         $now = Carbon::now();
 
         PosSaleItem::query()->insert(array_map(static fn (array $item): array => [
-            'sale_id' => $sale->id,
-            'product_id' => $item['product_id'],
-            'product_snapshot' => json_encode($item['product_snapshot'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'quantity' => $item['quantity'],
-            'original_unit_price' => $item['original_unit_price'],
-            'unit_price' => $item['unit_price'],
-            'discount_type' => $item['discount_type'],
-            'discount_value' => $item['discount_value'],
-            'discount_amount' => $item['discount_amount'],
-            'subtotal' => $item['subtotal'],
-            'total' => $item['total'],
+            'sale_id'                    => $sale->id,
+            'product_id'                 => $item['product_id'],
+            'product_snapshot'           => json_encode($item['product_snapshot'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'quantity'                   => $item['quantity'],
+            'original_unit_price'        => $item['original_unit_price'],
+            'unit_price'                 => $item['unit_price'],
+            'discount_type'              => $item['discount_type'],
+            'discount_value'             => $item['discount_value'],
+            'discount_amount'            => $item['discount_amount'],
+            'subtotal'                   => $item['subtotal'],
+            'total'                      => $item['total'],
             'allocated_invoice_discount' => $item['allocated_invoice_discount'],
-            'created_at' => $now,
-            'updated_at' => $now,
+            'created_at'                 => $now,
+            'updated_at'                 => $now,
         ], $items));
     }
 
     protected function recordCashSale(PosShift $shift, PosSale $sale, string $amount, User $user): void
     {
-        // Attributes are assigned explicitly because PosShiftTransaction is immutable (no mass update path).
-        $transaction = new PosShiftTransaction();
-        $transaction->shift_id = $shift->id;
-        $transaction->type = PosShiftTransaction::TYPE_CASH_SALE;
-        $transaction->amount = $amount;
-        $transaction->pos_sale_id = $sale->id;
+        # Attributes are assigned explicitly because PosShiftTransaction is immutable (no mass update path).
+        $transaction                = new PosShiftTransaction();
+        $transaction->shift_id      = $shift->id;
+        $transaction->type          = PosShiftTransaction::TYPE_CASH_SALE;
+        $transaction->amount        = $amount;
+        $transaction->pos_sale_id   = $sale->id;
         $transaction->pos_return_id = null;
-        $transaction->name = __('pos.messages.cash_sale_transaction', ['invoice_number' => $sale->invoice_number]);
-        $transaction->description = null;
-        $transaction->created_by = $user->id;
-        $transaction->created_at = Carbon::now();
+        $transaction->name          = __('pos.messages.cash_sale_transaction', ['invoice_number' => $sale->invoice_number]);
+        $transaction->description   = null;
+        $transaction->created_by    = $user->id;
+        $transaction->created_at    = Carbon::now();
         $transaction->save();
 
         $shift->update(['expected_cash' => $this->shiftService->calculateExpectedCash($shift)]);
