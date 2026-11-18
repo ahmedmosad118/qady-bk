@@ -207,15 +207,10 @@
             </div>
           </div>
 
-          <!-- Tab 2: Shift Transactions (Server-side paginated) -->
+          <!-- Tab 2: Shift Transactions -->
           <div v-else-if="activeTab === 'transactions'" class="space-y-3">
-            <div v-if="txLoading" class="py-12 text-center">
-              <div class="inline-block w-6 h-6 border-2 border-[var(--muted)] border-t-transparent rounded-full animate-spin"></div>
-              <p class="text-xs font-bold text-[var(--muted)] mt-2">جاري تحميل الحركات النقدية...</p>
-            </div>
-
             <div
-              v-else-if="transactions.length > 0"
+              v-if="shift.transactions && shift.transactions.length > 0"
               class="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden"
             >
               <table class="w-full text-xs text-start">
@@ -232,11 +227,11 @@
                 </thead>
                 <tbody class="divide-y divide-[var(--border)]">
                   <tr
-                    v-for="(tx, idx) in transactions"
+                    v-for="(tx, idx) in shift.transactions"
                     :key="tx.id || idx"
                     class="hover:bg-[var(--bg)]/50 transition-colors"
                   >
-                    <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ (txMeta.current_page - 1) * txMeta.per_page + idx + 1 }}</td>
+                    <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
                     <td class="px-3.5 py-3">
                       <span
                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
@@ -268,33 +263,6 @@
                   </tr>
                 </tbody>
               </table>
-
-              <div
-                v-if="txMeta.last_page > 1"
-                class="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)] bg-[var(--bar)]/40 text-xs"
-              >
-                <span class="text-[var(--muted)] font-semibold">
-                  صفحة {{ txMeta.current_page }} من {{ txMeta.last_page }} (الإجمالي: {{ txMeta.total }})
-                </span>
-                <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    class="px-3 py-1 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] font-bold disabled:opacity-40 cursor-pointer"
-                    :disabled="txMeta.current_page <= 1"
-                    @click="fetchShiftTransactions(txMeta.current_page - 1)"
-                  >
-                    السابق
-                  </button>
-                  <button
-                    type="button"
-                    class="px-3 py-1 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] font-bold disabled:opacity-40 cursor-pointer"
-                    :disabled="txMeta.current_page >= txMeta.last_page"
-                    @click="fetchShiftTransactions(txMeta.current_page + 1)"
-                  >
-                    التالي
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div v-else class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-8 text-center text-xs text-[var(--muted)]">
@@ -335,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   Clock,
   X,
@@ -367,30 +335,10 @@ const loading = ref(true);
 const activeTab = ref('info');
 const shiftSalesTotalCount = ref(null);
 
-const transactions = ref([]);
-const txLoading = ref(false);
-const txLoaded = ref(false);
-const txMeta = ref({
-  current_page: 1,
-  last_page: 1,
-  per_page: 25,
-  total: 0,
-});
-
 const tabs = computed(() => [
   { id: 'info', label: 'بيانات وملخص الوردية', icon: FileText },
-  {
-    id: 'transactions',
-    label: 'الحركات النقدية (الدرج)',
-    icon: ArrowLeftRight,
-    badge: txLoaded.value ? txMeta.value.total : summary.value?.transactions_count,
-  },
-  {
-    id: 'sales',
-    label: 'فواتير البيع بالوردية',
-    icon: Receipt,
-    badge: shiftSalesTotalCount.value ?? summary.value?.sales_count,
-  },
+  { id: 'transactions', label: 'الحركات النقدية (الدرج)', icon: ArrowLeftRight, badge: shift.value?.transactions?.length },
+  { id: 'sales', label: 'فواتير البيع بالوردية', icon: Receipt, badge: shiftSalesTotalCount.value ?? shift.value?.sales?.length },
 ]);
 
 // Difference calculations:
@@ -466,32 +414,6 @@ async function fetchShiftDetails() {
     loading.value = false;
   }
 }
-
-async function fetchShiftTransactions(page = 1) {
-  txLoading.value = true;
-  try {
-    const res = await api.get(`/pos/shifts/${props.shiftId}/transactions`, {
-      params: { page, per_page: txMeta.value.per_page },
-    });
-    if (res.data?.success) {
-      transactions.value = res.data.data || [];
-      if (res.data.meta) {
-        txMeta.value = res.data.meta;
-      }
-      txLoaded.value = true;
-    }
-  } catch (err) {
-    console.error('Failed to load shift transactions:', err);
-  } finally {
-    txLoading.value = false;
-  }
-}
-
-watch(activeTab, (tab) => {
-  if (tab === 'transactions' && !txLoaded.value) {
-    fetchShiftTransactions(1);
-  }
-});
 
 function formatDateTime(val) {
   if (!val) return '—';

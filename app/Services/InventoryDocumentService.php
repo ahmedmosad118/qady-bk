@@ -10,7 +10,6 @@ use App\Enums\PurchaseInvoiceStatus;
 use App\Models\InventoryDocument;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
-use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -248,7 +247,7 @@ class InventoryDocumentService
         foreach ($itemsData as $item) {
             $document->items()->create([
                 'product_id' => $item['product_id'],
-                'quantity' => Decimal::fromNumeric($item['quantity'], Decimal::QUANTITY_SCALE),
+                'quantity' => $item['quantity'],
                 'notes' => $item['notes'] ?? null,
             ]);
         }

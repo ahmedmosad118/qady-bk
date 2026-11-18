@@ -20,7 +20,6 @@ use App\Models\StockMovement;
 use App\Models\StocktakeItem;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
-use App\Services\InventoryDocumentWorkflowService;
 use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -29,7 +28,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
-use RuntimeException;
 
 class StockMovementService
 {
@@ -49,12 +47,6 @@ class StockMovementService
         return DB::transaction(function () use ($document, $userId): array {
             /** @var InventoryDocument $lockedDocument */
             $lockedDocument = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
-
-            if (! InventoryDocumentWorkflowService::isAuthoritativeTransitionActive((int) $lockedDocument->id, InventoryDocumentStatus::POSTED)) {
-                throw new LogicException(
-                    "Cannot post stock movements for document {$lockedDocument->document_number} outside InventoryDocumentWorkflowService."
-                );
-            }
 
             // 1. Validate status
             if ($lockedDocument->status !== InventoryDocumentStatus::APPROVED) {
@@ -77,7 +69,7 @@ class StockMovementService
             }
 
             // 4. Validate warehouses exist
-            $this->validateWarehousesExist($lockedDocument);
+            $this->validateWarehousesActive($lockedDocument);
 
             // 4b. Validate Purchase Invoice Goods Receipt completeness & status
             if (in_array($lockedDocument->referenceable_type, ['purchase_invoice', PurchaseInvoice::class], true)) {
@@ -88,7 +80,13 @@ class StockMovementService
             $plannedMovements = $this->buildPlannedMovementsForDocument($lockedDocument, $items, $userId);
 
             // 6. Lock and update stocks within the transaction
-            return $this->applyMovements($plannedMovements);
+            $movements = $this->applyMovements($plannedMovements);
+
+            $movementCollection = new Collection($movements);
+            $lockedDocument->setRelation('stockMovements', $movementCollection);
+            $document->setRelation('stockMovements', $movementCollection);
+
+            return $movements;
         });
     }
 
@@ -174,12 +172,6 @@ class StockMovementService
             /** @var InventoryDocument $lockedDocument */
             $lockedDocument = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
-            if (! InventoryDocumentWorkflowService::isAuthoritativeTransitionActive((int) $lockedDocument->id, InventoryDocumentStatus::REVERSED)) {
-                throw new LogicException(
-                    "Cannot reverse stock movements for document {$lockedDocument->document_number} outside InventoryDocumentWorkflowService."
-                );
-            }
-
             if ($lockedDocument->status !== InventoryDocumentStatus::POSTED) {
                 throw ValidationException::withMessages([
                     'status' => ["لا يمكن عكس المستند وهو في حالة '{$lockedDocument->status->value}'. يمكن عكس المستندات المرحّلة فقط."],
@@ -190,7 +182,6 @@ class StockMovementService
             $originalMovements = $lockedDocument->stockMovements()
                 ->whereNull('reversal_of_id')
                 ->with(['product', 'warehouse'])
-                ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
 
@@ -248,122 +239,24 @@ class StockMovementService
             return [];
         }
 
-        $now = Carbon::now();
-        [$productsByWarehouse, $deltas] = $this->prepareSortedMovementPlan($planned);
-
-        $this->ensureMissingStockRowsExist($productsByWarehouse, $now);
-        $lockedStocks = $this->lockStocksAndVerifyStocktake($productsByWarehouse);
-        $newBalancesByWarehouse = $this->computeValidatedBalances($deltas, $lockedStocks);
-
-        return $this->persistMovementsAndUpdateStocks($planned, $newBalancesByWarehouse, $now);
-    }
-
-    /**
-     * Validate positive quantities, aggregate net deltas, and sort (warehouse_id, product_id) keys deterministically.
-     *
-     * @param array<array<string, mixed>> $planned
-     * @return array{0: array<int, array<int, int>>, 1: array<string, string>}
-     */
-    protected function prepareSortedMovementPlan(array $planned): array
-    {
+        // 1. Group distinct product IDs by warehouse_id (sorted deterministically to prevent deadlocks)
         $productsByWarehouse = [];
-        $deltas = [];
-
         foreach ($planned as $m) {
             $whId = (int) $m['warehouse_id'];
             $prodId = (int) $m['product_id'];
-            $qty = Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE);
-
-            if (! Decimal::isPositive($qty, Decimal::QUANTITY_SCALE)) {
-                throw ValidationException::withMessages([
-                    'items' => ['Stock movement quantity must be greater than zero.'],
-                ]);
-            }
-
             $productsByWarehouse[$whId][$prodId] = $prodId;
-            $key = $whId . '_' . $prodId;
-
-            if (! isset($deltas[$key])) {
-                $deltas[$key] = '0.000';
-            }
-
-            $deltas[$key] = $m['direction'] === StockMovementDirection::INBOUND
-                ? Decimal::add($deltas[$key], $qty, Decimal::QUANTITY_SCALE)
-                : Decimal::sub($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
         }
 
         ksort($productsByWarehouse);
+
+        // 2. Batch-ensure stock rows exist, batch-lock them with lockForUpdate(), and batch-check stocktake locks per warehouse
+        $lockedStocks = [];
+        $now = Carbon::now();
+
         foreach ($productsByWarehouse as $whId => $prodIdMap) {
             $prodIds = array_values($prodIdMap);
             sort($prodIds);
-            $productsByWarehouse[$whId] = $prodIds;
-        }
 
-        return [$productsByWarehouse, $deltas];
-    }
-
-    /**
-     * Ensure missing WarehouseStock rows exist without holding FOR UPDATE gap locks.
-     * Locking missing parent Product rows in ascending ID order prevents InnoDB INSERT IGNORE deadlocks.
-     *
-     * @param array<int, array<int, int>> $productsByWarehouse
-     */
-    protected function ensureMissingStockRowsExist(array $productsByWarehouse, Carbon $now): void
-    {
-        $missingRows = [];
-        $missingProdIds = [];
-
-        foreach ($productsByWarehouse as $whId => $prodIds) {
-            $existingIds = WarehouseStock::query()
-                ->where('warehouse_id', $whId)
-                ->whereIn('product_id', $prodIds)
-                ->pluck('product_id')
-                ->all();
-
-            $existingMap = array_flip(array_map('intval', $existingIds));
-
-            foreach ($prodIds as $prodId) {
-                if (! isset($existingMap[$prodId])) {
-                    $missingRows[] = [
-                        'warehouse_id' => $whId,
-                        'product_id' => $prodId,
-                        'quantity' => '0.000',
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                    $missingProdIds[$prodId] = $prodId;
-                }
-            }
-        }
-
-        if ($missingRows === []) {
-            return;
-        }
-
-        $sortedMissingProdIds = array_values($missingProdIds);
-        sort($sortedMissingProdIds);
-
-        Product::query()
-            ->whereIn('id', $sortedMissingProdIds)
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get(['id']);
-
-        WarehouseStock::query()->insertOrIgnore($missingRows);
-    }
-
-    /**
-     * Lock affected stock rows in deterministic (warehouse_id ASC, product_id ASC) order
-     * and verify none are locked in COUNTING status by an active stocktake.
-     *
-     * @param array<int, array<int, int>> $productsByWarehouse
-     * @return array<string, WarehouseStock>
-     */
-    protected function lockStocksAndVerifyStocktake(array $productsByWarehouse): array
-    {
-        $lockedStocks = [];
-
-        foreach ($productsByWarehouse as $whId => $prodIds) {
             $stocks = WarehouseStock::query()
                 ->where('warehouse_id', $whId)
                 ->whereIn('product_id', $prodIds)
@@ -372,15 +265,34 @@ class StockMovementService
                 ->get()
                 ->keyBy('product_id');
 
-            if ($stocks->count() !== count($prodIds)) {
-                $actualIds = array_map('intval', $stocks->keys()->all());
-                $missingIds = array_values(array_diff($prodIds, $actualIds));
+            if ($stocks->count() < count($prodIds)) {
+                $missingRows = [];
+                foreach ($prodIds as $prodId) {
+                    if (! $stocks->has($prodId)) {
+                        $missingRows[] = [
+                            'warehouse_id' => $whId,
+                            'product_id' => $prodId,
+                            'quantity' => '0.000',
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                }
 
-                throw new RuntimeException(
-                    "Failed to lock warehouse_stocks for warehouse #{$whId}, products [" . implode(', ', $missingIds) . '].'
-                );
+                if ($missingRows !== []) {
+                    WarehouseStock::query()->insertOrIgnore($missingRows);
+                }
+
+                $stocks = WarehouseStock::query()
+                    ->where('warehouse_id', $whId)
+                    ->whereIn('product_id', $prodIds)
+                    ->orderBy('product_id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('product_id');
             }
 
+            // Batch-check if any product in this warehouse is locked in COUNTING status in an active stocktake (1 locked query)
             $lockedProductId = StocktakeItem::query()
                 ->whereIn('product_id', $prodIds)
                 ->where('count_status', StocktakeItemStatus::COUNTING)
@@ -393,7 +305,6 @@ class StockMovementService
                             StocktakeStatus::REJECTED,
                         ]);
                 })
-                ->orderBy('id')
                 ->lockForUpdate()
                 ->value('product_id');
 
@@ -403,42 +314,43 @@ class StockMovementService
 
                 throw ValidationException::withMessages([
                     'stocktake_locked' => [
-                        "المنتج '{$prod?->name}' في المخزن '{$wh?->name}' قيد الجرد حاليًا (جاري العد) ولا يمكن تنفيذ حركات مخزنية عليه حتى اكتمال العد.",
+                        "المنتج '{$prod?->name}' في المخزن '{$wh?->name}' قيد الجرد حاليًا (جاري العد) ولا يمكن تنفيذ حركات مخزنية عليه حتى اكتمال العد."
                     ],
                 ]);
             }
 
-            foreach ($prodIds as $prodId) {
-                $lockedStocks[$whId . '_' . $prodId] = $stocks->get($prodId);
+            foreach ($stocks as $prodId => $stock) {
+                $lockedStocks[$whId . '_' . $prodId] = $stock;
             }
         }
 
-        return $lockedStocks;
-    }
+        // 3. Calculate net delta per stock row and verify against negative stock using Decimal
+        $deltas = [];
+        foreach ($planned as $m) {
+            $key = $m['warehouse_id'] . '_' . $m['product_id'];
+            $qty = Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE);
 
-    /**
-     * Validate every delta against its locked stock balance and compute non-negative balances.
-     *
-     * @param array<string, string> $deltas
-     * @param array<string, WarehouseStock> $lockedStocks
-     * @return array<int, array<int, string>>
-     */
-    protected function computeValidatedBalances(array $deltas, array $lockedStocks): array
-    {
-        $newBalancesByWarehouse = [];
-
-        foreach ($deltas as $key => $delta) {
-            $stock = $lockedStocks[$key] ?? null;
-            if (! $stock instanceof WarehouseStock) {
-                throw new RuntimeException("Missing locked warehouse stock record for key [{$key}].");
+            if (! isset($deltas[$key])) {
+                $deltas[$key] = '0.000';
             }
 
+            if ($m['direction'] === StockMovementDirection::INBOUND) {
+                $deltas[$key] = Decimal::add($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
+            } else {
+                $deltas[$key] = Decimal::sub($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
+            }
+        }
+
+        $newBalancesByWarehouse = [];
+        foreach ($lockedStocks as $key => $stock) {
             $currentQty = Decimal::fromNumeric($stock->quantity, Decimal::QUANTITY_SCALE);
+            $delta = $deltas[$key] ?? '0.000';
             $projected = Decimal::add($currentQty, $delta, Decimal::QUANTITY_SCALE);
 
             if (Decimal::isNegative($projected, Decimal::QUANTITY_SCALE)) {
                 $wh = Warehouse::query()->find($stock->warehouse_id);
                 $prod = Product::query()->find($stock->product_id);
+
                 $shortage = Decimal::mul($projected, '-1', Decimal::QUANTITY_SCALE);
                 $requestedOutbound = Decimal::mul($delta, '-1', Decimal::QUANTITY_SCALE);
 
@@ -447,7 +359,7 @@ class StockMovementService
                         "الرصيد غير كافٍ للمنتج '{$prod?->name}' في المخزن '{$wh?->name}'. " .
                         "الرصيد الحالي: {$currentQty}، " .
                         "الكمية المطلوبة صرفها: {$requestedOutbound}، " .
-                        "مقدار العجز: {$shortage}.",
+                        "مقدار العجز: {$shortage}."
                     ],
                 ]);
             }
@@ -456,18 +368,7 @@ class StockMovementService
             $newBalancesByWarehouse[(int) $stock->warehouse_id][(int) $stock->product_id] = $projected;
         }
 
-        return $newBalancesByWarehouse;
-    }
-
-    /**
-     * Bulk insert movements, batch update WarehouseStock balances via SQL CASE, and fetch persisted models.
-     *
-     * @param array<array<string, mixed>> $planned
-     * @param array<int, array<int, string>> $newBalancesByWarehouse
-     * @return array<StockMovement>
-     */
-    protected function persistMovementsAndUpdateStocks(array $planned, array $newBalancesByWarehouse, Carbon $now): array
-    {
+        // 4. Bulk insert StockMovement rows in 1 query
         $movementRows = [];
         foreach ($planned as $m) {
             $dirVal = $m['direction'] instanceof StockMovementDirection ? $m['direction']->value : (string) $m['direction'];
@@ -487,6 +388,7 @@ class StockMovementService
 
         StockMovement::query()->insert($movementRows);
 
+        // 5. Batch update WarehouseStock balances in 1 CASE query per warehouse
         foreach ($newBalancesByWarehouse as $whId => $balancesByProductId) {
             if ($balancesByProductId === []) {
                 continue;
@@ -514,6 +416,7 @@ class StockMovementService
             );
         }
 
+        // 6. Query back the persisted StockMovement records in 1 query so returned models have real DB IDs
         $documentId = (int) $movementRows[0]['inventory_document_id'];
         $isReversal = $movementRows[0]['reversal_of_id'] !== null;
 
@@ -532,7 +435,7 @@ class StockMovementService
     /**
      * Validate that all warehouses attached to this document exist.
      */
-    protected function validateWarehousesExist(InventoryDocument $document): void
+    protected function validateWarehousesActive(InventoryDocument $document): void
     {
         if ($document->source_warehouse_id) {
             $sourceWh = Warehouse::query()->find($document->source_warehouse_id);
@@ -781,8 +684,8 @@ class StockMovementService
     {
         return WarehouseStock::query()
             ->with([
-                'warehouse:id,code,name,is_default',
-                'product:id,category_id,name,barcode,purchase_price,selling_price',
+                'warehouse:id,code,name,is_default,is_active',
+                'product:id,category_id,name,barcode,purchase_price,selling_price,is_active',
                 'product.category:id,name',
             ])
             ->when(! empty($filters['warehouse_id']), function (Builder $q, $whId): void {

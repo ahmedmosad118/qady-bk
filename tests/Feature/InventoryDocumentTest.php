@@ -15,7 +15,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -216,31 +215,27 @@ class InventoryDocumentTest extends TestCase
             ->assertJsonValidationErrors(['items.0.quantity']);
     }
 
-    public function test_creates_inventory_document_without_obsolete_is_active_blocking(): void
+    public function test_rejects_inactive_warehouse(): void
     {
-        $secondaryWh = Warehouse::query()->create([
-            'code' => 'BRANCH-LEGACY-1',
-            'name' => 'Branch Warehouse',
-            'address' => 'Giza',
+        $inactiveWh = Warehouse::query()->create([
+            'code' => 'INACTIVE-1',
+            'name' => 'مخزن مغلق',
+            'address' => 'مغلق',
             'is_default' => false,
+            'is_active' => false,
         ]);
-        DB::table('warehouses')
-            ->where('id', $secondaryWh->id)
-            ->update(['is_active' => false]);
-
-        $inactiveProduct = Product::factory()->create(['is_active' => false]);
 
         $response = $this->postJson('/api/inventory-documents', [
             'document_type' => InventoryDocumentType::GOODS_RECEIPT->value,
             'document_date' => '2026-11-13',
-            'destination_warehouse_id' => $secondaryWh->id,
+            'destination_warehouse_id' => $inactiveWh->id,
             'items' => [
-                ['product_id' => $inactiveProduct->id, 'quantity' => 5],
+                ['product_id' => $this->product1->id, 'quantity' => 5],
             ],
         ]);
 
-        $response->assertCreated()
-            ->assertJsonPath('success', true);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['destination_warehouse_id']);
     }
 
     public function test_polymorphic_referenceable_works_properly(): void

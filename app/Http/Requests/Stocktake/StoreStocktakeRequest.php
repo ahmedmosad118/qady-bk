@@ -17,12 +17,13 @@ class StoreStocktakeRequest extends FormRequest
     }
 
     /**
-     * Prepare inputs for validation: resolve the single default warehouse if not specified.
+     * Prepare inputs for validation: fallback to single default warehouse if not specified.
      */
     protected function prepareForValidation(): void
     {
         if (empty($this->warehouse_id)) {
-            $default = Warehouse::query()->default()->first();
+            $default = Warehouse::query()->where('is_default', true)->first()
+                ?? Warehouse::query()->where('is_active', true)->first();
 
             if ($default) {
                 $this->merge(['warehouse_id' => $default->id]);

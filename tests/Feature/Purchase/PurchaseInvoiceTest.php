@@ -669,8 +669,8 @@ class PurchaseInvoiceTest extends TestCase
         $product = $this->createProduct();
         $today = now()->toDateString();
 
-        // Remove default warehouse marker so GR creation fails inside transaction
-        $this->defaultWarehouse->update(['is_default' => false]);
+        // Deactivate default warehouse so GR creation fails inside transaction
+        $this->defaultWarehouse->update(['is_active' => false]);
 
         $res = $this->postJson('/api/purchase-invoices', [
             'invoice_number' => 'ROLLBACK-TEST-001',

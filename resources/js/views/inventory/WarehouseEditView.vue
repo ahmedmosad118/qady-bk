@@ -9,6 +9,14 @@
         >
           ★ {{ $t('warehouses.default') }}
         </span>
+        <span
+          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold"
+          :class="warehouse?.is_active
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-zinc-500/30 bg-zinc-500/10 text-zinc-500'"
+        >
+          {{ warehouse?.is_active ? $t('common.active') : $t('common.inactive') }}
+        </span>
       </template>
     </PageHeader>
 

@@ -26,6 +26,7 @@ class WarehouseSeeder extends Seeder
                 if ($existingMain) {
                     $existingMain->update([
                         'is_default' => true,
+                        'is_active' => true,
                     ]);
                 } else {
                     Warehouse::query()->create([
@@ -36,6 +37,7 @@ class WarehouseSeeder extends Seeder
                         'phone' => null,
                         'manager_name' => null,
                         'is_default' => true,
+                        'is_active' => true,
                     ]);
                 }
             }

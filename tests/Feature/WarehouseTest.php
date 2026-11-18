@@ -32,6 +32,7 @@ class WarehouseTest extends TestCase
             'code' => 'MAIN',
             'name' => 'المخزن الرئيسي',
             'is_default' => true,
+            'is_active' => true,
         ]);
 
         $this->assertEquals(1, Warehouse::query()->where('is_default', true)->count());
@@ -96,21 +97,7 @@ class WarehouseTest extends TestCase
             ->assertJsonValidationErrors(['address']);
     }
 
-    public function test_default_warehouse_endpoint_does_not_fallback_to_non_default_warehouse(): void
-    {
-        Warehouse::query()->create([
-            'code' => 'BRANCH-01',
-            'name' => 'Branch Warehouse',
-            'address' => 'Giza',
-            'is_default' => false,
-        ]);
-
-        $this->getJson('/api/warehouses/default')
-            ->assertNotFound()
-            ->assertJsonPath('success', false);
-    }
-
-    public function test_update_ignores_obsolete_is_active_and_preserves_default_warehouse(): void
+    public function test_cannot_deactivate_the_default_warehouse(): void
     {
         $this->seed(WarehouseSeeder::class);
         $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
@@ -122,10 +109,8 @@ class WarehouseTest extends TestCase
             'is_active' => false,
         ]);
 
-        $response->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.is_default', true);
-        $this->assertTrue((bool) $warehouse->fresh()->is_default);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['is_active']);
     }
 
     public function test_no_create_or_store_endpoint_exists_for_warehouses(): void
