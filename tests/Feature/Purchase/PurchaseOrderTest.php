@@ -32,7 +32,6 @@ class PurchaseOrderTest extends TestCase
             'name' => $name,
             'is_supplier' => true,
             'is_customer' => false,
-            'is_active' => true,
         ]);
     }
 
@@ -42,7 +41,6 @@ class PurchaseOrderTest extends TestCase
             'name' => $name,
             'purchase_price' => $purchasePrice,
             'selling_price' => $purchasePrice * 1.5,
-            'is_active' => true,
         ]);
     }
 
@@ -288,18 +286,18 @@ class PurchaseOrderTest extends TestCase
             ->assertJsonValidationErrors(['supplier_id']);
     }
 
-    public function test_purchase_order_rejects_inactive_supplier_and_inactive_product(): void
+    public function test_purchase_order_rejects_soft_deleted_supplier_and_soft_deleted_product(): void
     {
         $this->actingUser();
-        $inactiveSupplier = $this->createSupplier('مورد موقوف');
-        $inactiveSupplier->update(['is_active' => false]);
+        $deletedSupplier = $this->createSupplier('مورد محذوف');
+        $deletedSupplier->delete();
         $activeSupplier = $this->createSupplier();
         $product = $this->createProduct();
-        $inactiveProduct = $this->createProduct('كتاب موقوف');
-        $inactiveProduct->update(['is_active' => false]);
+        $deletedProduct = $this->createProduct('كتاب محذوف');
+        $deletedProduct->delete();
 
         $this->postJson('/api/purchase-orders', [
-            'supplier_id' => $inactiveSupplier->id,
+            'supplier_id' => $deletedSupplier->id,
             'order_date' => now()->toDateString(),
             'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50]],
         ])->assertUnprocessable()->assertJsonValidationErrors(['supplier_id']);
@@ -307,13 +305,13 @@ class PurchaseOrderTest extends TestCase
         $this->postJson('/api/purchase-orders', [
             'supplier_id' => $activeSupplier->id,
             'order_date' => now()->toDateString(),
-            'items' => [['product_id' => $inactiveProduct->id, 'quantity' => 1, 'unit_price' => 50]],
+            'items' => [['product_id' => $deletedProduct->id, 'quantity' => 1, 'unit_price' => 50]],
         ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.product_id']);
 
         $this->assertSame(0, PurchaseOrder::query()->count());
     }
 
-    public function test_cannot_confirm_order_when_supplier_became_inactive(): void
+    public function test_cannot_confirm_order_when_supplier_loses_supplier_role(): void
     {
         $this->actingUser();
         $supplier = $this->createSupplier();
@@ -325,7 +323,7 @@ class PurchaseOrderTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50]],
         ])->assertCreated()->json('data.id');
 
-        $supplier->update(['is_active' => false]);
+        $supplier->update(['is_supplier' => false]);
 
         $this->postJson("/api/purchase-orders/{$orderId}/confirm")
             ->assertUnprocessable()

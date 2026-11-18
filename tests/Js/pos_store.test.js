@@ -63,8 +63,7 @@ describe('POS Store Hardening & Safety Tests', () => {
     name: 'Book A',
     barcode: '123456789',
     selling_price: 50,
-    stock_quantity: 10,
-    is_active: true
+    stock_quantity: 10
   };
 
   const sampleProduct2 = {
@@ -72,8 +71,7 @@ describe('POS Store Hardening & Safety Tests', () => {
     name: 'Book B',
     barcode: '987654321',
     selling_price: 30,
-    stock_quantity: 15,
-    is_active: true
+    stock_quantity: 15
   };
 
   beforeEach(() => {

@@ -53,11 +53,10 @@ class StockMovementTest extends TestCase
             'name' => 'فرع الإسكندرية',
             'address' => 'الإسكندرية',
             'is_default' => false,
-            'is_active' => true,
         ]);
 
-        $this->product = Product::factory()->create(['name' => 'كتاب الفقه الإسلامي', 'is_active' => true]);
-        $this->secondProduct = Product::factory()->create(['name' => 'تاريخ الأدب العربي', 'is_active' => true]);
+        $this->product = Product::factory()->create(['name' => 'كتاب الفقه الإسلامي']);
+        $this->secondProduct = Product::factory()->create(['name' => 'تاريخ الأدب العربي']);
 
         $this->stockMovementService = app(StockMovementService::class);
         $this->workflowService = app(InventoryDocumentWorkflowService::class);
@@ -570,5 +569,86 @@ class StockMovementTest extends TestCase
         $this->assertSame($reverseQueryCounts[1], $reverseQueryCounts[10]);
         $this->assertSame($reverseQueryCounts[10], $reverseQueryCounts[50]);
         $this->assertSame($reverseQueryCounts[50], $reverseQueryCounts[100]);
+    }
+
+    public function test_observer_enforces_lifecycle_guards_and_blocks_spoofed_relations(): void
+    {
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [['product_id' => $this->product->id, 'quantity' => 5]],
+            destWhId: $this->warehouse->id
+        );
+
+        // Spoof in-memory relation without DB movements -> observer must still block POSTED update
+        $doc->setRelation('stockMovements', new \Illuminate\Database\Eloquent\Collection([new \App\Models\StockMovement()]));
+        try {
+            $doc->update(['status' => InventoryDocumentStatus::POSTED]);
+            $this->fail('Expected LogicException when relationLoaded is spoofed.');
+        } catch (LogicException) {
+            $doc->refresh();
+        }
+
+        $posted = $this->workflowService->post($doc, $this->user);
+
+        // Direct update of structural warehouse/type fields or deleting POSTED doc must throw LogicException
+        try {
+            $posted->update(['destination_warehouse_id' => $this->destinationWarehouse->id]);
+            $this->fail('Expected LogicException when altering posted document warehouse.');
+        } catch (LogicException) {
+            $posted->refresh();
+        }
+
+        try {
+            $posted->delete();
+            $this->fail('Expected LogicException when deleting posted document.');
+        } catch (LogicException) {
+            $this->assertDatabaseHas('inventory_documents', ['id' => $posted->id, 'deleted_at' => null]);
+        }
+
+        // Direct creation as POSTED is blocked by observer
+        $this->expectException(LogicException::class);
+        \App\Models\InventoryDocument::query()->create([
+            'document_number' => 'DOC-SPOOF-001',
+            'document_type' => InventoryDocumentType::GOODS_RECEIPT,
+            'destination_warehouse_id' => $this->warehouse->id,
+            'status' => InventoryDocumentStatus::POSTED,
+            'document_date' => '2026-11-18',
+            'created_by' => $this->user->id,
+        ]);
+    }
+
+    public function test_double_posting_and_double_reversal_are_blocked(): void
+    {
+        $doc = $this->createAndApproveDocument(
+            InventoryDocumentType::GOODS_RECEIPT,
+            [['product_id' => $this->product->id, 'quantity' => 10]],
+            destWhId: $this->warehouse->id
+        );
+
+        $posted = $this->workflowService->post($doc, $this->user);
+
+        // Second post attempt rejected with ValidationException
+        try {
+            $this->workflowService->post($posted->fresh(), $this->user);
+            $this->fail('Expected ValidationException on double post.');
+        } catch (\Illuminate\Validation\ValidationException) {
+            // Expected
+        }
+
+        $reversed = $this->workflowService->reverse($posted, $this->user, 'عكس أول');
+        $this->assertSame(InventoryDocumentStatus::REVERSED, $reversed->status);
+
+        try {
+            $this->workflowService->reverse($reversed->fresh(), $this->user, 'عكس ثان');
+            $this->fail('Expected ValidationException on double reversal.');
+        } catch (\Illuminate\Validation\ValidationException) {
+            // Expected
+        }
+
+        $balance = WarehouseStock::query()
+            ->where('warehouse_id', $this->warehouse->id)
+            ->where('product_id', $this->product->id)
+            ->value('quantity');
+        $this->assertSame('0.000', (string) $balance);
     }
 }

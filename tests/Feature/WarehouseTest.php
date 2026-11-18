@@ -32,7 +32,6 @@ class WarehouseTest extends TestCase
             'code' => 'MAIN',
             'name' => 'المخزن الرئيسي',
             'is_default' => true,
-            'is_active' => true,
         ]);
 
         $this->assertEquals(1, Warehouse::query()->where('is_default', true)->count());
@@ -95,22 +94,6 @@ class WarehouseTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['address']);
-    }
-
-    public function test_cannot_deactivate_the_default_warehouse(): void
-    {
-        $this->seed(WarehouseSeeder::class);
-        $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
-
-        $response = $this->putJson("/api/warehouses/{$warehouse->id}", [
-            'code' => 'MAIN',
-            'name' => 'المخزن الرئيسي',
-            'address' => 'العنوان الحالي',
-            'is_active' => false,
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['is_active']);
     }
 
     public function test_no_create_or_store_endpoint_exists_for_warehouses(): void

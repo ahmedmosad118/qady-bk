@@ -62,27 +62,22 @@ class StocktakeTest extends TestCase
             'name' => 'فرع الجيزة',
             'address' => 'شارع التحرير، الدقي',
             'is_default' => false,
-            'is_active' => true,
         ]);
 
         $this->activeProduct1 = Product::factory()->create([
             'name' => 'صحيح البخاري',
-            'is_active' => true,
         ]);
 
         $this->activeProduct2 = Product::factory()->create([
             'name' => 'رياض الصالحين',
-            'is_active' => true,
         ]);
 
         $this->inactiveProductWithStock = Product::factory()->create([
-            'name' => 'كتاب نادر غير نشط ذو رصيد',
-            'is_active' => false,
+            'name' => 'كتاب نادر ذو رصيد',
         ]);
 
         $this->inactiveProductZeroStock = Product::factory()->create([
-            'name' => 'كتاب ملغي بدون رصيد',
-            'is_active' => false,
+            'name' => 'كتاب بدون رصيد',
         ]);
 
         // Seed stock for inactive product 1
@@ -172,7 +167,7 @@ class StocktakeTest extends TestCase
         $resDuplicate->assertStatus(422);
     }
 
-    public function test_starting_full_stocktake_includes_active_and_inactive_with_stock(): void
+    public function test_starting_full_stocktake_includes_all_catalog_products(): void
     {
         $stocktake = $this->stocktakeService->createStocktake([
             'warehouse_id' => $this->warehouse->id,
@@ -188,15 +183,11 @@ class StocktakeTest extends TestCase
 
         $productIds = $started->items()->pluck('product_id')->all();
 
-        // Must include active products
+        // Must include all non-deleted catalog products regardless of current balance
         $this->assertContains($this->activeProduct1->id, $productIds);
         $this->assertContains($this->activeProduct2->id, $productIds);
-
-        // Must include inactive product with stock > 0
         $this->assertContains($this->inactiveProductWithStock->id, $productIds);
-
-        // Must NOT include inactive product with zero stock
-        $this->assertNotContains($this->inactiveProductZeroStock->id, $productIds);
+        $this->assertContains($this->inactiveProductZeroStock->id, $productIds);
     }
 
     public function test_cannot_start_two_active_stocktakes_for_same_warehouse(): void
