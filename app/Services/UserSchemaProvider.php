@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Core\CRUD\Field;
 use App\Core\CRUD\InputMaker;
+use App\Enums\UserStatus;
 use App\Models\User;
 
 class UserSchemaProvider
@@ -26,12 +27,13 @@ class UserSchemaProvider
                 Field::email('email', 'auth.email')->required()->rules('email')->col(6),
                 Field::tel('phone', 'users.phoneCol')->col(6),
                 Field::select('status', 'common.status', [
-                    ['value' => 'active', 'label' => 'common.active'],
-                    ['value' => 'inactive', 'label' => 'common.inactive'],
-                ])->default('active')->required()->col(6),
+                    ['value' => UserStatus::ACTIVE->value, 'label' => 'common.active'],
+                    ['value' => UserStatus::INACTIVE->value, 'label' => 'common.inactive'],
+                ])->default(UserStatus::ACTIVE->value)->required()->col(6),
                 Field::password('password', 'auth.password')
+                    ->required()
                     ->col(12)
-                    ->help('اتركه فارغاً عند التعديل للإبقاء على كلمة المرور الحالية.'),
+                    ->help('users.passwordEditHelp'),
             ])
             ->toSchema();
     }

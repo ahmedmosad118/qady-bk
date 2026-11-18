@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +35,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($user->status !== 'active') {
+        if (! $user->isActive()) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.inactive'),
@@ -90,7 +93,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
-            'status' => $user->status,
+            'status' => $user->status instanceof UserStatus ? $user->status->value : $user->status,
             'avatar_url' => $user->avatar_url,
             'roles' => method_exists($user, 'getRoleNames') ? $user->getRoleNames() : [],
             'permissions' => method_exists($user, 'getAllPermissions')

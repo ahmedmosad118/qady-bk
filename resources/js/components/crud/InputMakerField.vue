@@ -116,6 +116,11 @@
       />
     </div>
 
+    <!-- Help Text -->
+    <p v-if="field.help_text && !['boolean', 'switch'].includes(field.type)" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {{ formatLabel(field.help_text) }}
+    </p>
+
     <!-- Validation Error Feedback -->
     <p v-if="error" class="mt-1 text-sm font-bold text-rose-500">
       {{ error }}

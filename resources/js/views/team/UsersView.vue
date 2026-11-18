@@ -219,8 +219,8 @@
       @save="saveRecord"
     >
       <CrudForm
-        v-if="schema"
-        :schema="schema"
+        v-if="activeSchema"
+        :schema="activeSchema"
         :form-data="formData"
         :errors="formErrors"
         :related-options="{}"
@@ -339,6 +339,29 @@ const nextIcon = computed(() => (locale.value === 'ar' ? ArrowLeft : ArrowRight)
 const modalTitle = computed(
   () => `${modalMode.value === 'create' ? t('common.create') : t('common.edit')} ${t('header.member')}`
 );
+
+const activeSchema = computed(() => {
+  if (!schema.value) return null;
+
+  return {
+    ...schema.value,
+    fields: (schema.value.fields || []).map((field) => {
+      if (field.name !== 'password') return field;
+      if (modalMode.value === 'create') {
+        return {
+          ...field,
+          required: true,
+          help_text: 'users.passwordCreateHelp',
+        };
+      }
+      return {
+        ...field,
+        required: false,
+        help_text: 'users.passwordEditHelp',
+      };
+    }),
+  };
+});
 
 const loadUsers = async () => {
   loading.value = true;

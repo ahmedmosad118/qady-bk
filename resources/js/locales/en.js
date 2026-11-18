@@ -229,6 +229,8 @@ export default {
     lastLoginCol: 'Last login',
     joiningDateCol: 'Joining Date',
     multipleRolesLabel: 'Roles & Permissions',
+    passwordCreateHelp: 'Must be at least 8 characters and include letters and numbers.',
+    passwordEditHelp: 'Leave blank when editing to keep the current password.',
     toggleStatusSuccess: 'User status updated successfully',
     searchPlaceholder: 'Search by name, email or phone...',
     statusFilter: 'Status',

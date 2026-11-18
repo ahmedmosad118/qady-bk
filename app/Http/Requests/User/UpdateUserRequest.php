@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\User;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UpdateUserRequest extends FormRequest
 {
@@ -31,8 +33,8 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique(User::class, 'email')->ignore($userId),
             ],
             'phone' => ['nullable', 'string', 'max:30'],
-            'status' => ['required', 'string', Rule::in(['active', 'inactive'])],
-            'password' => ['nullable', 'string', 'min:6'],
+            'status' => ['required', 'string', Rule::enum(UserStatus::class)],
+            'password' => ['nullable', 'string', Password::min(8)->letters()->numbers()],
         ];
     }
 }

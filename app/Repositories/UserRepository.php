@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,8 +29,9 @@ class UserRepository
             });
         }
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', (string) $filters['status']);
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
+            $status = UserStatus::tryFrom((string) $filters['status']);
+            $query->where('status', $status ? $status->value : (string) $filters['status']);
         }
 
         $sortBy = in_array($filters['sort_by'] ?? null, ['name', 'email', 'status', 'created_at'], true)
@@ -52,8 +54,8 @@ class UserRepository
     {
         return [
             'total' => User::count(),
-            'active' => User::where('status', 'active')->count(),
-            'inactive' => User::where('status', 'inactive')->count(),
+            'active' => User::where('status', UserStatus::ACTIVE)->count(),
+            'inactive' => User::where('status', UserStatus::INACTIVE)->count(),
         ];
     }
 

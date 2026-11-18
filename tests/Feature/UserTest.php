@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -24,8 +25,8 @@ class UserTest extends TestCase
     public function test_can_list_users_with_pagination_stats_and_schema(): void
     {
         $this->actingUser();
-        User::factory()->count(5)->create(['status' => 'active']);
-        User::factory()->count(2)->create(['status' => 'inactive']);
+        User::factory()->count(5)->create(['status' => UserStatus::ACTIVE]);
+        User::factory()->count(2)->create(['status' => UserStatus::INACTIVE]);
 
         $response = $this->getJson('/api/users?per_page=5');
 
@@ -39,6 +40,8 @@ class UserTest extends TestCase
             ]);
 
         $this->assertCount(5, $response->json('data'));
+        $passwordField = collect($response->json('schema.fields'))->firstWhere('name', 'password');
+        $this->assertTrue((bool) ($passwordField['required'] ?? false));
     }
 
     public function test_can_filter_users_by_search_term(): void
@@ -62,7 +65,7 @@ class UserTest extends TestCase
             'name' => 'طارق كمال',
             'email' => 'tarek@example.com',
             'phone' => '01099887766',
-            'status' => 'active',
+            'status' => UserStatus::ACTIVE->value,
             'password' => 'secret123',
         ]);
 
@@ -78,19 +81,19 @@ class UserTest extends TestCase
     public function test_can_update_user(): void
     {
         $this->actingUser();
-        $user = User::factory()->create(['name' => 'قبل التعديل', 'status' => 'active']);
+        $user = User::factory()->create(['name' => 'قبل التعديل', 'status' => UserStatus::ACTIVE]);
 
         $response = $this->putJson("/api/users/{$user->id}", [
             'name' => 'بعد التعديل',
             'email' => $user->email,
-            'status' => 'inactive',
+            'status' => UserStatus::INACTIVE->value,
         ]);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.name', 'بعد التعديل');
 
-        $this->assertSame('inactive', $user->fresh()->status);
+        $this->assertSame(UserStatus::INACTIVE, $user->fresh()->status);
     }
 
     public function test_authenticated_user_cannot_delete_their_own_account(): void

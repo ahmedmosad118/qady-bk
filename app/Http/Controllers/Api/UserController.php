@@ -91,7 +91,7 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
-        $updated = $this->userService->update($user, $request->validated());
+        $updated = $this->userService->update($user, $request->validated(), $request->user());
 
         return response()->json([
             'success' => true,

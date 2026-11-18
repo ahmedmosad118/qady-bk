@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -29,7 +32,16 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'status' => UserStatus::class,
         ];
+    }
+
+    /**
+     * Determine whether the user account is active.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === UserStatus::ACTIVE;
     }
 
     public function getAvatarUrlAttribute(): string

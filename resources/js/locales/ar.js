@@ -229,6 +229,8 @@ export default {
     lastLoginCol: 'آخر دخول',
     joiningDateCol: 'تاريخ الانضمام',
     multipleRolesLabel: 'الأدوار والصلاحيات',
+    passwordCreateHelp: 'يجب ألا تقل عن 8 أحرف وتحتوي على حروف وأرقام.',
+    passwordEditHelp: 'اتركه فارغاً عند التعديل للإبقاء على كلمة المرور الحالية.',
     toggleStatusSuccess: 'تم تعديل حالة المستخدم بنجاح',
     searchPlaceholder: 'بحث بالاسم أو البريد الإلكتروني أو الهاتف...',
     statusFilter: 'الحالة',
