@@ -15,6 +15,13 @@ return [
         'publication_year_range' => 'The publication year must be between 1000 and 2100.',
     ],
 
+    'barcode_print' => [
+        'items_required' => 'Select at least one product to print.',
+        'items_max' => 'You cannot print more than 200 products at once.',
+        'product_missing' => 'One of the selected products does not exist.',
+        'copies_range' => 'Copies must be between 1 and 500.',
+    ],
+
     'parent_must_be_top_level' => 'The parent category must be a top-level category.',
     'parent_invalid' => 'A category cannot be its own parent.',
     'delete_has_children' => 'Cannot delete a category that still has subcategories.',

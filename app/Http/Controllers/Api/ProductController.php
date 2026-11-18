@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Product\PrintBarcodeLabelsRequest;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Models\Product;
 use App\Repositories\ProductRepository;
+use App\Services\Product\ProductBarcodeLabelService;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,7 @@ class ProductController extends Controller
     public function __construct(
         protected ProductRepository $productRepository,
         protected ProductService $productService,
+        protected ProductBarcodeLabelService $barcodeLabelService,
     ) {}
 
     /**
@@ -27,6 +30,7 @@ class ProductController extends Controller
     {
         $filters = [
             'search' => $request->input('search'),
+            'ids' => $request->filled('ids') ? explode(',', (string) $request->input('ids')) : null,
             'category_id' => $request->input('category_id'),
             'is_active' => $request->input('is_active'),
             'sort_by' => $request->input('sort_by'),
@@ -69,6 +73,22 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'data' => $product,
+        ]);
+    }
+
+    /**
+     * Prepare barcode labels, generating and saving missing barcodes.
+     */
+    public function barcodeLabels(PrintBarcodeLabelsRequest $request): JsonResponse
+    {
+        $labels = $this->barcodeLabelService->prepare($request->validated('items'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $labels,
+            'meta' => [
+                'generated' => count(array_filter($labels, fn (array $l) => $l['barcode_generated'])),
+            ],
         ]);
     }
 

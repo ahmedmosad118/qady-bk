@@ -49,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Books (products) and their categories.
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'store']);
+    Route::post('/products/barcode-labels', [ProductController::class, 'barcodeLabels']);
     Route::get('/products/lookup-barcode/{barcode}', [ProductController::class, 'lookupBarcode']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::put('/products/{product}', [ProductController::class, 'update']);

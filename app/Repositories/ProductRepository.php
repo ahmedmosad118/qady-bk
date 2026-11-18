@@ -21,6 +21,11 @@ class ProductRepository
             ->with('category:id,name,parent_id')
             ->withSum('warehouseStocks', 'quantity');
 
+        if (!empty($filters['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', (array) $filters['ids'])));
+            $query->whereIn('id', array_slice($ids, 0, 200));
+        }
+
         if (!empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function (Builder $q) use ($search) {

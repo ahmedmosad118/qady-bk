@@ -95,6 +95,14 @@
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3.5 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
+            @click="printSelectedBarcodes"
+          >
+            <Printer class="h-4 w-4" aria-hidden="true" />
+            {{ $t('products.printBarcodes') }}
+          </button>
+          <button
+            type="button"
             class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--crimson)] px-3.5 text-sm font-bold text-white transition-colors hover:bg-[var(--crimson-hover)]"
             @click="deleteSelected"
           >
@@ -360,6 +368,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import {
   AlertCircle,
   ArrowLeft,
@@ -368,6 +377,7 @@ import {
   ChevronDown,
   Pencil,
   Plus,
+  Printer,
   RotateCw,
   SearchX,
   Trash2,
@@ -384,6 +394,7 @@ import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
 
 const { t, locale } = useI18n();
+const router = useRouter();
 const notificationStore = useNotificationStore();
 
 const schema = {
@@ -662,6 +673,10 @@ const deleteProduct = async (product) => {
   } catch (err) {
     notificationStore.error(err.response?.data?.message || t('common.errorTitle'), t('common.errorTitle'));
   }
+};
+
+const printSelectedBarcodes = () => {
+  router.push({ name: 'products.barcodes', query: { ids: selectedIds.value.slice(0, 100).join(',') } });
 };
 
 const deleteSelected = async () => {

@@ -8,6 +8,7 @@ import LoginView from '../views/auth/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 import UsersView from '../views/team/UsersView.vue';
 import ProductsView from '../views/catalog/ProductsView.vue';
+import BarcodePrintView from '../views/catalog/BarcodePrintView.vue';
 import ProductCategoriesView from '../views/catalog/ProductCategoriesView.vue';
 import ContactsView from '../views/sales/ContactsView.vue';
 import InventoryDocumentsView from '../views/inventory/InventoryDocumentsView.vue';
@@ -70,6 +71,11 @@ const routes = [
         path: 'products',
         name: 'products',
         component: ProductsView,
+      },
+      {
+        path: 'products/barcodes',
+        name: 'products.barcodes',
+        component: BarcodePrintView,
       },
       {
         path: 'product-categories',

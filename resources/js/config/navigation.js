@@ -64,6 +64,7 @@ export const navigation = [
         items: [
           { label: 'nav.products', to: '/products' },
           { label: 'nav.productCategories', to: '/product-categories' },
+          { label: 'nav.barcodePrint', to: '/products/barcodes' },
         ],
       },
     ],
