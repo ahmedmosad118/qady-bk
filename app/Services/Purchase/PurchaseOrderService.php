@@ -20,6 +20,7 @@ class PurchaseOrderService
         protected PurchaseDocumentNumberService $numberService,
         protected PurchaseDocumentCalculator $calculator,
         protected PurchaseSupplierResolver $supplierResolver,
+        protected PurchaseLineWriter $lineWriter,
     ) {}
 
     /**
@@ -95,9 +96,7 @@ class PurchaseOrderService
 
             $this->numberService->assignOrderNumber($order);
 
-            foreach ($calc['items'] as $itemRow) {
-                $order->items()->create($itemRow);
-            }
+            $this->lineWriter->insertOrderItems($order, $calc['items']);
 
             return $this->repository->findWithRelations($order->id);
         });
@@ -147,9 +146,7 @@ class PurchaseOrderService
 
             // Replace line items
             $lockedOrder->items()->delete();
-            foreach ($calc['items'] as $itemRow) {
-                $lockedOrder->items()->create($itemRow);
-            }
+            $this->lineWriter->insertOrderItems($lockedOrder, $calc['items']);
 
             return $this->repository->findWithRelations($lockedOrder->id);
         });
@@ -209,7 +206,7 @@ class PurchaseOrderService
             $this->supplierResolver->assertUsable($lockedOrder->supplier);
 
             // Mark converted atomically
-            $lockedOrder->status = PurchaseOrderStatus::CONVERTED;
+            $lockedOrder->status       = PurchaseOrderStatus::CONVERTED;
             $lockedOrder->confirmed_at = Carbon::now();
             $lockedOrder->confirmed_by = $user->id;
             $lockedOrder->save();

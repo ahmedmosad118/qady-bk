@@ -35,7 +35,7 @@ class UpdatePurchaseSettingRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'expenses_treatment' => 'purchase expenses treatment',
+            'expenses_treatment' => (string) __('purchases.attributes.expenses_treatment'),
         ];
     }
 }

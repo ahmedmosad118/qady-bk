@@ -60,7 +60,7 @@ class StockMovementService
             // 1. Validate status
             if ($lockedDocument->status !== InventoryDocumentStatus::APPROVED) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن ترحيل المستند وهو في حالة '{$lockedDocument->status->value}'. يجب أن يكون معتمداً أولاً."],
+                    'status' => [(string) __('inventory.errors.cannot_post_status', ['status' => $lockedDocument->status->value])],
                 ]);
             }
 
@@ -68,13 +68,13 @@ class StockMovementService
             $items = $lockedDocument->items()->with('product')->get();
             if ($items->isEmpty()) {
                 throw ValidationException::withMessages([
-                    'items' => ['المستند لا يحتوي على أية بنود أو أصناف للترحيل.'],
+                    'items' => [(string) __('inventory.errors.post_no_items')],
                 ]);
             }
 
             // 3. Prevent duplicate posting / idempotency under document row lock
             if ($lockedDocument->stockMovements()->whereNull('reversal_of_id')->exists()) {
-                throw new LogicException("المستند {$lockedDocument->document_number} تم ترحيله مسبقاً وسجل حركاته موجود بالفعل.");
+                throw new LogicException((string) __('inventory.errors.already_posted', ['number' => $lockedDocument->document_number]));
             }
 
             // 4. Validate warehouses exist
@@ -124,7 +124,7 @@ class StockMovementService
     {
         if (! $document->referenceable_id) {
             throw ValidationException::withMessages([
-                'referenceable_id' => ['Goods receipt is not linked to a valid purchase invoice.'],
+                'referenceable_id' => [(string) __('inventory.errors.gr_invoice_not_linked')],
             ]);
         }
 
@@ -136,13 +136,13 @@ class StockMovementService
 
         if (! $invoice) {
             throw ValidationException::withMessages([
-                'referenceable_id' => ['Linked purchase invoice could not be found.'],
+                'referenceable_id' => [(string) __('inventory.errors.gr_invoice_not_found')],
             ]);
         }
 
         if ($invoice->status === PurchaseInvoiceStatus::CANCELLED) {
             throw ValidationException::withMessages([
-                'status' => ['Cannot post a goods receipt for a cancelled purchase invoice.'],
+                'status' => [(string) __('inventory.errors.gr_post_cancelled_invoice')],
             ]);
         }
 
@@ -166,14 +166,14 @@ class StockMovementService
 
         if (count($invoiceQtyByProduct) !== count($docQtyByProduct)) {
             throw ValidationException::withMessages([
-                'items' => ['Partial goods receipt is not supported; all purchase invoice items and quantities must be received together.'],
+                'items' => [(string) __('inventory.errors.gr_partial_items')],
             ]);
         }
 
         foreach ($invoiceQtyByProduct as $productId => $expectedQty) {
             if (! isset($docQtyByProduct[$productId]) || Decimal::comp($docQtyByProduct[$productId], $expectedQty, Decimal::QUANTITY_SCALE) !== 0) {
                 throw ValidationException::withMessages([
-                    'items' => ['Partial goods receipt is not supported; goods receipt quantities must match purchase invoice quantities.'],
+                    'items' => [(string) __('inventory.errors.gr_partial_quantities')],
                 ]);
             }
         }
@@ -199,7 +199,7 @@ class StockMovementService
 
             if ($lockedDocument->status !== InventoryDocumentStatus::POSTED) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن عكس المستند وهو في حالة '{$lockedDocument->status->value}'. يمكن عكس المستندات المرحّلة فقط."],
+                    'status' => [(string) __('inventory.errors.cannot_reverse_status', ['status' => $lockedDocument->status->value])],
                 ]);
             }
 
@@ -212,7 +212,7 @@ class StockMovementService
 
             if ($originalMovements->isEmpty()) {
                 throw ValidationException::withMessages([
-                    'movements' => ['لم يتم العثور على أية حركات مخزنية أصلية لعكس هذا المستند.'],
+                    'movements' => [(string) __('inventory.errors.reverse_no_movements')],
                 ]);
             }
 
@@ -223,7 +223,7 @@ class StockMovementService
                 ->exists();
 
             if ($alreadyReversed) {
-                throw new LogicException("لا يمكن عكس المستند أكثر من مرة؛ بعض أو كل حركاته تم عكسها سابقاً.");
+                throw new LogicException((string) __('inventory.errors.already_reversed'));
             }
 
             $today = Carbon::now()->toDateString();
@@ -339,7 +339,10 @@ class StockMovementService
 
                 throw ValidationException::withMessages([
                     'stocktake_locked' => [
-                        "المنتج '{$prod?->name}' في المخزن '{$wh?->name}' قيد الجرد حاليًا (جاري العد) ولا يمكن تنفيذ حركات مخزنية عليه حتى اكتمال العد."
+                        (string) __('inventory.errors.stocktake_locked', [
+                            'product' => (string) $prod?->name,
+                            'warehouse' => (string) $wh?->name,
+                        ]),
                     ],
                 ]);
             }
@@ -381,10 +384,13 @@ class StockMovementService
 
                 throw ValidationException::withMessages([
                     'stock' => [
-                        "الرصيد غير كافٍ للمنتج '{$prod?->name}' في المخزن '{$wh?->name}'. " .
-                        "الرصيد الحالي: {$currentQty}، " .
-                        "الكمية المطلوبة صرفها: {$requestedOutbound}، " .
-                        "مقدار العجز: {$shortage}."
+                        (string) __('inventory.errors.insufficient_stock', [
+                            'product' => (string) $prod?->name,
+                            'warehouse' => (string) $wh?->name,
+                            'current' => $currentQty,
+                            'requested' => $requestedOutbound,
+                            'shortage' => $shortage,
+                        ]),
                     ],
                 ]);
             }
@@ -466,7 +472,7 @@ class StockMovementService
             $sourceWh = Warehouse::query()->find($document->source_warehouse_id);
             if (! $sourceWh) {
                 throw ValidationException::withMessages([
-                    'source_warehouse_id' => ['المخزن المصدر المحدد غير موجود.'],
+                    'source_warehouse_id' => [(string) __('inventory.errors.source_warehouse_missing')],
                 ]);
             }
         }
@@ -475,7 +481,7 @@ class StockMovementService
             $destWh = Warehouse::query()->find($document->destination_warehouse_id);
             if (! $destWh) {
                 throw ValidationException::withMessages([
-                    'destination_warehouse_id' => ['المخزن المستهدف المحدد غير موجود.'],
+                    'destination_warehouse_id' => [(string) __('inventory.errors.destination_warehouse_missing')],
                 ]);
             }
         }
@@ -498,7 +504,7 @@ class StockMovementService
 
             if (! Decimal::isPositive($qty, Decimal::QUANTITY_SCALE)) {
                 throw ValidationException::withMessages([
-                    'items' => ["الكمية للصنف '{$item->product?->name}' يجب أن تكون أكبر من الصفر."],
+                    'items' => [(string) __('inventory.errors.item_quantity_positive', ['name' => (string) $item->product?->name])],
                 ]);
             }
 
@@ -522,7 +528,7 @@ class StockMovementService
                 case InventoryDocumentType::WAREHOUSE_TRANSFER:
                     if ($document->source_warehouse_id === $document->destination_warehouse_id) {
                         throw ValidationException::withMessages([
-                            'destination_warehouse_id' => ['لا يمكن التحويل لنفس المخزن المصدر.'],
+                            'destination_warehouse_id' => [(string) __('inventory.errors.transfer_warehouses_must_differ')],
                         ]);
                     }
 
@@ -586,7 +592,7 @@ class StockMovementService
     ): array {
         if ($warehouseId <= 0) {
             throw ValidationException::withMessages([
-                'warehouse' => ["لم يتم تحديد المخزن المطلوب للحركة المخزنية في المستند {$document->document_number}."],
+                'warehouse' => [(string) __('inventory.errors.movement_warehouse_unspecified', ['number' => $document->document_number])],
             ]);
         }
 

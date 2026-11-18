@@ -124,7 +124,7 @@ class InventoryDocumentWorkflowService
                 $invoice = PurchaseInvoice::query()->find($locked->referenceable_id);
                 if ($invoice && $invoice->status !== PurchaseInvoiceStatus::CANCELLED) {
                     throw ValidationException::withMessages([
-                        'referenceable' => ['Cannot cancel a goods receipt linked to a purchase invoice directly; cancel the purchase invoice instead.'],
+                        'referenceable' => [(string) __('inventory.errors.gr_cancel_linked')],
                     ]);
                 }
             }
@@ -157,7 +157,7 @@ class InventoryDocumentWorkflowService
             if (in_array($locked->status, [InventoryDocumentStatus::POSTED, InventoryDocumentStatus::REVERSED], true)
                 || $locked->stockMovements()->exists()) {
                 throw ValidationException::withMessages([
-                    'status' => ['Cannot cancel a purchase invoice after its linked goods receipt is posted.'],
+                    'status' => [(string) __('purchases.errors.invoice_cancel_posted')],
                 ]);
             }
 

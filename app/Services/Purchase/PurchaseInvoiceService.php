@@ -36,6 +36,7 @@ class PurchaseInvoiceService
         protected InventoryDocumentWorkflowService $inventoryDocumentWorkflowService,
         protected PurchaseDocumentCalculator $calculator,
         protected PurchaseSupplierResolver $supplierResolver,
+        protected PurchaseLineWriter $lineWriter,
     ) {}
 
     /**
@@ -119,15 +120,10 @@ class PurchaseInvoiceService
 
             $this->numberService->assignInvoiceNumber($invoice);
 
-            foreach ($calc['items'] as $itemRow) {
-                $invoice->items()->create($itemRow);
-            }
+            $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
+            $this->lineWriter->insertInvoiceExpenses($invoice, $calc['expenses']);
 
-            foreach ($calc['expenses'] as $expenseRow) {
-                $invoice->expenses()->create($expenseRow);
-            }
-
-            $this->createLinkedGoodsReceipt($invoice, $defaultWarehouse, $user);
+            $this->createLinkedGoodsReceipt($invoice, $defaultWarehouse, $user, $calc['items']);
 
             return $this->repository->findWithRelations($invoice->id);
         });
@@ -211,36 +207,33 @@ class PurchaseInvoiceService
             }
 
             $lockedInvoice->update([
-                'supplier_id' => $supplier->id,
-                'invoice_date' => $invoiceDate->toDateString(),
-                'due_date' => $dueDate->toDateString(),
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
+                'supplier_id'               => $supplier->id,
+                'invoice_date'              => $invoiceDate->toDateString(),
+                'due_date'                  => $dueDate->toDateString(),
+                'subtotal'                  => $calc['subtotal'],
+                'discount_type'             => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                'discount_value'            => $calc['discount_value'],
+                'discount_amount'           => $calc['discount_amount'],
                 'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total' => $calc['total'],
-                'notes' => $data['notes'] ?? null,
+                'total'                     => $calc['total'],
+                'notes'                     => $data['notes'] ?? null,
             ]);
 
             $lockedInvoice->items()->delete();
-            foreach ($calc['items'] as $itemRow) {
-                $lockedInvoice->items()->create($itemRow);
-            }
+            $this->lineWriter->insertInvoiceItems($lockedInvoice, $calc['items']);
 
             $lockedInvoice->expenses()->delete();
-            foreach ($calc['expenses'] as $expenseRow) {
-                $lockedInvoice->expenses()->create($expenseRow);
-            }
+            $this->lineWriter->insertInvoiceExpenses($lockedInvoice, $calc['expenses']);
 
             if ($linkedGr) {
                 $this->inventoryDocumentService->syncForPurchaseInvoice(
                     $linkedGr,
                     $lockedInvoice,
-                    $defaultWarehouse->id
+                    $defaultWarehouse->id,
+                    $this->goodsReceiptItems($calc['items'])
                 );
             } else {
-                $this->createLinkedGoodsReceipt($lockedInvoice, $defaultWarehouse, $user);
+                $this->createLinkedGoodsReceipt($lockedInvoice, $defaultWarehouse, $user, $calc['items']);
             }
 
             return $this->repository->findWithRelations($lockedInvoice->id);
@@ -402,15 +395,28 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Create the automatic Draft Goods Receipt linked to a Purchase Invoice.
+     * Goods receipt lines built from the already-calculated invoice lines (no re-read from the DB).
+     *
+     * @param array<int, array<string, mixed>> $calcItems
+     * @return array<int, array{product_id: int, quantity: string, notes: null}>
      */
-    protected function createLinkedGoodsReceipt(PurchaseInvoice $invoice, Warehouse $warehouse, User $user): InventoryDocument
+    protected function goodsReceiptItems(array $calcItems): array
     {
-        $itemsPayload = $invoice->items()->get()->map(fn ($item): array => [
-            'product_id' => $item->product_id,
-            'quantity' => $item->quantity,
+        return array_map(static fn (array $item): array => [
+            'product_id' => (int) $item['product_id'],
+            'quantity' => (string) $item['quantity'],
             'notes' => null,
-        ])->all();
+        ], array_values($calcItems));
+    }
+
+    /**
+     * Create the automatic Draft Goods Receipt linked to a Purchase Invoice.
+     *
+     * @param array<int, array<string, mixed>> $calcItems
+     */
+    protected function createLinkedGoodsReceipt(PurchaseInvoice $invoice, Warehouse $warehouse, User $user, array $calcItems): InventoryDocument
+    {
+        $itemsPayload = $this->goodsReceiptItems($calcItems);
 
         return $this->inventoryDocumentService->create([
             'document_type'            => InventoryDocumentType::GOODS_RECEIPT->value,

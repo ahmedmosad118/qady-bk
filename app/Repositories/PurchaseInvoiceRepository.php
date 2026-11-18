@@ -43,19 +43,19 @@ class PurchaseInvoiceRepository
         }
 
         if (! empty($filters['invoice_date_from'])) {
-            $query->whereDate('invoice_date', '>=', (string) $filters['invoice_date_from']);
+            $query->where('invoice_date', '>=', (string) $filters['invoice_date_from']);
         }
 
         if (! empty($filters['invoice_date_to'])) {
-            $query->whereDate('invoice_date', '<=', (string) $filters['invoice_date_to']);
+            $query->where('invoice_date', '<=', (string) $filters['invoice_date_to']);
         }
 
         if (! empty($filters['due_date_from'])) {
-            $query->whereDate('due_date', '>=', (string) $filters['due_date_from']);
+            $query->where('due_date', '>=', (string) $filters['due_date_from']);
         }
 
         if (! empty($filters['due_date_to'])) {
-            $query->whereDate('due_date', '<=', (string) $filters['due_date_to']);
+            $query->where('due_date', '<=', (string) $filters['due_date_to']);
         }
 
         $sortBy = $filters['sort_by'] ?? 'id';

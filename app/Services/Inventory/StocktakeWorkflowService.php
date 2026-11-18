@@ -45,7 +45,7 @@ class StocktakeWorkflowService
 
             if (! $warehouse->is_active) {
                 throw ValidationException::withMessages([
-                    'warehouse' => ["المخزن '{$warehouse->name}' غير نشط ولا يمكن بدء الجرد عليه."],
+                    'warehouse' => [(string) __('stocktakes.errors.warehouse_inactive_start', ['name' => $warehouse->name])],
                 ]);
             }
 
@@ -54,7 +54,7 @@ class StocktakeWorkflowService
 
             if ($lockedStocktake->status !== StocktakeStatus::DRAFT) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن بدء الجرد المخزني وهو في حالة '{$lockedStocktake->status->value}'. يجب أن يكون مسودة."],
+                    'status' => [(string) __('stocktakes.errors.start_status', ['status' => $lockedStocktake->status->value])],
                 ]);
             }
 
@@ -67,7 +67,7 @@ class StocktakeWorkflowService
 
             if ($otherActive) {
                 throw ValidationException::withMessages([
-                    'warehouse_id' => ['يوجد جرد مخزني نشط بالفعل لهذا المخزن لم يتم إغلاقه بعد. لا يمكن تشغيل أكثر من جرد نشط لنفس المخزن في آنٍ واحد.'],
+                    'warehouse_id' => [(string) __('stocktakes.errors.active_stocktake_exists')],
                 ]);
             }
 
@@ -93,7 +93,7 @@ class StocktakeWorkflowService
 
                 if (empty($allProductIds)) {
                     throw ValidationException::withMessages([
-                        'scope' => ['لا توجد منتجات نشطة أو أرصدة متاحة في النظام لبدء الجرد الكامل.'],
+                        'scope' => [(string) __('stocktakes.errors.scope_empty')],
                     ]);
                 }
 
@@ -120,7 +120,7 @@ class StocktakeWorkflowService
             // Validate that stocktake has items
             if ($lockedStocktake->items()->count() === 0) {
                 throw ValidationException::withMessages([
-                    'items' => ['لا يمكن بدء الجرد بدون إدراج أية منتجات في نطاق الجرد.'],
+                    'items' => [(string) __('stocktakes.errors.no_items_in_scope')],
                 ]);
             }
 
@@ -136,7 +136,7 @@ class StocktakeWorkflowService
                 'action' => 'started',
                 'previous_status' => StocktakeStatus::DRAFT->value,
                 'new_status' => StocktakeStatus::IN_PROGRESS->value,
-                'reason' => 'بدء تنفيذ الجرد وتثبيت نطاق المنتجات',
+                'reason' => (string) __('stocktakes.history.started'),
                 'user_id' => $user->id,
             ]);
 
@@ -160,14 +160,14 @@ class StocktakeWorkflowService
 
             if (! in_array($lockedStocktake->status, [StocktakeStatus::IN_PROGRESS, StocktakeStatus::REJECTED], true)) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن إرسال الجرد للاعتماد وهو في حالة '{$lockedStocktake->status->value}'."],
+                    'status' => [(string) __('stocktakes.errors.submit_status', ['status' => $lockedStocktake->status->value])],
                 ]);
             }
 
             $totalItems = $lockedStocktake->items()->count();
             if ($totalItems === 0) {
                 throw ValidationException::withMessages([
-                    'items' => ['مستند الجرد لا يحتوي على أية بنود.'],
+                    'items' => [(string) __('stocktakes.errors.no_items')],
                 ]);
             }
 
@@ -178,7 +178,7 @@ class StocktakeWorkflowService
 
             if ($uncountedCount > 0) {
                 throw ValidationException::withMessages([
-                    'items' => ["لا يمكن إرسال الجرد للاعتماد قبل تسجيل الكمية الفعلية لجميع المنتجات. متبقي {$uncountedCount} منتج لم يكتمل عده."],
+                    'items' => [(string) __('stocktakes.errors.uncounted_remaining', ['count' => $uncountedCount])],
                 ]);
             }
 
@@ -189,7 +189,7 @@ class StocktakeWorkflowService
 
             if ($nullCount > 0) {
                 throw ValidationException::withMessages([
-                    'items' => ['توجد منتجات لم يتم حفظ كميتها الفعلية.'],
+                    'items' => [(string) __('stocktakes.errors.unsaved_counts')],
                 ]);
             }
 
@@ -207,7 +207,7 @@ class StocktakeWorkflowService
                 'action' => 'submitted',
                 'previous_status' => $previousStatus,
                 'new_status' => StocktakeStatus::PENDING_APPROVAL->value,
-                'reason' => 'إرسال الجرد للاعتماد بعد اكتمال عد جميع الأصناف',
+                'reason' => (string) __('stocktakes.history.submitted'),
                 'user_id' => $user->id,
             ]);
 
@@ -233,7 +233,7 @@ class StocktakeWorkflowService
 
             if ($lockedStocktake->status !== StocktakeStatus::PENDING_APPROVAL) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن اعتماد الجرد وهو في حالة '{$lockedStocktake->status->value}'. يجب أن يكون قيد الاعتماد."],
+                    'status' => [(string) __('stocktakes.errors.approve_status', ['status' => $lockedStocktake->status->value])],
                 ]);
             }
 
@@ -246,7 +246,7 @@ class StocktakeWorkflowService
                 $variance = $item->getVariance();
                 if ($variance === null) {
                     throw ValidationException::withMessages([
-                        'items' => ["المنتج '{$item->product?->name}' ليس له فارق محسوب."],
+                        'items' => [(string) __('stocktakes.errors.no_variance', ['name' => (string) $item->product?->name])],
                     ]);
                 }
 
@@ -255,14 +255,14 @@ class StocktakeWorkflowService
                     $increases[] = [
                         'product_id' => $item->product_id,
                         'quantity' => (float) $variance,
-                        'notes' => "زيادة جردية للمنتج {$item->product?->name}",
+                        'notes' => (string) __('stocktakes.notes.surplus_item', ['name' => (string) $item->product?->name]),
                     ];
                 } elseif ($cmp < 0) {
                     $absVariance = bcmul($variance, '-1', 3);
                     $decreases[] = [
                         'product_id' => $item->product_id,
                         'quantity' => (float) $absVariance,
-                        'notes' => "عجز/نقص جردي للمنتج {$item->product?->name}",
+                        'notes' => (string) __('stocktakes.notes.shortage_item', ['name' => (string) $item->product?->name]),
                     ];
                 }
             }
@@ -285,7 +285,7 @@ class StocktakeWorkflowService
                     'action' => 'approved_and_completed',
                     'previous_status' => StocktakeStatus::PENDING_APPROVAL->value,
                     'new_status' => StocktakeStatus::COMPLETED->value,
-                    'reason' => 'اعتماد الجرد واكتماله فوراً لعدم وجود أية فروقات مخزنية',
+                    'reason' => (string) __('stocktakes.history.approved_completed'),
                     'user_id' => $user->id,
                 ]);
 
@@ -303,7 +303,7 @@ class StocktakeWorkflowService
                     'adjustment_direction' => StockAdjustmentDirection::INCREASE->value,
                     'referenceable_type' => 'stocktake',
                     'referenceable_id' => $lockedStocktake->id,
-                    'notes' => "تسوية زيادة ناتجة عن الجرد المخزني رقم {$lockedStocktake->stocktake_number}",
+                    'notes' => (string) __('stocktakes.notes.surplus_document', ['number' => $lockedStocktake->stocktake_number]),
                     'items' => $increases,
                 ], $user);
             }
@@ -318,7 +318,7 @@ class StocktakeWorkflowService
                     'adjustment_direction' => StockAdjustmentDirection::DECREASE->value,
                     'referenceable_type' => 'stocktake',
                     'referenceable_id' => $lockedStocktake->id,
-                    'notes' => "تسوية عجز/نقص ناتجة عن الجرد المخزني رقم {$lockedStocktake->stocktake_number}",
+                    'notes' => (string) __('stocktakes.notes.shortage_document', ['number' => $lockedStocktake->stocktake_number]),
                     'items' => $decreases,
                 ], $user);
             }
@@ -335,7 +335,7 @@ class StocktakeWorkflowService
                 'action' => 'approved',
                 'previous_status' => StocktakeStatus::PENDING_APPROVAL->value,
                 'new_status' => StocktakeStatus::APPROVED->value,
-                'reason' => 'اعتماد نتائج الجرد وتوليد مسودات التسوية المخزنية بانتظار ترحيلها',
+                'reason' => (string) __('stocktakes.history.approved'),
                 'user_id' => $user->id,
             ]);
 
@@ -352,7 +352,7 @@ class StocktakeWorkflowService
         $trimmedReason = trim($reason);
         if ($trimmedReason === '') {
             throw ValidationException::withMessages([
-                'rejection_reason' => ['سبب رفض الجرد إجباري.'],
+                'rejection_reason' => [(string) __('stocktakes.errors.reject_reason_required')],
             ]);
         }
 
@@ -364,7 +364,7 @@ class StocktakeWorkflowService
 
             if ($lockedStocktake->status !== StocktakeStatus::PENDING_APPROVAL) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن رفض الجرد وهو في حالة '{$lockedStocktake->status->value}'."],
+                    'status' => [(string) __('stocktakes.errors.reject_status', ['status' => $lockedStocktake->status->value])],
                 ]);
             }
 
@@ -410,7 +410,7 @@ class StocktakeWorkflowService
                 StocktakeStatus::REJECTED,
             ], true)) {
                 throw ValidationException::withMessages([
-                    'status' => ["لا يمكن إلغاء الجرد المخزني وهو في حالة '{$lockedStocktake->status->value}'."],
+                    'status' => [(string) __('stocktakes.errors.cancel_status', ['status' => $lockedStocktake->status->value])],
                 ]);
             }
 
@@ -442,7 +442,7 @@ class StocktakeWorkflowService
                 'action' => 'cancelled',
                 'previous_status' => $previousStatus,
                 'new_status' => StocktakeStatus::CANCELLED->value,
-                'reason' => $reason ?? 'إلغاء مستند الجرد وتحرير أية أقفال جارية',
+                'reason' => $reason ?? (string) __('stocktakes.history.cancelled'),
                 'user_id' => $user->id,
             ]);
 
@@ -490,7 +490,7 @@ class StocktakeWorkflowService
                 'action' => 'completed',
                 'previous_status' => StocktakeStatus::APPROVED->value,
                 'new_status' => StocktakeStatus::COMPLETED->value,
-                'reason' => 'اكتمال ترحيل جميع مستندات التسوية المخزنية الناتجة بنجاح',
+                'reason' => (string) __('stocktakes.history.completed'),
                 'user_id' => $user->id,
             ]);
 

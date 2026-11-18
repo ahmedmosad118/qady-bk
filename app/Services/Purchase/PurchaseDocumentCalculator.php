@@ -112,18 +112,18 @@ class PurchaseDocumentCalculator
             $netLinesTotal = Decimal::add($netLinesTotal, $lineTotal);
 
             $lines[] = [
-                'product_id' => $product->id,
+                'product_id'       => $product->id,
                 'product_snapshot' => [
-                    'name' => $product->name,
-                    'barcode' => $product->barcode,
+                    'name'      => $product->name,
+                    'barcode'   => $product->barcode,
                     'unit_name' => $unitName,
                 ],
-                'quantity' => $row['quantity'],
-                'unit_price' => $row['unit_price'],
-                'discount_type' => $row['discount_type'],
-                'discount_value' => $itemDiscValue,
+                'quantity'        => $row['quantity'],
+                'unit_price'      => $row['unit_price'],
+                'discount_type'   => $row['discount_type'],
+                'discount_value'  => $itemDiscValue,
                 'discount_amount' => $itemDiscAmount,
-                'line_total' => $lineTotal,
+                'line_total'      => $lineTotal,
             ];
         }
 
@@ -144,15 +144,15 @@ class PurchaseDocumentCalculator
         }
 
         return [
-            'items' => $lines,
-            'expenses' => $expenses,
-            'subtotal' => $subtotal,
-            'items_discount_total' => $itemsDiscountTotal,
-            'net_lines_total' => $netLinesTotal,
-            'discount_value' => $docDiscValue,
-            'discount_amount' => $docDiscAmount,
+            'items'                     => $lines,
+            'expenses'                  => $expenses,
+            'subtotal'                  => $subtotal,
+            'items_discount_total'      => $itemsDiscountTotal,
+            'net_lines_total'           => $netLinesTotal,
+            'discount_value'            => $docDiscValue,
+            'discount_amount'           => $docDiscAmount,
             'additional_expenses_total' => $expensesTotal,
-            'total' => $total,
+            'total'                     => $total,
         ];
     }
 
@@ -201,13 +201,13 @@ class PurchaseDocumentCalculator
             }
 
             $consolidated[$productId] = [
-                'index' => $index,
-                'quantity' => $qty,
-                'unit_price' => $price,
-                'discount_type' => ! empty($item['discount_type']) ? (string) $item['discount_type'] : null,
+                'index'          => $index,
+                'quantity'       => $qty,
+                'unit_price'     => $price,
+                'discount_type'  => ! empty($item['discount_type']) ? (string) $item['discount_type'] : null,
                 'discount_value' => isset($item['discount_value']) && $item['discount_value'] !== ''
                     ? $item['discount_value']
-                    : null,
+                    :  null,
             ];
         }
 
@@ -243,9 +243,9 @@ class PurchaseDocumentCalculator
 
             $total = Decimal::add($total, $amount);
             $processed[] = [
-                'name' => $name,
+                'name'   => $name,
                 'amount' => $amount,
-                'notes' => $notes !== '' ? $notes : null,
+                'notes'  => $notes !== '' ? $notes : null,
             ];
         }
 

@@ -8,6 +8,7 @@ use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Models\InventoryDocument;
+use App\Models\InventoryDocumentItem;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
 use Carbon\Carbon;
@@ -37,13 +38,13 @@ class InventoryDocumentService
                 $invoice = PurchaseInvoice::query()->lockForUpdate()->find($refId);
                 if (! $invoice) {
                     throw ValidationException::withMessages([
-                        'referenceable_id' => ['Referenced purchase invoice does not exist.'],
+                        'referenceable_id' => [(string) __('inventory.errors.gr_invoice_missing')],
                     ]);
                 }
 
                 if ($invoice->status === PurchaseInvoiceStatus::CANCELLED) {
                     throw ValidationException::withMessages([
-                        'referenceable_id' => ['Cannot create a goods receipt for a cancelled purchase invoice.'],
+                        'referenceable_id' => [(string) __('inventory.errors.gr_invoice_cancelled')],
                     ]);
                 }
 
@@ -56,7 +57,7 @@ class InventoryDocumentService
 
                 if ($alreadyExists) {
                     throw ValidationException::withMessages([
-                        'referenceable_id' => ['A goods receipt is already linked to this purchase invoice.'],
+                        'referenceable_id' => [(string) __('inventory.errors.gr_already_linked')],
                     ]);
                 }
             }
@@ -96,7 +97,7 @@ class InventoryDocumentService
     {
         if ($this->isPurchaseInvoiceReference($document->referenceable_type)) {
             throw ValidationException::withMessages([
-                'referenceable' => ['Cannot update a goods receipt linked to a purchase invoice directly; update the purchase invoice instead.'],
+                'referenceable' => [(string) __('inventory.errors.gr_update_linked')],
             ]);
         }
 
@@ -137,23 +138,26 @@ class InventoryDocumentService
 
     /**
      * Synchronize a Goods Receipt document with its parent Purchase Invoice inside a transaction.
+     *
+     * @param array<int, array<string, mixed>> $itemsData Goods receipt lines (product_id, quantity, notes)
+     *                                                    built from the invoice lines the caller just calculated.
      */
-    public function syncForPurchaseInvoice(InventoryDocument $document, PurchaseInvoice $invoice, int $warehouseId): InventoryDocument
+    public function syncForPurchaseInvoice(InventoryDocument $document, PurchaseInvoice $invoice, int $warehouseId, array $itemsData): InventoryDocument
     {
-        return DB::transaction(function () use ($document, $invoice, $warehouseId): InventoryDocument {
+        return DB::transaction(function () use ($document, $invoice, $warehouseId, $itemsData): InventoryDocument {
             /** @var InventoryDocument $locked */
             $locked = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
             if (in_array($locked->status, [InventoryDocumentStatus::POSTED, InventoryDocumentStatus::REVERSED], true)
                 || $locked->stockMovements()->exists()) {
                 throw ValidationException::withMessages([
-                    'status' => ['Cannot update a purchase invoice after its linked goods receipt is posted.'],
+                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
                 ]);
             }
 
             if ($locked->status === InventoryDocumentStatus::CANCELLED) {
                 throw ValidationException::withMessages([
-                    'status' => ['Cannot synchronize a goods receipt that is already cancelled.'],
+                    'status' => [(string) __('inventory.errors.gr_sync_cancelled')],
                 ]);
             }
 
@@ -171,12 +175,6 @@ class InventoryDocumentService
                 'rejection_reason' => null,
             ]);
 
-            $itemsData = $invoice->items()->get()->map(fn ($item): array => [
-                'product_id' => $item->product_id,
-                'quantity' => $item->quantity,
-                'notes' => null,
-            ])->all();
-
             $this->syncItems($locked, $itemsData);
 
             return $locked->fresh(['items.product', 'sourceWarehouse', 'destinationWarehouse', 'creator']);
@@ -190,7 +188,7 @@ class InventoryDocumentService
     {
         if ($this->isPurchaseInvoiceReference($document->referenceable_type)) {
             throw ValidationException::withMessages([
-                'referenceable' => ['Cannot delete a goods receipt linked to a purchase invoice directly.'],
+                'referenceable' => [(string) __('inventory.errors.gr_delete_linked')],
             ]);
         }
 
@@ -218,7 +216,7 @@ class InventoryDocumentService
             if (in_array($locked->status, [InventoryDocumentStatus::POSTED, InventoryDocumentStatus::REVERSED], true)
                 || $locked->stockMovements()->exists()) {
                 throw ValidationException::withMessages([
-                    'status' => ['Cannot delete a purchase invoice after its linked goods receipt is posted.'],
+                    'status' => [(string) __('purchases.errors.invoice_delete_posted')],
                 ]);
             }
 
@@ -244,12 +242,23 @@ class InventoryDocumentService
     {
         $document->items()->delete();
 
-        foreach ($itemsData as $item) {
-            $document->items()->create([
+        if ($itemsData === []) {
+            return;
+        }
+
+        // One bulk INSERT; timestamps are filled explicitly because insert() skips Eloquent.
+        $now = Carbon::now()->toDateTimeString();
+
+        InventoryDocumentItem::query()->insert(array_map(
+            static fn (array $item): array => [
+                'inventory_document_id' => $document->id,
                 'product_id' => $item['product_id'],
                 'quantity' => $item['quantity'],
                 'notes' => $item['notes'] ?? null,
-            ]);
-        }
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            array_values($itemsData)
+        ));
     }
 }

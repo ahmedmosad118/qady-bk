@@ -509,6 +509,87 @@ class PurchaseInvoiceTest extends TestCase
         $this->assertSame(InventoryDocumentStatus::POSTED, InventoryDocument::query()->findOrFail($grId)->status);
     }
 
+    public function test_invoice_lines_are_written_with_single_bulk_inserts_and_no_line_reread(): void
+    {
+        $supplier = $this->createSupplier();
+        $products = collect(range(1, 5))->map(fn (int $i): Product => $this->createProduct("كتاب {$i}", 10.00 * $i));
+        $today = now()->toDateString();
+
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => $products->map(fn (Product $p, int $i): array => [
+                'product_id' => $p->id,
+                'quantity' => $i + 1,
+                'unit_price' => 10 * ($i + 1),
+            ])->all(),
+            'expenses' => [
+                ['name' => 'شحن', 'amount' => '5.00'],
+                ['name' => 'تحميل', 'amount' => '2.50', 'notes' => 'ملاحظة'],
+            ],
+        ];
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $response = $this->postJson('/api/purchase-invoices', $payload)->assertCreated();
+
+        $count = fn (string $needle): int => count(array_filter($queries, fn (string $sql): bool => str_contains($sql, $needle)));
+
+        $this->assertSame(1, $count('insert into "purchase_invoice_items"'));
+        $this->assertSame(1, $count('insert into "purchase_invoice_expenses"'));
+        $this->assertSame(1, $count('insert into "inventory_document_items"'));
+        // The only read of invoice lines is the final eager-load for the response (no re-read to build the receipt).
+        $this->assertSame(1, $count('from "purchase_invoice_items"'));
+
+        $invoiceId = (int) $response->json('data.id');
+        $items = \App\Models\PurchaseInvoiceItem::query()->where('purchase_invoice_id', $invoiceId)->get();
+        $this->assertCount(5, $items);
+        $this->assertSame('كتاب 1', $items->firstWhere('product_id', $products[0]->id)->product_snapshot['name']);
+        $this->assertNotNull($items->first()->created_at);
+        $this->assertNotNull($items->first()->updated_at);
+
+        $expenses = \App\Models\PurchaseInvoiceExpense::query()->where('purchase_invoice_id', $invoiceId)->orderBy('id')->get();
+        $this->assertSame(['شحن', 'تحميل'], $expenses->pluck('name')->all());
+        $this->assertSame('ملاحظة', $expenses[1]->notes);
+        $this->assertNotNull($expenses[0]->created_at);
+
+        $gr = InventoryDocument::query()->with('items')->findOrFail((int) $response->json('data.goods_receipt.id'));
+        $this->assertCount(5, $gr->items);
+        $this->assertEqualsCanonicalizing(
+            $items->map(fn ($i): string => $i->product_id . ':' . $i->quantity)->all(),
+            $gr->items->map(fn ($i): string => $i->product_id . ':' . $i->quantity)->all()
+        );
+        $this->assertNotNull($gr->items->first()->created_at);
+    }
+
+    public function test_invoice_list_date_filters_are_inclusive_on_date_columns(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        foreach (['2026-01-10', '2026-01-15', '2026-01-20'] as $date) {
+            $this->postJson('/api/purchase-invoices', [
+                'supplier_id' => $supplier->id,
+                'invoice_date' => $date,
+                'due_date' => $date,
+                'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
+            ])->assertCreated();
+        }
+
+        $this->getJson('/api/purchase-invoices?invoice_date_from=2026-01-15&invoice_date_to=2026-01-15')
+            ->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/purchase-invoices?invoice_date_from=2026-01-15')
+            ->assertOk()->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/purchase-invoices?invoice_date_to=2026-01-15')
+            ->assertOk()->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/purchase-invoices?due_date_from=2026-01-20&due_date_to=2026-01-20')
+            ->assertOk()->assertJsonPath('meta.total', 1);
+    }
+
     public function test_editing_invoice_synchronizes_draft_goods_receipt(): void
     {
         $supplier = $this->createSupplier();

@@ -6,12 +6,15 @@ namespace App\Http\Requests\Purchase;
 
 use App\Enums\DiscountType;
 use App\Models\PurchaseOrder;
+use App\Http\Requests\Purchase\Concerns\ValidatesPurchaseDiscounts;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class UpdatePurchaseOrderRequest extends FormRequest
 {
+    use ValidatesPurchaseDiscounts;
+
     public function authorize(): bool
     {
         /** @var PurchaseOrder|null $order */
@@ -55,47 +58,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v): void {
-            // Check invoice discount
-            $discType = $this->input('discount_type');
-            $discVal = $this->input('discount_value');
-            if ($discType === DiscountType::PERCENTAGE->value && $discVal !== null && (float) $discVal > 100) {
-                $v->errors()->add('discount_value', 'نسبة الخصم الإجمالي لا يمكن أن تتجاوز 100%.');
-            }
-
-            // Check item discounts
-            $items = $this->input('items', []);
-            if (is_array($items)) {
-                foreach ($items as $idx => $item) {
-                    $itemType = $item['discount_type'] ?? null;
-                    $itemVal = $item['discount_value'] ?? null;
-                    if ($itemType === DiscountType::PERCENTAGE->value && $itemVal !== null && (float) $itemVal > 100) {
-                        $v->errors()->add("items.{$idx}.discount_value", 'نسبة خصم الصنف لا يمكن أن تتجاوز 100%.');
-                    }
-                }
-            }
+            $this->validatePurchaseDiscounts($v, false);
         });
-    }
-
-    /**
-     * Custom Arabic attribute names.
-     *
-     * @return array<string, string>
-     */
-    public function attributes(): array
-    {
-        return [
-            'supplier_id' => 'المورد',
-            'order_date' => 'تاريخ الأمر',
-            'expected_delivery_date' => 'تاريخ التسليم المتوقع',
-            'notes' => 'الملاحظات',
-            'discount_type' => 'نوع الخصم',
-            'discount_value' => 'قيمة الخصم',
-            'items' => 'الأصناف',
-            'items.*.product_id' => 'الصنف',
-            'items.*.quantity' => 'الكمية',
-            'items.*.unit_price' => 'سعر الوحدة',
-            'items.*.discount_type' => 'نوع خصم الصنف',
-            'items.*.discount_value' => 'قيمة خصم الصنف',
-        ];
     }
 }

@@ -173,6 +173,42 @@ class PurchaseOrderTest extends TestCase
         $this->getJson('/api/purchase-orders/999999')->assertNotFound();
     }
 
+    public function test_order_lines_use_bulk_insert_and_date_filters_are_inclusive(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $products = [$this->createProduct('كتاب أ'), $this->createProduct('كتاب ب'), $this->createProduct('كتاب ج')];
+
+        $queries = [];
+        \Illuminate\Support\Facades\DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        foreach (['2026-03-01', '2026-03-05', '2026-03-09'] as $date) {
+            $this->postJson('/api/purchase-orders', [
+                'supplier_id' => $supplier->id,
+                'order_date' => $date,
+                'expected_delivery_date' => $date,
+                'items' => array_map(fn (Product $p): array => ['product_id' => $p->id, 'quantity' => 1, 'unit_price' => 10], $products),
+            ])->assertCreated();
+        }
+
+        $inserts = count(array_filter($queries, fn (string $sql): bool => str_contains($sql, 'insert into "purchase_order_items"')));
+        $this->assertSame(3, $inserts, 'One bulk insert per order (3 orders x 3 lines).');
+
+        $item = \App\Models\PurchaseOrderItem::query()->firstOrFail();
+        $this->assertNotNull($item->created_at);
+        $this->assertIsArray($item->product_snapshot);
+        $this->assertStringStartsWith('كتاب', $item->product_snapshot['name']);
+
+        $this->getJson('/api/purchase-orders?order_date_from=2026-03-05&order_date_to=2026-03-05')
+            ->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/purchase-orders?order_date_from=2026-03-05')
+            ->assertOk()->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/purchase-orders?delivery_date_to=2026-03-05')
+            ->assertOk()->assertJsonPath('meta.total', 2);
+    }
+
     public function test_order_list_per_page_is_capped_and_floored(): void
     {
         $user = $this->actingUser();

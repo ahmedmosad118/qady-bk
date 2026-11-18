@@ -41,19 +41,19 @@ class PurchaseOrderRepository
         }
 
         if (! empty($filters['order_date_from'])) {
-            $query->whereDate('order_date', '>=', (string) $filters['order_date_from']);
+            $query->where('order_date', '>=', (string) $filters['order_date_from']);
         }
 
         if (! empty($filters['order_date_to'])) {
-            $query->whereDate('order_date', '<=', (string) $filters['order_date_to']);
+            $query->where('order_date', '<=', (string) $filters['order_date_to']);
         }
 
         if (! empty($filters['delivery_date_from'])) {
-            $query->whereDate('expected_delivery_date', '>=', (string) $filters['delivery_date_from']);
+            $query->where('expected_delivery_date', '>=', (string) $filters['delivery_date_from']);
         }
 
         if (! empty($filters['delivery_date_to'])) {
-            $query->whereDate('expected_delivery_date', '<=', (string) $filters['delivery_date_to']);
+            $query->where('expected_delivery_date', '<=', (string) $filters['delivery_date_to']);
         }
 
         $sortBy = $filters['sort_by'] ?? 'id';

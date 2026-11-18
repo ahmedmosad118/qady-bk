@@ -39,7 +39,7 @@ class StocktakeService
             $warehouse = Warehouse::query()->findOrFail($warehouseId);
             if (! $warehouse->is_active) {
                 throw ValidationException::withMessages([
-                    'warehouse_id' => ["المخزن '{$warehouse->name}' غير نشط ولا يمكن إنشاء جرد عليه."],
+                    'warehouse_id' => [(string) __('stocktakes.errors.warehouse_inactive_create', ['name' => $warehouse->name])],
                 ]);
             }
 
@@ -63,14 +63,14 @@ class StocktakeService
                 $productIds = $data['product_ids'] ?? [];
                 if (empty($productIds)) {
                     throw ValidationException::withMessages([
-                        'product_ids' => ['يجب اختيار منتج واحد على الأقل للجرد المحدد.'],
+                        'product_ids' => [(string) __('stocktakes.errors.products_required')],
                     ]);
                 }
 
                 // Check for duplicates
                 if (count($productIds) !== count(array_unique($productIds))) {
                     throw ValidationException::withMessages([
-                        'product_ids' => ['لا يمكن تكرار الصنف داخل نفس مستند الجرد.'],
+                        'product_ids' => [(string) __('stocktakes.errors.duplicate_product')],
                     ]);
                 }
 
@@ -78,7 +78,7 @@ class StocktakeService
                 $existingCount = Product::query()->whereIn('id', $productIds)->count();
                 if ($existingCount !== count($productIds)) {
                     throw ValidationException::withMessages([
-                        'product_ids' => ['بعض المنتجات المختارة غير موجودة في النظام.'],
+                        'product_ids' => [(string) __('stocktakes.errors.products_not_found')],
                     ]);
                 }
 
@@ -102,7 +102,7 @@ class StocktakeService
                 'stocktake_item_id' => null, // null indicates document-level event
                 'action' => 'created',
                 'new_status' => StocktakeStatus::DRAFT->value,
-                'reason' => 'إنشاء مسودة الجرد',
+                'reason' => (string) __('stocktakes.history.created'),
                 'user_id' => $user->id,
             ]);
 
@@ -132,13 +132,13 @@ class StocktakeService
             // Only allow starting count if stocktake is in_progress or rejected (resubmission)
             if (! in_array($stocktake->status, [StocktakeStatus::IN_PROGRESS, StocktakeStatus::REJECTED], true)) {
                 throw ValidationException::withMessages([
-                    'item' => ["لا يمكن بدء عد البند ومستند الجرد في حالة '{$stocktake->status->value}'."],
+                    'item' => [(string) __('stocktakes.errors.start_count_status', ['status' => $stocktake->status->value])],
                 ]);
             }
 
             if ($lockedItem->count_status === StocktakeItemStatus::COUNTING) {
                 throw ValidationException::withMessages([
-                    'item' => ['هذا المنتج قيد العد حالياً بالفعل.'],
+                    'item' => [(string) __('stocktakes.errors.already_counting')],
                 ]);
             }
 
@@ -173,7 +173,7 @@ class StocktakeService
 
             if ($otherCountingExists) {
                 throw ValidationException::withMessages([
-                    'item' => ['يوجد جرد نشط آخر يقوم بعد هذا المنتج حالياً داخل نفس المخزن.'],
+                    'item' => [(string) __('stocktakes.errors.another_active_count')],
                 ]);
             }
 
@@ -193,7 +193,7 @@ class StocktakeService
                 'action' => 'start_counting',
                 'previous_status' => $previousStatus,
                 'new_status' => StocktakeItemStatus::COUNTING->value,
-                'reason' => 'بدء العد والتقاط رصيد النظام وقفل حركة المنتج مؤقتاً',
+                'reason' => (string) __('stocktakes.history.start_counting'),
                 'user_id' => $user->id,
             ]);
 
@@ -220,14 +220,14 @@ class StocktakeService
 
             if ($lockedItem->count_status !== StocktakeItemStatus::COUNTING) {
                 throw ValidationException::withMessages([
-                    'item' => ["لا يمكن تسجيل الكمية للبند وهو في حالة '{$lockedItem->count_status->value}'. يجب بدء العد أولاً."],
+                    'item' => [(string) __('stocktakes.errors.record_count_status', ['status' => $lockedItem->count_status->value])],
                 ]);
             }
 
             $qtyStr = number_format((float) $countedQuantity, 3, '.', '');
             if (bccomp($qtyStr, '0.000', 3) < 0) {
                 throw ValidationException::withMessages([
-                    'counted_quantity' => ['الكمية الفعلية لا يمكن أن تكون سالبة.'],
+                    'counted_quantity' => [(string) __('stocktakes.errors.negative_count')],
                 ]);
             }
 
@@ -250,7 +250,7 @@ class StocktakeService
                 'new_quantity' => $qtyStr,
                 'previous_status' => $previousStatus,
                 'new_status' => StocktakeItemStatus::COUNTED->value,
-                'reason' => 'تسجيل الكمية الفعلية واكتمال عد المنتج وتحرير القفل',
+                'reason' => (string) __('stocktakes.history.recorded_count'),
                 'user_id' => $user->id,
             ]);
 
@@ -270,7 +270,7 @@ class StocktakeService
         $trimmedReason = trim($reason);
         if ($trimmedReason === '') {
             throw ValidationException::withMessages([
-                'reason' => ['سبب إلغاء العد إجباري.'],
+                'reason' => [(string) __('stocktakes.errors.cancel_count_reason_required')],
             ]);
         }
 
@@ -283,7 +283,7 @@ class StocktakeService
 
             if ($lockedItem->count_status !== StocktakeItemStatus::COUNTING) {
                 throw ValidationException::withMessages([
-                    'item' => ["لا يمكن إلغاء العد للبند وهو في حالة '{$lockedItem->count_status->value}'. يمكن إلغاء العد للبنود الجاري عدها فقط."],
+                    'item' => [(string) __('stocktakes.errors.cancel_count_status', ['status' => $lockedItem->count_status->value])],
                 ]);
             }
 
@@ -322,7 +322,7 @@ class StocktakeService
         $trimmedReason = trim($reason);
         if ($trimmedReason === '') {
             throw ValidationException::withMessages([
-                'reason' => ['سبب طلب إعادة العد إجباري.'],
+                'reason' => [(string) __('stocktakes.errors.recount_reason_required')],
             ]);
         }
 
@@ -337,13 +337,13 @@ class StocktakeService
 
             if ($stocktake->status === StocktakeStatus::COMPLETED) {
                 throw ValidationException::withMessages([
-                    'item' => ['لا يمكن إعادة العد بعد اكتمال مستند الجرد المخزني.'],
+                    'item' => [(string) __('stocktakes.errors.recount_after_complete')],
                 ]);
             }
 
             if (! in_array($stocktake->status, [StocktakeStatus::IN_PROGRESS, StocktakeStatus::REJECTED], true)) {
                 throw ValidationException::withMessages([
-                    'item' => ["لا يمكن إعادة العد ومستند الجرد في حالة '{$stocktake->status->value}'."],
+                    'item' => [(string) __('stocktakes.errors.recount_status', ['status' => $stocktake->status->value])],
                 ]);
             }
 

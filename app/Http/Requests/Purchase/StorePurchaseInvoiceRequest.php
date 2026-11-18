@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Requests\Purchase;
 
 use App\Enums\DiscountType;
+use App\Http\Requests\Purchase\Concerns\ValidatesPurchaseDiscounts;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StorePurchaseInvoiceRequest extends FormRequest
 {
+    use ValidatesPurchaseDiscounts;
+
     public function authorize(): bool
     {
         return true;
@@ -85,61 +88,7 @@ class StorePurchaseInvoiceRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v): void {
-            $discType = $this->input('discount_type');
-            $discVal = $this->input('discount_value');
-
-            if ($discType === DiscountType::PERCENTAGE->value && $discVal !== null && (float) $discVal > 100) {
-                $v->errors()->add('discount_value', 'Invoice discount percentage cannot exceed 100%.');
-            }
-
-            if ($discType === null && $discVal !== null && $discVal !== '' && (float) $discVal > 0) {
-                $v->errors()->add('discount_type', 'Invoice discount type is required when discount value is provided.');
-            }
-
-            $items = $this->input('items', []);
-            if (is_array($items)) {
-                foreach ($items as $idx => $item) {
-                    if (! is_array($item)) {
-                        continue;
-                    }
-                    $itemType = $item['discount_type'] ?? null;
-                    $itemVal = $item['discount_value'] ?? null;
-
-                    if ($itemType === DiscountType::PERCENTAGE->value && $itemVal !== null && (float) $itemVal > 100) {
-                        $v->errors()->add("items.{$idx}.discount_value", 'Item discount percentage cannot exceed 100%.');
-                    }
-
-                    if ($itemType === null && $itemVal !== null && $itemVal !== '' && (float) $itemVal > 0) {
-                        $v->errors()->add("items.{$idx}.discount_type", 'Item discount type is required when discount value is provided.');
-                    }
-                }
-            }
+            $this->validatePurchaseDiscounts($v, true);
         });
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function attributes(): array
-    {
-        return [
-            'purchase_order_id' => 'purchase order',
-            'supplier_id' => 'supplier',
-            'invoice_date' => 'invoice date',
-            'due_date' => 'due date',
-            'notes' => 'notes',
-            'discount_type' => 'discount type',
-            'discount_value' => 'discount value',
-            'items' => 'items',
-            'items.*.product_id' => 'product',
-            'items.*.quantity' => 'quantity',
-            'items.*.unit_price' => 'unit price',
-            'items.*.discount_type' => 'item discount type',
-            'items.*.discount_value' => 'item discount value',
-            'expenses' => 'additional expenses',
-            'expenses.*.name' => 'expense name',
-            'expenses.*.amount' => 'expense amount',
-            'expenses.*.notes' => 'expense notes',
-        ];
     }
 }
