@@ -89,23 +89,6 @@
 
           <!-- Top Metadata Grid -->
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <!-- Invoice Number (optional/auto or manual) -->
-            <div>
-              <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
-                {{ $t('purchaseInvoices.invoiceNumber') }}
-              </label>
-              <input
-                v-model="form.invoice_number"
-                type="text"
-                dir="ltr"
-                :placeholder="$t('purchaseInvoices.invoiceNumberPlaceholder')"
-                class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-xs font-mono font-bold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70 focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson-soft)]"
-              />
-              <p v-if="errors.invoice_number" class="mt-1 text-xs text-[var(--crimson)]">
-                {{ errors.invoice_number[0] }}
-              </p>
-            </div>
-
             <!-- Supplier -->
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
@@ -537,7 +520,6 @@ const todayStr = () => new Date().toISOString().substring(0, 10);
 
 const form = reactive({
   purchase_order_id: null,
-  invoice_number: '',
   supplier_id: null,
   invoice_date: todayStr(),
   due_date: todayStr(),
@@ -743,7 +725,6 @@ function initForm() {
   if (props.invoice && props.invoice.id) {
     sourceMode.value = props.invoice.purchase_order_id ? 'purchase_order' : 'direct';
     form.purchase_order_id = props.invoice.purchase_order_id || null;
-    form.invoice_number = props.invoice.invoice_number || '';
     form.supplier_id = props.invoice.supplier_id;
     form.invoice_date = props.invoice.invoice_date ? String(props.invoice.invoice_date).substring(0, 10) : todayStr();
     form.due_date = props.invoice.due_date ? String(props.invoice.due_date).substring(0, 10) : form.invoice_date;
@@ -772,7 +753,6 @@ function initForm() {
   } else {
     sourceMode.value = 'direct';
     form.purchase_order_id = null;
-    form.invoice_number = '';
     form.supplier_id = null;
     const today = todayStr();
     form.invoice_date = today;
@@ -801,7 +781,6 @@ async function submitForm() {
   const hasInvDisc = invDiscVal > 0;
 
   const payload = {
-    invoice_number: form.invoice_number?.trim() || null,
     supplier_id: form.supplier_id,
     invoice_date: form.invoice_date,
     due_date: form.due_date || form.invoice_date,

@@ -55,7 +55,8 @@ class PurchaseOrderTest extends TestCase
 
         // Product 1: qty 2, price 100 => 200. Discount: 10% (20.00) => line total 180.00
         // Product 2: qty 4, price 50 => 200. Discount: fixed 30.00 => line total 170.00
-        // Subtotal: 180 + 170 = 350.00
+        // Subtotal (gross, before any discount): 200 + 200 = 400.00; items discounts = 50.00
+        // Net lines: 400 - 50 = 350.00
         // Order discount: 10% on 350.00 = 35.00
         // Total: 350 - 35 = 315.00
         $payload = [
@@ -88,14 +89,14 @@ class PurchaseOrderTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.status', 'draft')
-            ->assertJsonPath('data.subtotal', '350.00')
+            ->assertJsonPath('data.subtotal', '400.00')
             ->assertJsonPath('data.discount_amount', '35.00')
             ->assertJsonPath('data.total', '315.00');
 
         $this->assertDatabaseHas('purchase_orders', [
             'supplier_id' => $supplier->id,
             'status' => 'draft',
-            'subtotal' => 350.00,
+            'subtotal' => 400.00,
             'discount_amount' => 35.00,
             'total' => 315.00,
             'created_by' => $user->id,
@@ -119,6 +120,77 @@ class PurchaseOrderTest extends TestCase
             'discount_amount' => 30.00,
             'line_total' => 170.00,
         ]);
+    }
+
+    public function test_order_number_follows_id_based_format(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'order_date' => '2026-02-01',
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
+        ];
+
+        $first = $this->postJson('/api/purchase-orders', $payload)->assertCreated();
+        $second = $this->postJson('/api/purchase-orders', $payload)->assertCreated();
+
+        $this->assertSame(sprintf('PRH-ORD/2026/%06d', $first->json('data.id')), $first->json('data.order_number'));
+        $this->assertSame(sprintf('PRH-ORD/2026/%06d', $second->json('data.id')), $second->json('data.order_number'));
+        $this->assertSame(0, PurchaseOrder::query()->where('order_number', 'like', 'TMP-%')->count());
+    }
+
+    public function test_service_and_controller_messages_follow_app_locale(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
+        ];
+
+        app()->setLocale('en');
+        $orderId = $this->postJson('/api/purchase-orders', $payload)
+            ->assertCreated()
+            ->assertJsonPath('message', 'Purchase order created successfully.')
+            ->json('data.id');
+
+        $this->postJson("/api/purchase-orders/{$orderId}/confirm")->assertOk();
+        $this->postJson("/api/purchase-orders/{$orderId}/confirm")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.status.0', 'The purchase order has already been confirmed.');
+
+        app()->setLocale('ar');
+        $this->postJson("/api/purchase-orders/{$orderId}/confirm")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.status.0', 'أمر الشراء تم تأكيده مسبقاً.');
+
+        $this->getJson("/api/purchase-orders/{$orderId}")->assertOk()->assertJsonPath('data.id', $orderId);
+        $this->getJson('/api/purchase-orders/999999')->assertNotFound();
+    }
+
+    public function test_order_list_per_page_is_capped_and_floored(): void
+    {
+        $user = $this->actingUser();
+        $supplier = $this->createSupplier();
+        PurchaseOrder::factory()->count(3)->create(['supplier_id' => $supplier->id, 'created_by' => $user->id]);
+
+        $this->getJson('/api/purchase-orders?per_page=100000')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
+
+        $this->getJson('/api/purchase-orders?per_page=0')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        $this->getJson('/api/purchase-orders?per_page=2')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonCount(2, 'data');
     }
 
     public function test_duplicate_products_in_order_are_consolidated(): void
@@ -178,6 +250,52 @@ class PurchaseOrderTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['supplier_id']);
+    }
+
+    public function test_purchase_order_rejects_inactive_supplier_and_inactive_product(): void
+    {
+        $this->actingUser();
+        $inactiveSupplier = $this->createSupplier('مورد موقوف');
+        $inactiveSupplier->update(['is_active' => false]);
+        $activeSupplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $inactiveProduct = $this->createProduct('كتاب موقوف');
+        $inactiveProduct->update(['is_active' => false]);
+
+        $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $inactiveSupplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['supplier_id']);
+
+        $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $activeSupplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['product_id' => $inactiveProduct->id, 'quantity' => 1, 'unit_price' => 50]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.product_id']);
+
+        $this->assertSame(0, PurchaseOrder::query()->count());
+    }
+
+    public function test_cannot_confirm_order_when_supplier_became_inactive(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        $orderId = $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50]],
+        ])->assertCreated()->json('data.id');
+
+        $supplier->update(['is_active' => false]);
+
+        $this->postJson("/api/purchase-orders/{$orderId}/confirm")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['supplier_id']);
+
+        $this->assertSame('draft', PurchaseOrder::findOrFail($orderId)->status->value);
     }
 
     public function test_can_update_a_draft_purchase_order(): void

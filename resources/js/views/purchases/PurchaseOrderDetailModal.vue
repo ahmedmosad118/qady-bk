@@ -289,6 +289,14 @@
           </div>
 
           <div
+            v-if="totalItemDiscounts > 0"
+            class="flex items-center justify-between text-xs text-[var(--muted)]"
+          >
+            <span class="font-bold">{{ $t('purchaseOrders.itemDiscounts') }}:</span>
+            <span class="font-bold font-mono">- {{ formatMoney(totalItemDiscounts) }} ج.م</span>
+          </div>
+
+          <div
             v-if="Number(order.discount_amount) > 0"
             class="flex items-center justify-between text-xs text-[var(--muted)]"
           >
@@ -364,11 +372,14 @@ function goToPurchaseInvoice(invoiceId) {
   router.push({ name: 'purchase-invoices', query: { open: invoiceId } });
 }
 
+const totalItemDiscounts = computed(() => {
+  return (props.order?.items || []).reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
+});
+
 const totalOrderSavings = computed(() => {
   if (!props.order) return 0;
-  const itemsDisc = (props.order.items || []).reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
   const orderDisc = Number(props.order.discount_amount) || 0;
-  return itemsDisc + orderDisc;
+  return totalItemDiscounts.value + orderDisc;
 });
 
 function statusLabel(status) {

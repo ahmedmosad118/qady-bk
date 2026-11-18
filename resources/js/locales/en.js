@@ -379,7 +379,7 @@ export default {
     percentage: 'Percentage (%)',
     fixed: 'Fixed Amount (EGP)',
     lineTotal: 'Line Total',
-    subtotal: 'Items Subtotal',
+    subtotal: 'Gross Items Subtotal',
     itemDiscounts: 'Item Discounts',
     orderDiscount: 'Order Discount',
     totalDiscounts: 'Total Discounts',

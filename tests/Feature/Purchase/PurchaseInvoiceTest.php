@@ -116,9 +116,9 @@ class PurchaseInvoiceTest extends TestCase
 
         $invoiceNumber = $response->json('data.invoice_number');
         $this->assertNotEmpty($invoiceNumber);
-        $this->assertStringStartsWith('PI-', $invoiceNumber);
 
         $invoiceId = (int) $response->json('data.id');
+        $this->assertSame(sprintf('BILL/%s/%06d', now()->format('Y'), $invoiceId), $invoiceNumber);
         /** @var PurchaseInvoice $invoice */
         $invoice = PurchaseInvoice::query()->findOrFail($invoiceId);
 
@@ -250,74 +250,6 @@ class PurchaseInvoiceTest extends TestCase
             ->assertJsonPath('data.total', '200.00');
     }
 
-    public function test_manual_invoice_number_and_uniqueness_and_editing_generated_number(): void
-    {
-        $supplier = $this->createSupplier();
-        $product = $this->createProduct();
-        $today = now()->toDateString();
-
-        // Manual invoice number
-        $res1 = $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'SUP-INV-2026-001',
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $today,
-            'due_date' => $today,
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 50],
-            ],
-        ]);
-        $res1->assertCreated()
-            ->assertJsonPath('data.invoice_number', 'SUP-INV-2026-001');
-
-        // Duplicate manual invoice number rejected
-        $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'SUP-INV-2026-001',
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $today,
-            'due_date' => $today,
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
-            ],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['invoice_number']);
-
-        // Auto-generated number can be edited while draft
-        $res2 = $this->postJson('/api/purchase-invoices', [
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $today,
-            'due_date' => $today,
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
-            ],
-        ])->assertCreated();
-
-        $invoice2Id = (int) $res2->json('data.id');
-
-        // Updating to duplicate number is rejected
-        $this->putJson("/api/purchase-invoices/{$invoice2Id}", [
-            'invoice_number' => 'SUP-INV-2026-001',
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $today,
-            'due_date' => $today,
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
-            ],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['invoice_number']);
-
-        // Updating generated number to a new unique manual number succeeds
-        $this->putJson("/api/purchase-invoices/{$invoice2Id}", [
-            'invoice_number' => 'SUP-INV-2026-002',
-            'supplier_id' => $supplier->id,
-            'invoice_date' => $today,
-            'due_date' => $today,
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
-            ],
-        ])->assertOk()
-            ->assertJsonPath('data.invoice_number', 'SUP-INV-2026-002');
-    }
-
     public function test_multiple_products_duplicate_consolidation_expenses_and_calculation_rules(): void
     {
         $supplier = $this->createSupplier();
@@ -447,6 +379,90 @@ class PurchaseInvoiceTest extends TestCase
             ->assertJsonValidationErrors(['expenses.0.amount']);
     }
 
+    public function test_rejects_values_exceeding_allowed_decimal_places_instead_of_silently_rounding(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $today = now()->toDateString();
+
+        $base = [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+        ];
+
+        $this->postJson('/api/purchase-invoices', $base + [
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => '10.456']],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+
+        $this->postJson('/api/purchase-invoices', $base + [
+            'items' => [['product_id' => $product->id, 'quantity' => '1.2345', 'unit_price' => 10]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.quantity']);
+
+        $this->postJson('/api/purchase-invoices', $base + [
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
+            'expenses' => [['name' => 'Shipping', 'amount' => '5.005']],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['expenses.0.amount']);
+
+        $this->assertSame(0, PurchaseInvoice::query()->count());
+    }
+
+    public function test_calculation_is_float_free_for_classic_binary_rounding_cases(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $today = now()->toDateString();
+
+        // Binary-float trap: 0.145 * 3 = 0.435 -> must round half-up to 0.44 (float math gives 0.43).
+        $response = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [['product_id' => $product->id, 'quantity' => 0.145, 'unit_price' => 3]],
+        ])->assertCreated();
+
+        $this->assertSame('0.44', $response->json('data.subtotal'));
+        $this->assertSame('0.44', $response->json('data.total'));
+    }
+
+    public function test_invoice_numbers_are_system_generated_from_id_and_cannot_be_overridden(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $date = '2025-03-10';
+
+        $payload = fn (array $extra = []): array => $extra + [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $date,
+            'due_date' => $date,
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
+        ];
+
+        $first = $this->postJson('/api/purchase-invoices', $payload())->assertCreated();
+        $second = $this->postJson('/api/purchase-invoices', $payload())->assertCreated();
+
+        // Year comes from the invoice date, sequence is the row id, zero-padded to 6 digits.
+        $this->assertSame(sprintf('BILL/2025/%06d', $first->json('data.id')), $first->json('data.invoice_number'));
+        $this->assertSame(sprintf('BILL/2025/%06d', $second->json('data.id')), $second->json('data.invoice_number'));
+        $this->assertNotSame($first->json('data.invoice_number'), $second->json('data.invoice_number'));
+
+        // The linked goods receipt note carries the final number, not the placeholder.
+        $this->assertStringContainsString(
+            $first->json('data.invoice_number'),
+            (string) $first->json('data.goods_receipt.notes')
+        );
+
+        // Invoice numbers are system-generated only: a client-supplied number is ignored (on create and update).
+        $third = $this->postJson('/api/purchase-invoices', $payload(['invoice_number' => 'SUP-INV-1']))->assertCreated();
+        $this->assertSame(sprintf('BILL/2025/%06d', $third->json('data.id')), $third->json('data.invoice_number'));
+
+        $this->putJson('/api/purchase-invoices/' . $third->json('data.id'), $payload(['invoice_number' => 'SUP-INV-2']))
+            ->assertOk()
+            ->assertJsonPath('data.invoice_number', $third->json('data.invoice_number'));
+
+        $this->assertSame(0, PurchaseInvoice::query()->where('invoice_number', 'like', 'TMP-%')->count());
+    }
+
     public function test_editing_invoice_synchronizes_draft_goods_receipt(): void
     {
         $supplier = $this->createSupplier();
@@ -539,7 +555,6 @@ class PurchaseInvoiceTest extends TestCase
 
         // Invoice is completely locked: update, cancel, and delete are all rejected
         $this->putJson("/api/purchase-invoices/{$invoiceId}", [
-            'invoice_number' => 'CHANGED-999',
             'supplier_id' => $otherSupplier->id,
             'invoice_date' => now()->addDay()->toDateString(),
             'due_date' => now()->addDays(5)->toDateString(),
@@ -673,7 +688,6 @@ class PurchaseInvoiceTest extends TestCase
         $this->defaultWarehouse->update(['is_active' => false]);
 
         $res = $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'ROLLBACK-TEST-001',
             'supplier_id' => $supplier->id,
             'invoice_date' => $today,
             'due_date' => $today,
@@ -707,7 +721,6 @@ class PurchaseInvoiceTest extends TestCase
             ->andThrow(ValidationException::withMessages(['items' => ['Simulated failure']]));
 
         $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'ROLLBACK-TEST-002',
             'supplier_id' => $supplier->id,
             'invoice_date' => $today,
             'due_date' => $today,
@@ -812,41 +825,40 @@ class PurchaseInvoiceTest extends TestCase
         $today = now()->toDateString();
 
         $inv1 = $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'INV-LIST-001',
             'supplier_id' => $supplier1->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
-        $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'INV-LIST-002',
+        $inv2 = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier2->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100]],
         ])->assertCreated();
 
-        $this->getJson('/api/purchase-invoices?search=INV-LIST-001')
+        $number1 = $inv1->json('data.invoice_number');
+
+        $this->getJson('/api/purchase-invoices?search=' . urlencode($number1))
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.invoice_number', 'INV-LIST-001')
+            ->assertJsonPath('data.0.invoice_number', $number1)
             ->assertJsonPath('meta.total', 1);
 
         $this->getJson("/api/purchase-invoices?supplier_id={$supplier2->id}")
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.invoice_number', 'INV-LIST-002');
+            ->assertJsonPath('data.0.invoice_number', $inv2->json('data.invoice_number'));
 
         $id1 = $inv1->json('data.id');
         $this->getJson("/api/purchase-invoices/{$id1}")
             ->assertOk()
             ->assertJsonPath('data.id', $id1)
-            ->assertJsonPath('data.invoice_number', 'INV-LIST-001');
+            ->assertJsonPath('data.invoice_number', $number1);
 
         // Verify listing includes item discount sum and invoice discount for table display.
-        $this->postJson('/api/purchase-invoices', [
-            'invoice_number' => 'INV-LIST-DISC',
+        $inv3 = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier1->id,
             'invoice_date' => $today,
             'due_date' => $today,
@@ -863,7 +875,7 @@ class PurchaseInvoiceTest extends TestCase
             ],
         ])->assertCreated();
 
-        $listResponse = $this->getJson('/api/purchase-invoices?search=INV-LIST-DISC')
+        $listResponse = $this->getJson('/api/purchase-invoices?search=' . urlencode($inv3->json('data.invoice_number')))
             ->assertOk()
             ->assertJsonCount(1, 'data');
 

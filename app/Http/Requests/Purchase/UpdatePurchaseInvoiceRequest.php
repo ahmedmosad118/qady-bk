@@ -21,11 +21,6 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
     {
         $merge = [];
 
-        if ($this->has('invoice_number')) {
-            $trimmed = is_string($this->input('invoice_number')) ? trim($this->input('invoice_number')) : $this->input('invoice_number');
-            $merge['invoice_number'] = ($trimmed === '' || $trimmed === null) ? null : $trimmed;
-        }
-
         if ($this->has('discount_type') && $this->input('discount_type') === '') {
             $merge['discount_type'] = null;
         }
@@ -50,18 +45,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var PurchaseInvoice|null $invoice */
-        $invoice = $this->route('purchase_invoice');
-        $invoiceId = $invoice?->id;
-
         return [
-            'invoice_number' => [
-                'sometimes',
-                'nullable',
-                'string',
-                'max:100',
-                Rule::unique('purchase_invoices', 'invoice_number')->ignore($invoiceId),
-            ],
             'supplier_id' => [
                 'required',
                 'integer',
@@ -143,7 +127,6 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'invoice_number' => 'invoice number',
             'supplier_id' => 'supplier',
             'invoice_date' => 'invoice date',
             'due_date' => 'due date',

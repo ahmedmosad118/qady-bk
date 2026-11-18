@@ -15,28 +15,12 @@ class StorePurchaseInvoiceFromOrderRequest extends FormRequest
         return true;
     }
 
-    protected function prepareForValidation(): void
-    {
-        if ($this->has('invoice_number')) {
-            $trimmed = is_string($this->input('invoice_number')) ? trim($this->input('invoice_number')) : $this->input('invoice_number');
-            $this->merge([
-                'invoice_number' => ($trimmed === '' || $trimmed === null) ? null : $trimmed,
-            ]);
-        }
-    }
-
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'invoice_number' => [
-                'nullable',
-                'string',
-                'max:100',
-                Rule::unique('purchase_invoices', 'invoice_number'),
-            ],
             'invoice_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],

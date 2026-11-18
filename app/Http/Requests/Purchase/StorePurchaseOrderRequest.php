@@ -25,7 +25,9 @@ class StorePurchaseOrderRequest extends FormRequest
             'supplier_id' => [
                 'required',
                 'integer',
-                Rule::exists('contacts', 'id')->where(fn ($q) => $q->where('is_supplier', true)->whereNull('deleted_at')),
+                Rule::exists('contacts', 'id')->where(
+                    fn ($q) => $q->where('is_supplier', true)->where('is_active', true)->whereNull('deleted_at')
+                ),
             ],
             'order_date' => ['required', 'date'],
             'expected_delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
@@ -34,7 +36,7 @@ class StorePurchaseOrderRequest extends FormRequest
             'discount_value' => ['nullable', 'numeric', 'min:0'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereNull('deleted_at')],
+            'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(DiscountType::values())],

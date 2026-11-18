@@ -20,11 +20,6 @@ class StorePurchaseInvoiceRequest extends FormRequest
     {
         $merge = [];
 
-        if ($this->has('invoice_number')) {
-            $trimmed = is_string($this->input('invoice_number')) ? trim($this->input('invoice_number')) : $this->input('invoice_number');
-            $merge['invoice_number'] = ($trimmed === '' || $trimmed === null) ? null : $trimmed;
-        }
-
         if ($this->has('discount_type') && $this->input('discount_type') === '') {
             $merge['discount_type'] = null;
         }
@@ -54,12 +49,6 @@ class StorePurchaseInvoiceRequest extends FormRequest
                 'nullable',
                 'integer',
                 Rule::exists('purchase_orders', 'id')->whereNull('deleted_at'),
-            ],
-            'invoice_number' => [
-                'nullable',
-                'string',
-                'max:100',
-                Rule::unique('purchase_invoices', 'invoice_number'),
             ],
             'supplier_id' => [
                 'required_without:purchase_order_id',
@@ -135,7 +124,6 @@ class StorePurchaseInvoiceRequest extends FormRequest
     {
         return [
             'purchase_order_id' => 'purchase order',
-            'invoice_number' => 'invoice number',
             'supplier_id' => 'supplier',
             'invoice_date' => 'invoice date',
             'due_date' => 'due date',

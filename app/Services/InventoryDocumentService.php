@@ -161,7 +161,7 @@ class InventoryDocumentService
                 'status' => InventoryDocumentStatus::DRAFT,
                 'document_date' => Carbon::parse($invoice->invoice_date)->toDateString(),
                 'destination_warehouse_id' => $warehouseId,
-                'notes' => "Automatic goods receipt for purchase invoice: {$invoice->invoice_number}",
+                'notes' => __('purchases.messages.auto_goods_receipt_notes', ['number' => $invoice->invoice_number]),
                 'reviewed_by' => null,
                 'reviewed_at' => null,
                 'approved_by' => null,

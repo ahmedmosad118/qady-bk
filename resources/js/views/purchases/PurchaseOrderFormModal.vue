@@ -348,6 +348,15 @@
                 <span class="font-mono font-bold text-[var(--text)]">{{ formatMoney(calcGrossTotal) }} ج.م</span>
               </div>
 
+              <!-- Item discounts line -->
+              <div
+                v-if="calcItemDiscountsTotal > 0"
+                class="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400"
+              >
+                <span class="font-bold">{{ $t('purchaseOrders.itemDiscounts') }}</span>
+                <span class="font-mono font-bold">- {{ formatMoney(calcItemDiscountsTotal) }} ج.م</span>
+              </div>
+
               <!-- Order Discount line -->
               <div
                 v-if="calcOrderDiscountAmount > 0"

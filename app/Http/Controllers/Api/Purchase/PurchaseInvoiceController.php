@@ -67,7 +67,7 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase invoice and goods receipt created successfully.',
+            'message' => __('purchases.messages.invoice_created'),
             'data' => $invoice,
         ], 201);
     }
@@ -87,7 +87,7 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase invoice created from purchase order and goods receipt generated successfully.',
+            'message' => __('purchases.messages.invoice_created_from_order'),
             'data' => $invoice,
         ], 201);
     }
@@ -118,7 +118,7 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase invoice updated and goods receipt synchronized successfully.',
+            'message' => __('purchases.messages.invoice_updated'),
             'data' => $invoice,
         ]);
     }
@@ -132,7 +132,7 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase invoice deleted successfully.',
+            'message' => __('purchases.messages.invoice_deleted'),
         ]);
     }
 
@@ -150,7 +150,7 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase invoice cancelled successfully.',
+            'message' => __('purchases.messages.invoice_cancelled'),
             'data' => $invoice,
         ]);
     }

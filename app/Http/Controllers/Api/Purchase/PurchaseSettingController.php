@@ -42,7 +42,7 @@ class PurchaseSettingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Purchase settings updated successfully.',
+            'message' => __('purchases.messages.settings_updated'),
             'data' => [
                 'id' => $setting->id,
                 'type' => $setting->type,

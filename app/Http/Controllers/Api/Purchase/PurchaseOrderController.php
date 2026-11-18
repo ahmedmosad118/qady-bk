@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
 use App\Http\Requests\Purchase\UpdatePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
+use App\Repositories\PurchaseOrderRepository;
 use App\Services\Purchase\PurchaseOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 class PurchaseOrderController extends Controller
 {
     public function __construct(
+        protected PurchaseOrderRepository $repository,
         protected PurchaseOrderService $purchaseOrderService,
     ) {}
 
@@ -36,7 +38,7 @@ class PurchaseOrderController extends Controller
         ];
 
         $perPage = $request->integer('per_page', 15);
-        $paginated = $this->purchaseOrderService->paginateOrders($filters, $perPage);
+        $paginated = $this->repository->paginate($filters, $perPage);
 
         return response()->json([
             'success' => true,
@@ -62,7 +64,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم إنشاء أمر الشراء بنجاح.',
+            'message' => __('purchases.messages.order_created'),
             'data' => $order,
         ], 201);
     }
@@ -70,9 +72,9 @@ class PurchaseOrderController extends Controller
     /**
      * Display the specified purchase order with details.
      */
-    public function show(int $id): JsonResponse
+    public function show(PurchaseOrder $purchase_order): JsonResponse
     {
-        $order = $this->purchaseOrderService->getOrder($id);
+        $order = $this->repository->findWithRelations($purchase_order->id);
 
         return response()->json([
             'success' => true,
@@ -93,7 +95,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم تحديث أمر الشراء بنجاح.',
+            'message' => __('purchases.messages.order_updated'),
             'data' => $order,
         ]);
     }
@@ -107,7 +109,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم حذف أمر الشراء بنجاح.',
+            'message' => __('purchases.messages.order_deleted'),
         ]);
     }
 
@@ -123,7 +125,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم تأكيد أمر الشراء وتحويله بنجاح.',
+            'message' => __('purchases.messages.order_confirmed'),
             'data' => $order,
         ]);
     }
@@ -142,7 +144,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم إلغاء أمر الشراء بنجاح.',
+            'message' => __('purchases.messages.order_cancelled'),
             'data' => $order,
         ]);
     }

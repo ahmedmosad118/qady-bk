@@ -379,7 +379,7 @@ export default {
     percentage: 'نسبة مئوية (%)',
     fixed: 'مبلغ ثابت (ج.م)',
     lineTotal: 'إجمالي الصنف',
-    subtotal: 'مجموع الأصناف',
+    subtotal: 'إجمالي الأصناف قبل الخصم',
     itemDiscounts: 'خصومات الأصناف',
     orderDiscount: 'خصم أمر الشراء',
     totalDiscounts: 'إجمالي الخصومات',

@@ -4,233 +4,57 @@ declare(strict_types=1);
 
 namespace App\Services\Purchase;
 
-use App\Enums\DiscountType;
 use App\Enums\PurchaseOrderStatus;
-use App\Models\Contact;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\User;
+use App\Repositories\PurchaseOrderRepository;
 use Carbon\Carbon;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderService
 {
     public function __construct(
-        protected PurchaseOrderNumberService $numberService,
+        protected PurchaseOrderRepository $repository,
+        protected PurchaseDocumentNumberService $numberService,
+        protected PurchaseDocumentCalculator $calculator,
+        protected PurchaseSupplierResolver $supplierResolver,
     ) {}
 
     /**
-     * Paginate purchase orders with filtering and eager loading.
+     * Calculate items and totals via the shared pure calculator.
      *
-     * @param array<string, mixed> $filters
-     */
-    public function paginateOrders(array $filters, int $perPage = 15): LengthAwarePaginator
-    {
-        $query = PurchaseOrder::query()
-            ->with([
-                'supplier:id,name,phone,mobile,tax_number',
-                'creator:id,name',
-                'confirmer:id,name',
-                'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',
-            ])
-            ->withCount('items')
-            ->withSum('items', 'discount_amount');
-
-        if (! empty($filters['search'])) {
-            $query->search((string) $filters['search']);
-        }
-
-        if (! empty($filters['supplier_id'])) {
-            $query->where('supplier_id', $filters['supplier_id']);
-        }
-
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
-        }
-
-        if (! empty($filters['order_date_from'])) {
-            $query->whereDate('order_date', '>=', $filters['order_date_from']);
-        }
-
-        if (! empty($filters['order_date_to'])) {
-            $query->whereDate('order_date', '<=', $filters['order_date_to']);
-        }
-
-        if (! empty($filters['delivery_date_from'])) {
-            $query->whereDate('expected_delivery_date', '>=', $filters['delivery_date_from']);
-        }
-
-        if (! empty($filters['delivery_date_to'])) {
-            $query->whereDate('expected_delivery_date', '<=', $filters['delivery_date_to']);
-        }
-
-        $sortBy = $filters['sort_by'] ?? 'id';
-        $sortOrder = strtolower((string) ($filters['sort_order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
-
-        $allowedSorts = ['id', 'order_number', 'order_date', 'expected_delivery_date', 'total', 'status', 'created_at'];
-        if (! in_array($sortBy, $allowedSorts, true)) {
-            $sortBy = 'id';
-        }
-
-        return $query->orderBy($sortBy, $sortOrder)->paginate($perPage);
-    }
-
-    /**
-     * Find single purchase order with details.
-     */
-    public function getOrder(int $id): PurchaseOrder
-    {
-        return PurchaseOrder::query()
-            ->with([
-                'supplier',
-                'items.product',
-                'creator:id,name,email',
-                'confirmer:id,name,email',
-                'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',
-            ])
-            ->findOrFail($id);
-    }
-
-    /**
-     * Consolidate duplicate products and calculate item/order totals.
+     * `subtotal` is the gross items total before any discount (same meaning as on purchase invoices):
+     * total = subtotal - item discounts - order discount.
      *
      * @param array<int, array<string, mixed>> $rawItems
-     * @return array{items: array<int, array<string, mixed>>, subtotal: string, discount_amount: string, total: string}
+     * @return array{items: array<int, array<string, mixed>>, subtotal: string, discount_value: string, discount_amount: string, total: string}
      */
     public function calculateOrderData(
         array $rawItems,
         ?string $discountType = null,
-        float|int|string|null $discountValue = null
+        mixed $discountValue = null
     ): array {
-        if (empty($rawItems)) {
-            throw ValidationException::withMessages([
-                'items' => ['يجب إضافة صنف واحد على الأقل في أمر الشراء.'],
-            ]);
-        }
+        $products = Product::query()
+            ->whereIn('id', $this->calculator->productIds($rawItems))
+            ->get()
+            ->keyBy('id');
 
-        // 1. Consolidate duplicate products: sum quantities
-        /** @var array<int, array<string, mixed>> $consolidated */
-        $consolidated = [];
-        foreach ($rawItems as $item) {
-            $productId = (int) $item['product_id'];
-            $qty = (string) $item['quantity'];
-            $unitPrice = number_format((float) $item['unit_price'], 2, '.', '');
-            $itemDiscType = $item['discount_type'] ?? null;
-            $itemDiscVal = isset($item['discount_value']) && $item['discount_value'] !== '' ? (float) $item['discount_value'] : null;
-
-            if (isset($consolidated[$productId])) {
-                // Sum quantity
-                $consolidated[$productId]['quantity'] = bcadd(
-                    (string) $consolidated[$productId]['quantity'],
-                    $qty,
-                    3
-                );
-                // Keep latest price or discounts if provided
-                if ($unitPrice > 0) {
-                    $consolidated[$productId]['unit_price'] = $unitPrice;
-                }
-                if ($itemDiscType !== null) {
-                    $consolidated[$productId]['discount_type'] = $itemDiscType;
-                    $consolidated[$productId]['discount_value'] = $itemDiscVal;
-                }
-            } else {
-                $consolidated[$productId] = [
-                    'product_id' => $productId,
-                    'quantity' => $qty,
-                    'unit_price' => $unitPrice,
-                    'discount_type' => $itemDiscType,
-                    'discount_value' => $itemDiscVal,
-                ];
-            }
-        }
-
-        // 2. Fetch products to make snapshots and calculate lines
-        $productIds = array_keys($consolidated);
-        $products = Product::query()->whereIn('id', $productIds)->get()->keyBy('id');
-
-        $processedItems = [];
-        $orderSubtotal = '0.00';
-
-        foreach ($consolidated as $productId => $row) {
-            /** @var Product|null $product */
-            $product = $products->get($productId);
-            if (! $product) {
-                throw ValidationException::withMessages([
-                    'items' => ["المنتج رقم {$productId} غير موجود."],
-                ]);
-            }
-
-            $qtyStr = number_format((float) $row['quantity'], 3, '.', '');
-            $unitPriceStr = number_format((float) $row['unit_price'], 2, '.', '');
-
-            // Line subtotal = quantity * unit_price
-            $lineSubtotal = bcmul($qtyStr, $unitPriceStr, 2);
-
-            // Item discount
-            $discType = $row['discount_type'];
-            $discVal = $row['discount_value'];
-            $discAmount = '0.00';
-
-            if ($discType === DiscountType::PERCENTAGE->value && $discVal !== null) {
-                $safePct = max(0.0, min(100.0, (float) $discVal));
-                $discAmount = bcdiv(bcmul($lineSubtotal, (string) $safePct, 4), '100', 2);
-            } elseif ($discType === DiscountType::FIXED->value && $discVal !== null) {
-                $safeFixed = max(0.0, (float) $discVal);
-                $discAmount = number_format(min((float) $lineSubtotal, $safeFixed), 2, '.', '');
-            }
-
-            // Ensure discount does not exceed line subtotal
-            if (bccomp($discAmount, $lineSubtotal, 2) > 0) {
-                $discAmount = $lineSubtotal;
-            }
-
-            $lineTotal = bcsub($lineSubtotal, $discAmount, 2);
-            $orderSubtotal = bcadd($orderSubtotal, $lineTotal, 2);
-
-            $snapshot = [
-                'name' => $product->name,
-                'barcode' => $product->barcode,
-                'unit_name' => 'قطعة',
-            ];
-
-            $processedItems[] = [
-                'product_id' => $product->id,
-                'product_snapshot' => $snapshot,
-                'quantity' => $qtyStr,
-                'unit_price' => $unitPriceStr,
-                'discount_type' => $discType,
-                'discount_value' => $discVal !== null ? number_format((float) $discVal, 2, '.', '') : null,
-                'discount_amount' => $discAmount,
-                'line_total' => $lineTotal,
-            ];
-        }
-
-        // 3. Invoice-level discount
-        $orderDiscAmount = '0.00';
-        $orderDiscVal = $discountValue !== null && $discountValue !== '' ? (float) $discountValue : null;
-
-        if ($discountType === DiscountType::PERCENTAGE->value && $orderDiscVal !== null) {
-            $safePct = max(0.0, min(100.0, $orderDiscVal));
-            $orderDiscAmount = bcdiv(bcmul($orderSubtotal, (string) $safePct, 4), '100', 2);
-        } elseif ($discountType === DiscountType::FIXED->value && $orderDiscVal !== null) {
-            $safeFixed = max(0.0, $orderDiscVal);
-            $orderDiscAmount = number_format(min((float) $orderSubtotal, $safeFixed), 2, '.', '');
-        }
-
-        if (bccomp($orderDiscAmount, $orderSubtotal, 2) > 0) {
-            $orderDiscAmount = $orderSubtotal;
-        }
-
-        $orderTotal = bcsub($orderSubtotal, $orderDiscAmount, 2);
+        $calc = $this->calculator->calculate(
+            $rawItems,
+            $products,
+            $discountType,
+            $discountValue,
+            unitName: 'قطعة',
+        );
 
         return [
-            'items' => $processedItems,
-            'subtotal' => $orderSubtotal,
-            'discount_amount' => $orderDiscAmount,
-            'total' => $orderTotal,
+            'items' => $calc['items'],
+            'subtotal' => $calc['subtotal'],
+            'discount_value' => $calc['discount_value'],
+            'discount_amount' => $calc['discount_amount'],
+            'total' => $calc['total'],
         ];
     }
 
@@ -242,13 +66,7 @@ class PurchaseOrderService
     public function createOrder(array $data, User $user): PurchaseOrder
     {
         return DB::transaction(function () use ($data, $user): PurchaseOrder {
-            // Verify supplier exists and is active supplier
-            $supplier = Contact::query()->where('id', $data['supplier_id'])->where('is_supplier', true)->first();
-            if (! $supplier) {
-                throw ValidationException::withMessages([
-                    'supplier_id' => ['المورد المحدد غير صالح أو غير مسجل كمورد.'],
-                ]);
-            }
+            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
 
             $calc = $this->calculateOrderData(
                 $data['items'],
@@ -257,10 +75,9 @@ class PurchaseOrderService
             );
 
             $orderDate = ! empty($data['order_date']) ? Carbon::parse($data['order_date']) : Carbon::today();
-            $orderNumber = $this->numberService->generateOrderNumber($orderDate);
 
             $order = PurchaseOrder::query()->create([
-                'order_number' => $orderNumber,
+                'order_number' => $this->numberService->placeholder(),
                 'supplier_id' => $supplier->id,
                 'order_date' => $orderDate->toDateString(),
                 'expected_delivery_date' => ! empty($data['expected_delivery_date'])
@@ -270,19 +87,19 @@ class PurchaseOrderService
                 'notes' => $data['notes'] ?? null,
                 'subtotal' => $calc['subtotal'],
                 'discount_type' => $data['discount_type'] ?? null,
-                'discount_value' => isset($data['discount_value']) && $data['discount_value'] !== ''
-                    ? number_format((float) $data['discount_value'], 2, '.', '')
-                    : '0.00',
+                'discount_value' => $calc['discount_value'],
                 'discount_amount' => $calc['discount_amount'],
                 'total' => $calc['total'],
                 'created_by' => $user->id,
             ]);
 
+            $this->numberService->assignOrderNumber($order);
+
             foreach ($calc['items'] as $itemRow) {
                 $order->items()->create($itemRow);
             }
 
-            return $this->getOrder($order->id);
+            return $this->repository->findWithRelations($order->id);
         });
     }
 
@@ -300,17 +117,11 @@ class PurchaseOrderService
 
             if (! $lockedOrder->isDraft()) {
                 throw ValidationException::withMessages([
-                    'status' => ['لا يمكن تعديل أمر شراء بعد تحويله لفاتورة أو إلغائه.'],
+                    'status' => [(string) __('purchases.errors.order_not_editable')],
                 ]);
             }
 
-            // Verify supplier
-            $supplier = Contact::query()->where('id', $data['supplier_id'])->where('is_supplier', true)->first();
-            if (! $supplier) {
-                throw ValidationException::withMessages([
-                    'supplier_id' => ['المورد المحدد غير صالح أو غير مسجل كمورد.'],
-                ]);
-            }
+            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
 
             $calc = $this->calculateOrderData(
                 $data['items'],
@@ -329,9 +140,7 @@ class PurchaseOrderService
                 'notes' => $data['notes'] ?? null,
                 'subtotal' => $calc['subtotal'],
                 'discount_type' => $data['discount_type'] ?? null,
-                'discount_value' => isset($data['discount_value']) && $data['discount_value'] !== ''
-                    ? number_format((float) $data['discount_value'], 2, '.', '')
-                    : '0.00',
+                'discount_value' => $calc['discount_value'],
                 'discount_amount' => $calc['discount_amount'],
                 'total' => $calc['total'],
             ]);
@@ -342,7 +151,7 @@ class PurchaseOrderService
                 $lockedOrder->items()->create($itemRow);
             }
 
-            return $this->getOrder($lockedOrder->id);
+            return $this->repository->findWithRelations($lockedOrder->id);
         });
     }
 
@@ -357,7 +166,7 @@ class PurchaseOrderService
 
             if (! $lockedOrder->isDraft()) {
                 throw ValidationException::withMessages([
-                    'status' => ['لا يمكن حذف أمر شراء غير مسودة.'],
+                    'status' => [(string) __('purchases.errors.order_delete_not_draft')],
                 ]);
             }
 
@@ -381,27 +190,23 @@ class PurchaseOrderService
 
             if ($lockedOrder->isConverted()) {
                 throw ValidationException::withMessages([
-                    'status' => ['أمر الشراء تم تحويله وتأكيده مسبقاً.'],
+                    'status' => [(string) __('purchases.errors.order_already_confirmed')],
                 ]);
             }
 
             if ($lockedOrder->isCancelled()) {
                 throw ValidationException::withMessages([
-                    'status' => ['لا يمكن تأكيد أمر شراء تم إلغاؤه.'],
+                    'status' => [(string) __('purchases.errors.order_confirm_cancelled')],
                 ]);
             }
 
             if ($lockedOrder->items->isEmpty()) {
                 throw ValidationException::withMessages([
-                    'items' => ['أمر الشراء لا يحتوي على أصناف صالحة للتأكيد.'],
+                    'items' => [(string) __('purchases.errors.order_no_items')],
                 ]);
             }
 
-            if (! $lockedOrder->supplier || ! $lockedOrder->supplier->is_supplier) {
-                throw ValidationException::withMessages([
-                    'supplier_id' => ['المورد المرتبط بأمر الشراء غير صالح.'],
-                ]);
-            }
+            $this->supplierResolver->assertUsable($lockedOrder->supplier);
 
             // Mark converted atomically
             $lockedOrder->status = PurchaseOrderStatus::CONVERTED;
@@ -413,7 +218,7 @@ class PurchaseOrderService
             // When the purchase invoice module is introduced, this is the exact integration point
             // to generate the purchase invoice.
 
-            return $this->getOrder($lockedOrder->id);
+            return $this->repository->findWithRelations($lockedOrder->id);
         });
     }
 
@@ -428,25 +233,25 @@ class PurchaseOrderService
 
             if ($lockedOrder->isConverted()) {
                 throw ValidationException::withMessages([
-                    'status' => ['لا يمكن إلغاء أمر شراء تم تحويله بالفعل.'],
+                    'status' => [(string) __('purchases.errors.order_cancel_confirmed')],
                 ]);
             }
 
             if ($lockedOrder->isCancelled()) {
                 throw ValidationException::withMessages([
-                    'status' => ['أمر الشراء ملغي بالفعل.'],
+                    'status' => [(string) __('purchases.errors.order_already_cancelled')],
                 ]);
             }
 
             if (! empty($reason)) {
                 $prefix = $lockedOrder->notes ? $lockedOrder->notes . "\n" : '';
-                $lockedOrder->notes = $prefix . "[سبب الإلغاء: {$reason}]";
+                $lockedOrder->notes = $prefix . __('purchases.messages.cancellation_reason_note', ['reason' => $reason]);
             }
 
             $lockedOrder->status = PurchaseOrderStatus::CANCELLED;
             $lockedOrder->save();
 
-            return $this->getOrder($lockedOrder->id);
+            return $this->repository->findWithRelations($lockedOrder->id);
         });
     }
 }

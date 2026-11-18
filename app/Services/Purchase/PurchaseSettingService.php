@@ -50,7 +50,7 @@ class PurchaseSettingService
 
         if (! is_string($treatment) || ! in_array($treatment, PurchaseExpensesTreatment::values(), true)) {
             throw ValidationException::withMessages([
-                'expenses_treatment' => ['Invalid expenses treatment value. Allowed values: landed_cost or separate_expense.'],
+                'expenses_treatment' => [(string) __('purchases.errors.invalid_expenses_treatment')],
             ]);
         }
 
