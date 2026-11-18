@@ -32,6 +32,11 @@ use LogicException;
 class StockMovementService
 {
     /**
+     * Attempts for transactions that can lose a lock race (InnoDB deadlock => automatic retry).
+     */
+    public const TRANSACTION_ATTEMPTS = 3;
+
+    /**
      * Post an approved inventory document:
      * 1. Locks the document row and validates it is approved and has items.
      * 2. Resolves destination/source warehouse and direction for each item line.
@@ -45,6 +50,10 @@ class StockMovementService
     public function postDocumentMovements(InventoryDocument $document, int $userId): array
     {
         return DB::transaction(function () use ($document, $userId): array {
+            // Lock order: purchase invoice FIRST, then the inventory document (same order as
+            // PurchaseInvoiceService update/cancel/delete) so the two flows can never deadlock.
+            $this->lockLinkedPurchaseInvoice($document);
+
             /** @var InventoryDocument $lockedDocument */
             $lockedDocument = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
@@ -87,7 +96,23 @@ class StockMovementService
             $document->setRelation('stockMovements', $movementCollection);
 
             return $movements;
-        });
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Lock the purchase invoice a goods receipt belongs to (no-op for any other document).
+     *
+     * Global lock order for invoice-linked flows is: purchase invoice -> inventory document.
+     * Call this BEFORE locking the document. Re-locking inside the same transaction is harmless.
+     */
+    public function lockLinkedPurchaseInvoice(InventoryDocument $document): ?PurchaseInvoice
+    {
+        if (! $document->referenceable_id
+            || ! in_array($document->referenceable_type, ['purchase_invoice', PurchaseInvoice::class], true)) {
+            return null;
+        }
+
+        return PurchaseInvoice::query()->lockForUpdate()->find($document->referenceable_id);
     }
 
     /**

@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Services\InventoryDocumentService;
+use App\Services\InventoryDocumentWorkflowService;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -461,6 +462,51 @@ class PurchaseInvoiceTest extends TestCase
             ->assertJsonPath('data.invoice_number', $third->json('data.invoice_number'));
 
         $this->assertSame(0, PurchaseInvoice::query()->where('invoice_number', 'like', 'TMP-%')->count());
+    }
+
+    public function test_posting_goods_receipt_locks_invoice_before_document_to_avoid_deadlock(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $today = now()->toDateString();
+
+        $invoice = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [['product_id' => $product->id, 'quantity' => 3, 'unit_price' => 10]],
+        ])->assertCreated();
+
+        $grId = (int) $invoice->json('data.goods_receipt.id');
+        $this->postJson("/api/inventory-documents/{$grId}/submit")->assertOk();
+        $this->postJson("/api/inventory-documents/{$grId}/approve")->assertOk();
+
+        $document = InventoryDocument::query()->findOrFail($grId);
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query->sql;
+        });
+
+        app(InventoryDocumentWorkflowService::class)->post($document, $this->user);
+
+        $firstIndexOf = function (string $table) use ($queries): int|false {
+            foreach ($queries as $i => $sql) {
+                if (stripos($sql, 'from "' . $table . '"') !== false) {
+                    return $i;
+                }
+            }
+
+            return false;
+        };
+
+        $invoiceIdx = $firstIndexOf('purchase_invoices');
+        $documentIdx = $firstIndexOf('inventory_documents');
+
+        $this->assertNotFalse($invoiceIdx, 'Invoice must be locked while posting its goods receipt.');
+        $this->assertNotFalse($documentIdx);
+        $this->assertLessThan($documentIdx, $invoiceIdx, 'Lock order must be invoice -> inventory document.');
+        $this->assertSame(InventoryDocumentStatus::POSTED, InventoryDocument::query()->findOrFail($grId)->status);
     }
 
     public function test_editing_invoice_synchronizes_draft_goods_receipt(): void

@@ -183,6 +183,9 @@ class InventoryDocumentWorkflowService
     public function post(InventoryDocument $document, User $user, bool $loadRelations = true): InventoryDocument
     {
         return DB::transaction(function () use ($document, $user, $loadRelations): InventoryDocument {
+            // Lock order: purchase invoice first, then the document (see StockMovementService).
+            $this->stockMovementService->lockLinkedPurchaseInvoice($document);
+
             /** @var InventoryDocument $locked */
             $locked = InventoryDocument::query()->lockForUpdate()->findOrFail($document->id);
 
@@ -211,7 +214,7 @@ class InventoryDocumentWorkflowService
             }
 
             return $locked->fresh(['items.product', 'sourceWarehouse', 'destinationWarehouse', 'creator', 'poster', 'stockMovements']);
-        });
+        }, StockMovementService::TRANSACTION_ATTEMPTS);
     }
 
     /**

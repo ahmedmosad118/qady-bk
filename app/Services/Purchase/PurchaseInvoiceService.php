@@ -23,6 +23,12 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseInvoiceService
 {
+    /**
+     * Attempts for transactions that lock the invoice and its goods receipt (InnoDB deadlock => retry).
+     * Lock order everywhere: purchase invoice -> inventory document.
+     */
+    public const TRANSACTION_ATTEMPTS = 3;
+
     public function __construct(
         protected PurchaseInvoiceRepository $repository,
         protected PurchaseDocumentNumberService $numberService,
@@ -238,7 +244,7 @@ class PurchaseInvoiceService
             }
 
             return $this->repository->findWithRelations($lockedInvoice->id);
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -285,7 +291,7 @@ class PurchaseInvoiceService
             }
 
             return $this->repository->findWithRelations($lockedInvoice->id);
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -325,7 +331,7 @@ class PurchaseInvoiceService
             $lockedInvoice->expenses()->delete();
 
             return (bool) $lockedInvoice->delete();
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
