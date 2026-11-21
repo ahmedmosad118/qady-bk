@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             WarehouseSeeder::class,
             cateSeeder::class,
             PaymentMethodSeeder::class,
+            ChartOfAccountSeeder::class,
         ]);
     }
 }

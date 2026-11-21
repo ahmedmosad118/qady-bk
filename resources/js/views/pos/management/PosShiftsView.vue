@@ -1,9 +1,9 @@
 <template>
-  <div class="space-y-6" dir="rtl">
+  <div class="space-y-6">
     <!-- Page Header -->
     <PageHeader
-      title="الورديات"
-      subtitle="متابعة ورديات الكاشير، تدقيق أرصدة الدرج، فحص الحركات النقدية والفوارق المالية عند الإغلاق."
+      :title="$t('pos.shiftsPage.title')"
+      :subtitle="$t('pos.shiftsPage.subtitle')"
     >
       <template #actions>
         <router-link
@@ -11,7 +11,7 @@
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
         >
           <Receipt class="h-[18px] w-[18px] text-[var(--crimson)]" />
-          <span>فواتير POS</span>
+          <span>{{ $t('pos.shiftsPage.invoicesBtn') }}</span>
         </router-link>
 
         <router-link
@@ -19,7 +19,7 @@
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
         >
           <Store class="h-[18px] w-[18px]" />
-          <span>شاشة الكاشير (POS)</span>
+          <span>{{ $t('pos.salesPage.cashierBtn') }}</span>
         </router-link>
       </template>
     </PageHeader>
@@ -29,7 +29,7 @@
       <!-- Compact Toolbar & Filter Drawer -->
       <FilterToolbar
         v-model:search="filters.search"
-        search-placeholder="SH-..., اسم الكاشير..."
+        :search-placeholder="$t('pos.shiftsPage.searchPlaceholder')"
         :active-filters-count="activeFiltersCount"
         @search="onSearchDebounced"
         @reset="resetFilters"
@@ -37,15 +37,15 @@
         <div class="space-y-4">
           <!-- Status Filter -->
           <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">حالة الوردية</label>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('pos.shiftsPage.shiftStatus') }}</label>
             <select
               v-model="filters.status"
               class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
               @change="fetchShifts(1)"
             >
-              <option value="">كل الورديات</option>
-              <option value="open">ورديات مفتوحة حالياً</option>
-              <option value="closed">ورديات مغلقة ومجردة</option>
+              <option value="">{{ $t('pos.shiftsPage.allShifts') }}</option>
+              <option value="open">{{ $t('pos.shiftsPage.openShifts') }}</option>
+              <option value="closed">{{ $t('pos.shiftsPage.closedShifts') }}</option>
             </select>
           </div>
 
@@ -74,18 +74,18 @@
         </div>
       </FilterToolbar>
       <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
+        <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
-              <th class="px-4 py-3.5">رقم الوردية</th>
-              <th class="px-4 py-3.5 text-center">الحالة</th>
-              <th class="px-4 py-3.5">تاريخ الفتح</th>
-              <th class="px-4 py-3.5">تاريخ الإغلاق</th>
-              <th class="px-4 py-3.5">فاتح الوردية</th>
-              <th class="px-4 py-3.5">مغلق الوردية</th>
-              <th class="px-4 py-3.5 text-end">إجمالي المبيعات</th>
-              <th class="px-4 py-3.5 text-center">فارق الدرج</th>
-              <th class="px-4 py-3.5 text-left">الإجراءات</th>
+              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.shiftNumber') }}</th>
+              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.status') }}</th>
+              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedAt') }}</th>
+              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedAt') }}</th>
+              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedBy') }}</th>
+              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedBy') }}</th>
+              <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.totalSales') }}</th>
+              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.cashDiff') }}</th>
+              <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
@@ -93,7 +93,7 @@
             <tr v-if="loading && shifts.length === 0">
               <td colspan="9" class="px-4 py-16 text-center text-sm text-[var(--muted)]">
                 <Loader2 class="mx-auto h-7 w-7 animate-spin text-[var(--crimson)]" />
-                <span class="mt-2.5 block font-bold">جاري تحميل ورديات البيع...</span>
+                <span class="mt-2.5 block font-bold">{{ $t('pos.shiftsPage.loadingShifts') }}</span>
               </td>
             </tr>
 
@@ -101,9 +101,9 @@
             <tr v-else-if="!loading && shifts.length === 0">
               <td colspan="9" class="px-4 py-16 text-center">
                 <Clock class="mx-auto h-12 w-12 text-[var(--muted)]/50" />
-                <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">لا توجد ورديات مسجلة مطابقة</h3>
+                <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">{{ $t('pos.shiftsPage.noShiftsTitle') }}</h3>
                 <p class="mt-1 text-xs text-[var(--muted)] max-w-sm mx-auto">
-                  لم يتم العثور على أي ورديات عمل مطابقة لمعايير البحث الحالية.
+                  {{ $t('pos.shiftsPage.noShiftsDesc') }}
                 </p>
               </td>
             </tr>
@@ -119,7 +119,8 @@
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
                   type="button"
-                  class="font-mono text-sm font-extrabold text-[var(--crimson)] hover:underline flex items-center gap-1.5 cursor-pointer"
+                  class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
+                  dir="ltr"
                   @click.stop="openShiftDetails(shift.id)"
                 >
                   <Clock class="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -134,23 +135,23 @@
                   :class="shift.closed_at ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30'"
                 >
                   <span class="w-1.5 h-1.5 rounded-full" :class="shift.closed_at ? 'bg-zinc-400' : 'bg-emerald-500 animate-pulse'"></span>
-                  <span>{{ shift.closed_at ? 'مغلقة' : 'مفتوحة حالياً' }}</span>
+                  <span>{{ shift.closed_at ? $t('pos.shiftsPage.closedBadge') : $t('pos.shiftsPage.openBadge') }}</span>
                 </span>
               </td>
 
               <!-- Opened At -->
               <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
                 <div class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
-                  {{ formatDateTime(shift.opened_at) }}
+                  {{ formatDateTime(shift.opened_at, locale) }}
                 </div>
               </td>
 
               <!-- Closed At -->
               <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
                 <div v-if="shift.closed_at" class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
-                  {{ formatDateTime(shift.closed_at) }}
+                  {{ formatDateTime(shift.closed_at, locale) }}
                 </div>
-                <span v-else class="text-xs font-semibold text-emerald-600">قيد التشغيل</span>
+                <span v-else class="text-xs font-semibold text-emerald-600">{{ $t('pos.shiftsPage.running') }}</span>
               </td>
 
               <!-- Opened By -->
@@ -174,7 +175,7 @@
               <td class="px-4 py-3.5 whitespace-nowrap text-end">
                 <b class="text-sm font-black text-[var(--text)] font-mono">
                   {{ Number(shift.sales_sum_grand_total || 0).toFixed(2) }}
-                  <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                  <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>
                 </b>
               </td>
 
@@ -189,21 +190,21 @@
                   <span class="text-[10px]">({{ diffStatusLabel(shift.difference) }})</span>
                 </span>
                 <span v-else class="text-[11px] font-semibold text-emerald-600">
-                  قيد التشغيل
+                  {{ $t('pos.shiftsPage.running') }}
                 </span>
               </td>
 
               <!-- Actions -->
-              <td class="px-4 py-3.5 whitespace-nowrap text-left" @click.stop>
+              <td class="px-4 py-3.5 whitespace-nowrap text-end" @click.stop>
                 <div class="flex items-center justify-end">
                   <button
                     type="button"
                     class="h-8 px-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--bg)] text-xs font-bold text-[var(--text)] transition flex items-center gap-1.5 cursor-pointer"
-                    title="عرض تفاصيل الوردية"
+                    :title="$t('pos.shiftsPage.viewDetailsTooltip')"
                     @click="openShiftDetails(shift.id)"
                   >
                     <Eye class="w-3.5 h-3.5 text-[var(--muted)]" />
-                    <span>التفاصيل</span>
+                    <span>{{ $t('pos.shiftsPage.detailsBtn') }}</span>
                   </button>
                 </div>
               </td>
@@ -215,7 +216,7 @@
       <!-- Pagination -->
       <div v-if="meta.last_page > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-[var(--border)] bg-[var(--card)]">
         <span class="text-xs text-[var(--muted)]">
-          عرض الصفحة {{ meta.current_page }} من {{ meta.last_page }} (إجمالي {{ meta.total }} وردية)
+          {{ $t('pos.shiftsPage.paginationSummary', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
         </span>
         <div class="flex items-center gap-1.5">
           <button
@@ -224,8 +225,9 @@
             :disabled="meta.current_page <= 1"
             @click="fetchShifts(meta.current_page - 1)"
           >
-            <ChevronRight class="w-4 h-4" />
-            <span>السابق</span>
+            <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
+            <ChevronLeft v-else class="w-4 h-4" />
+            <span>{{ $t('common.previous') }}</span>
           </button>
           <button
             type="button"
@@ -233,8 +235,9 @@
             :disabled="meta.current_page >= meta.last_page"
             @click="fetchShifts(meta.current_page + 1)"
           >
-            <span>التالي</span>
-            <ChevronLeft class="w-4 h-4" />
+            <span>{{ $t('common.next') }}</span>
+            <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
+            <ChevronRight v-else class="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -271,6 +274,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Clock,
   Store,
@@ -283,11 +287,14 @@ import {
   Loader2,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import { formatDateTime } from '../../../utils/date';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../../components/ui/PageHeader.vue';
 import PosShiftDetailModal from './PosShiftDetailModal.vue';
 import PosSaleDetailModal from './PosSaleDetailModal.vue';
 import ReceiptModal from '../modals/ReceiptModal.vue';
+
+const { t, locale } = useI18n();
 
 const shifts = ref([]);
 const loading = ref(true);
@@ -388,20 +395,20 @@ async function openPrintModal(sale) {
 }
 
 // Difference logic:
-// Positive difference: surplus (فائض)
-// Negative difference: shortage (عجز)
-// Zero difference: balanced (مطابق)
+// Positive difference: surplus
+// Negative difference: shortage
+// Zero difference: balanced
 function diffStatusLabel(diff) {
   const d = Number(diff || 0);
-  if (d > 0.001) return 'فائض';
-  if (d < -0.001) return 'عجز';
-  return 'مطابق';
+  if (d > 0.001) return t('pos.shiftsPage.surplus');
+  if (d < -0.001) return t('pos.shiftsPage.shortage');
+  return t('pos.shiftsPage.balanced');
 }
 
 function diffText(diff) {
   const d = Number(diff || 0);
   const prefix = d > 0 ? '+' : '';
-  return `${prefix}${d.toFixed(2)} ج.م`;
+  return `${prefix}${d.toFixed(2)} ${t('common.currency')}`;
 }
 
 function diffClass(diff) {
@@ -409,18 +416,6 @@ function diffClass(diff) {
   if (d > 0.001) return 'bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300';
   if (d < -0.001) return 'bg-red-50 text-red-800 border border-red-300 dark:bg-red-950/40 dark:text-red-300';
   return 'bg-zinc-100 text-zinc-800 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200';
-}
-
-function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 onMounted(() => {

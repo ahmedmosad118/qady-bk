@@ -1,5 +1,5 @@
 <template>
-  <div :class="[colClass, $i18n.locale === 'ar' ? 'text-right' : 'text-left']" class="mb-3.5">
+  <div :class="colClass" class="mb-3.5 text-start">
     <div class="flex items-center justify-between mb-1.5">
       <label v-if="field.type !== 'boolean'" class="block text-sm font-bold text-gray-700 dark:text-gray-300">
         {{ formatLabel(field.label) }}
@@ -61,7 +61,7 @@
         v-if="field.type === 'currency' || field.name === 'estimated_value'"
         class="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-900/70 border-s border-gray-200 dark:border-gray-700 text-sm font-black text-[#8A1226] dark:text-[#E0344B] select-none whitespace-nowrap"
       >
-        {{ $t('opportunities.currencyEGP') || 'ج.م' }}
+        {{ $t('common.currency') }}
       </span>
       <span
         v-else-if="field.type === 'percentage'"

@@ -1,13 +1,13 @@
 <template>
-  <aside class="flex flex-col h-full bg-[var(--card)] border-r border-[var(--border)] select-none min-h-0" dir="rtl">
+  <aside class="flex flex-col h-full bg-[var(--card)] border-s border-[var(--border)] select-none min-h-0">
     <!-- Cart Header -->
     <div class="p-3.5 border-b border-[var(--border)] flex flex-col gap-2.5 bg-[var(--card)] flex-none">
       <div class="flex items-center justify-between">
         <h2 class="text-base font-black flex items-center gap-1.5 text-[var(--text)]">
           <ShoppingBag class="w-5 h-5 text-[var(--crimson)]" />
-          <span>سلة البيع</span>
+          <span>{{ $t('pos.cartTitle') }}</span>
           <span v-if="posStore.cartLinesCount > 0" class="text-xs font-bold text-[var(--muted)]">
-            ({{ posStore.cartLinesCount }} صنف · {{ posStore.cartTotalPieces }} قطعة)
+            {{ $t('pos.cartSummary', { lines: posStore.cartLinesCount, pieces: posStore.cartTotalPieces }) }}
           </span>
         </h2>
 
@@ -17,7 +17,7 @@
           class="h-8 px-2.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--muted)] hover:text-red-600 hover:border-red-300 transition"
           @click="confirmClearCart"
         >
-          تفريغ
+          {{ $t('pos.clearCart') }}
         </button>
       </div>
 
@@ -28,24 +28,24 @@
           class="flex-1 h-9 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold px-2.5 outline-none focus:border-[var(--crimson)]"
           @change="onCustomerChange"
         >
-          <option :value="null">عميل نقدي (Walk-in)</option>
+          <option :value="null">{{ $t('pos.walkInCustomer') }}</option>
           <option
             v-for="c in posStore.customers"
             :key="c.id"
             :value="c.id"
           >
-            {{ c.name }}{{ c.phone ? ` · ${c.phone}` : '' }}
+            {{ c.name }}
           </option>
         </select>
 
         <button
           type="button"
           class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1 flex-none"
-          title="إضافة عميل جديد"
+          :title="$t('pos.addCustomerTooltip')"
           @click="$emit('open-add-customer')"
         >
           <UserPlus class="w-3.5 h-3.5 text-[var(--crimson)]" />
-          <span class="hidden sm:inline">عميل جديد</span>
+          <span class="hidden sm:inline">{{ $t('pos.newCustomer') }}</span>
         </button>
       </div>
     </div>
@@ -65,26 +65,26 @@
             </h4>
           </div>
           <span class="text-sm font-black text-[var(--text)] flex-none font-mono">
-            {{ formatMoney(item.total) }} <small class="text-[10px] font-normal text-[var(--muted)] font-sans">ج.م</small>
+            {{ formatMoney(item.total) }} <small class="text-[10px] font-normal text-[var(--muted)] font-sans">{{ $t('common.currency') }}</small>
           </span>
         </div>
 
         <!-- Individual Price Input & Override -->
         <div class="flex items-center gap-2 text-xs">
           <div class="flex items-center gap-1.5">
-            <span class="text-[11px] font-bold text-[var(--muted)]">السعر:</span>
-            <div class="relative flex items-center">
+            <span class="text-[11px] font-bold text-[var(--muted)]">{{ $t('pos.priceLabel') }}</span>
+            <div class="relative flex items-center" dir="ltr">
               <input
                 :value="item.unit_price"
                 type="number"
                 min="0"
                 step="any"
-                class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] pr-1 pl-6 font-mono"
-                title="تعديل سعر الوحدة للقطعة"
+                class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] pl-1 pr-6 font-mono"
+                :title="$t('pos.overridePriceTooltip')"
                 @change="posStore.updateCartItemPrice(item.product_id, $event.target.value)"
                 @keyup.enter="$event.target.blur()"
               />
-              <span class="absolute left-1.5 text-[10px] font-bold text-[var(--muted)] pointer-events-none">ج.م</span>
+              <span class="absolute right-1.5 text-[10px] font-bold text-[var(--muted)] pointer-events-none">{{ $t('common.currency') }}</span>
             </div>
           </div>
 
@@ -93,7 +93,7 @@
             v-if="item.unit_price < item.original_unit_price"
             class="text-[10px] font-bold text-[var(--ok)] bg-[var(--okbg)] px-1.5 py-0.5 rounded whitespace-nowrap"
           >
-            وفر {{ formatMoney(item.original_unit_price - item.unit_price) }} ج.م
+            {{ $t('pos.savedAmount', { amount: formatMoney(item.original_unit_price - item.unit_price) }) }}
           </span>
           <span
             v-else-if="item.unit_price > item.original_unit_price"
@@ -132,7 +132,7 @@
           </div>
 
           <span class="text-[10px] text-[var(--muted)]">
-            (متاح {{ item.product?.stock_quantity }})
+            {{ $t('pos.availableQty', { qty: item.product?.stock_quantity }) }}
           </span>
 
           <div class="flex-1"></div>
@@ -141,7 +141,7 @@
           <button
             type="button"
             class="p-1 rounded-lg text-[var(--crimson)] hover:bg-[var(--soft)] transition"
-            title="حذف من السلة"
+            :title="$t('pos.removeFromCart')"
             @click="posStore.removeFromCart(item.product_id)"
           >
             <Trash2 class="w-4 h-4" />
@@ -152,8 +152,8 @@
       <!-- Empty Cart Message -->
       <div v-if="posStore.cartLinesCount === 0" class="text-center py-20 text-[var(--muted)]">
         <ShoppingCart class="w-12 h-12 mx-auto mb-2 text-[var(--muted)]/40" />
-        <h4 class="font-bold text-sm text-[var(--text)] mb-1">السلة فارغة</h4>
-        <p class="text-xs">امسح باركود الكتاب أو اضغط على أي صنف من القائمة لإضافته هنا.</p>
+        <h4 class="font-bold text-sm text-[var(--text)] mb-1">{{ $t('pos.cartEmptyToast') }}</h4>
+        <p class="text-xs">{{ $t('pos.emptyCartHint') }}</p>
       </div>
     </div>
 
@@ -161,8 +161,8 @@
     <div class="p-4 border-t border-[var(--border)] bg-[var(--bg)] flex flex-col gap-2 flex-none">
       <!-- Subtotal -->
       <div class="flex items-center justify-between text-xs font-semibold text-[var(--text)]">
-        <span class="text-[var(--muted)]">المجموع الفرعي ({{ posStore.cartTotalPieces }} قطعة)</span>
-        <b>{{ formatMoney(posStore.cartSubtotal) }} ج.م</b>
+        <span class="text-[var(--muted)]">{{ $t('pos.subtotalPieces', { pieces: posStore.cartTotalPieces }) }}</span>
+        <b>{{ formatMoney(posStore.cartSubtotal) }} {{ $t('common.currency') }}</b>
       </div>
 
       <!-- Item Discounts / Savings (if any) -->
@@ -170,13 +170,13 @@
         v-if="posStore.cartPriceOverrideSavings > 0"
         class="flex items-center justify-between text-xs font-semibold text-[var(--ok)]"
       >
-        <span>إجمالي الخصم على الأصناف</span>
-        <b>-{{ formatMoney(posStore.cartPriceOverrideSavings) }} ج.م</b>
+        <span>{{ $t('pos.itemsDiscountTotal') }}</span>
+        <b>-{{ formatMoney(posStore.cartPriceOverrideSavings) }} {{ $t('common.currency') }}</b>
       </div>
 
       <!-- Invoice Discount Row -->
       <div class="flex items-center justify-between text-xs font-semibold pt-1">
-        <span class="text-[var(--muted)]">خصم الفاتورة</span>
+        <span class="text-[var(--muted)]">{{ $t('pos.invoiceDiscount') }}</span>
         <div class="flex items-center gap-1.5">
           <!-- Discount Type Toggle -->
           <div class="flex border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--card)] text-[11px] font-bold">
@@ -188,10 +188,10 @@
                   ? 'bg-[var(--text)] text-[var(--card)]'
                   : 'text-[var(--muted)] hover:bg-[var(--border)]'
               ]"
-              title="خصم بمبلغ ثابت (جنيه)"
+              :title="$t('pos.fixedDiscountTooltip')"
               @click="posStore.setInvoiceDiscount('fixed', posStore.cart.invoice_discount_value)"
             >
-              ج.م
+              {{ $t('common.currency') }}
             </button>
             <button
               type="button"
@@ -201,7 +201,7 @@
                   ? 'bg-[var(--text)] text-[var(--card)]'
                   : 'text-[var(--muted)] hover:bg-[var(--border)]'
               ]"
-              title="خصم بنسبة مئوية (%)"
+              :title="$t('pos.percentDiscountTooltip')"
               @click="posStore.setInvoiceDiscount('percentage', posStore.cart.invoice_discount_value)"
             >
               %
@@ -216,7 +216,7 @@
             step="any"
             placeholder="0"
             class="w-16 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
-            title="قيمة الخصم"
+            :title="$t('pos.discountValueTooltip')"
             @input="posStore.setInvoiceDiscount(posStore.cart.invoice_discount_type, $event.target.value)"
             @change="posStore.setInvoiceDiscount(posStore.cart.invoice_discount_type, $event.target.value)"
           />
@@ -230,8 +230,8 @@
 
       <!-- Grand Total -->
       <div class="flex items-center justify-between text-xl font-black text-[var(--text)] pt-1.5 border-t border-[var(--border)]">
-        <span>الإجمالي</span>
-        <span class="text-[var(--crimson)]">{{ formatMoney(posStore.cartGrandTotal) }} <small class="text-xs text-[var(--muted)] font-normal">ج.م</small></span>
+        <span>{{ $t('pos.grandTotal') }}</span>
+        <span class="text-[var(--crimson)]">{{ formatMoney(posStore.cartGrandTotal) }} <small class="text-xs text-[var(--muted)] font-normal">{{ $t('common.currency') }}</small></span>
       </div>
 
       <!-- Checkout Button with F9 Shortcut -->
@@ -241,7 +241,7 @@
         class="h-14 mt-1 rounded-2xl bg-[var(--crimson)] text-white text-lg font-black hover:opacity-95 transition flex items-center justify-center gap-2 shadow-lg shadow-[var(--crimson)]/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
         @click="$emit('open-pay')"
       >
-        <span>تحصيل {{ formatMoney(posStore.cartGrandTotal) }} ج.م</span>
+        <span>{{ $t('pos.collectAmount', { amount: formatMoney(posStore.cartGrandTotal) }) }}</span>
         <kbd class="font-mono text-xs font-normal border border-white/40 px-1.5 py-0.5 rounded text-white/90">F9</kbd>
       </button>
     </div>
@@ -250,12 +250,14 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ShoppingBag, ShoppingCart, Trash2, UserPlus } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
 import { useAuthStore } from '../../stores/auth';
 
 const emit = defineEmits(['open-pay', 'open-add-customer']);
 
+const { t } = useI18n();
 const posStore = usePosStore();
 const authStore = useAuthStore();
 
@@ -270,9 +272,9 @@ const discountHint = computed(() => {
   if (!d || !s) return '';
   const pct = Math.round((d / s) * 1000) / 10;
   if (posStore.cart.invoice_discount_type === 'percentage') {
-    return `خصمت ${posStore.cart.invoice_discount_value}% = ${formatMoney(d)} ج.م من الإجمالي`;
+    return t('pos.discountPercentHint', { pct: posStore.cart.invoice_discount_value, amount: formatMoney(d) });
   }
-  return `خصمت ${formatMoney(d)} ج.م = ${pct}% من الإجمالي`;
+  return t('pos.discountFixedHint', { amount: formatMoney(d), pct });
 });
 
 function onCustomerChange() {
@@ -285,7 +287,7 @@ function onCustomerChange() {
 }
 
 function confirmClearCart() {
-  if (confirm('هل أنت متأكد من تفريغ سلة البيع بالكامل؟')) {
+  if (confirm(t('pos.confirmClearCart'))) {
     posStore.clearCart();
     selectedCustomerId.value = null;
   }

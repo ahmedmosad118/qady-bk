@@ -68,7 +68,7 @@
             <div class="relative">
               <select
                 v-model="roleFilter"
-                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pe-9 ps-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('users.roleFilter')"
               >
                 <option value="all">{{ $t('users.allRoles') }}</option>
@@ -76,7 +76,7 @@
                 <option v-if="hasUnassignedRoles" value="__none">{{ $t('users.noRole') }}</option>
               </select>
               <ChevronDown
-                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
                 aria-hidden="true"
               />
             </div>

@@ -10,12 +10,10 @@
             v-model="searchQuery"
             @input="handleSearch"
             :placeholder="searchPlaceholder || $t('common.searchPlaceholder')"
-            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 text-xs font-medium text-gray-900 outline-hidden placeholder:text-gray-400 focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-900 transition-colors"
-            :class="$i18n.locale === 'ar' ? 'pr-10 pl-4 text-right' : 'pl-10 pr-4 text-left'"
+            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-10 pe-4 text-start text-xs font-medium text-gray-900 outline-hidden placeholder:text-gray-400 focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-900 transition-colors"
           />
           <span
-            class="absolute top-3 text-gray-400 pointer-events-none"
-            :class="$i18n.locale === 'ar' ? 'right-3.5' : 'left-3.5'"
+            class="pointer-events-none absolute start-3.5 top-3 text-gray-400"
           >
             <Search class="h-4 w-4" />
           </span>
@@ -48,10 +46,10 @@
         </span>
         <div>
           <p class="text-xs font-black text-rose-950 dark:text-rose-200">
-            تم تحديد {{ selectedIds.length }} عنصر من الجدول
+            {{ $t('common.selectedItemsCount', { count: selectedIds.length }) }}
           </p>
           <p class="text-[11px] text-rose-700/80 dark:text-rose-400">
-            يمكنك تطبيق إجراء الحذف الجماعي على كافة السجلات المحددة.
+            {{ $t('common.bulkDeleteHint') }}
           </p>
         </div>
       </div>
@@ -63,7 +61,7 @@
           class="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-2 text-xs font-black text-white shadow-xs transition-colors cursor-pointer"
         >
           <Trash2 class="h-3.5 w-3.5" />
-          <span>حذف المحدد (Delete Selected)</span>
+          <span>{{ $t('common.deleteSelected') }}</span>
         </button>
 
         <button
@@ -72,14 +70,14 @@
           class="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-white dark:bg-gray-800 dark:border-rose-900/50 px-3 py-2 text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors cursor-pointer"
         >
           <X class="h-3.5 w-3.5" />
-          <span>إلغاء التحديد</span>
+          <span>{{ $t('common.clearSelection') }}</span>
         </button>
       </div>
     </div>
 
     <!-- Table Container -->
     <div class="max-w-full overflow-x-auto">
-      <table class="w-full table-auto" :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'">
+      <table class="w-full table-auto text-start">
         <thead>
           <tr class="border-b border-gray-100 bg-gray-50/75 dark:border-gray-800 dark:bg-gray-900/30 text-[11px] font-black uppercase text-gray-400 tracking-wider">
             <th v-if="selectable" class="py-3 px-4 w-10">

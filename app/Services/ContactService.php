@@ -1,16 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Enums\ContactType;
 use App\Models\Contact;
 use App\Models\ContactAddress;
+use App\Services\Accounting\ContactAccountService;
 use Illuminate\Support\Facades\DB;
 
 class ContactService
 {
+    public function __construct(
+        protected ContactAccountService $contactAccountService,
+    ) {}
+
     /**
-     * Create a new contact within a database transaction.
+     * Create a new contact along with its dedicated receivable and payable accounts
+     * within a single database transaction.
      *
      * @param array<string, mixed> $data
      */
@@ -18,10 +26,12 @@ class ContactService
     {
         $data = $this->normalizeIndividualCustomerData($data);
 
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data): Contact {
             $contact = new Contact();
             $contact->fill($data);
             $contact->save();
+
+            $this->contactAccountService->createAccountsForContact($contact);
 
             // If an initial address is provided with contact creation, save it.
             if (!empty($data['address']) && is_array($data['address'])) {
@@ -30,7 +40,11 @@ class ContactService
                 $contact->addresses()->create($addressData);
             }
 
-            return $contact->load('addresses');
+            return $contact->load([
+                'addresses',
+                'receivableAccount:id,code,name',
+                'payableAccount:id,code,name',
+            ]);
         });
     }
 

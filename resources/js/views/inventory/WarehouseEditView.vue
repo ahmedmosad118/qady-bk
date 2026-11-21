@@ -161,6 +161,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   CheckCircle2,
@@ -170,6 +171,7 @@ import {
 import api from '../../services/api';
 import PageHeader from '../../components/ui/PageHeader.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const loading = ref(true);
 const saving = ref(false);
@@ -210,7 +212,7 @@ async function loadWarehouse() {
     }
   } catch (err) {
     feedback.type = 'error';
-    feedback.message = err?.response?.data?.message || 'تعذر تحميل بيانات المخزن';
+    feedback.message = err?.response?.data?.message || t('warehouses.loadError');
   } finally {
     loading.value = false;
   }
@@ -229,14 +231,14 @@ async function saveWarehouse() {
       warehouse.value = response.data.data;
     }
     feedback.type = 'success';
-    feedback.message = response.data?.message || 'تم تحديث بيانات المخزن بنجاح';
+    feedback.message = response.data?.message || t('warehouses.updateSuccess');
   } catch (err) {
     feedback.type = 'error';
     if (err?.response?.status === 422 && err.response.data?.errors) {
       errors.value = err.response.data.errors;
-      feedback.message = 'يرجى مراجعة الحقول والمدخلات المطلوبة.';
+      feedback.message = t('warehouses.validationError');
     } else {
-      feedback.message = err?.response?.data?.message || 'حدث خطأ أثناء حفظ بيانات المخزن';
+      feedback.message = err?.response?.data?.message || t('warehouses.saveError');
     }
   } finally {
     saving.value = false;

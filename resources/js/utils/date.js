@@ -1,9 +1,12 @@
 /**
  * Al Qadi Library — Date & Time Formatting Utilities
  * Eliminates ISO 8601 strings (e.g. 2026-09-21T00:00:00.000000Z) across the entire application.
- * Formats date only (21 سبتمبر 2026) when time is midnight or date-only,
- * or date + hour & minutes (23 سبتمبر 2026، 04:48 ص) when a specific time exists.
+ * Formats date only when time is midnight or date-only,
+ * or date + hour & minutes when a specific time exists.
  */
+import i18n from '../i18n';
+
+const resolveLocale = (locale) => locale || i18n.global.locale.value || 'ar';
 
 export const isIsoDateString = (val) => {
   if (typeof val !== 'string') return false;
@@ -33,12 +36,12 @@ const hasNonZeroTime = (rawVal, d) => {
   return true;
 };
 
-export const formatDate = (dateVal, locale = 'ar') => {
+export const formatDate = (dateVal, locale = null) => {
   if (!dateVal) return '—';
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return String(dateVal);
 
-  const loc = locale === 'ar' ? 'ar-EG' : 'en-US';
+  const loc = resolveLocale(locale) === 'ar' ? 'ar-EG' : 'en-US';
 
   // If date-only or zero midnight time, format date only
   if (!hasNonZeroTime(dateVal, d)) {
@@ -72,11 +75,11 @@ export const formatDate = (dateVal, locale = 'ar') => {
   });
 };
 
-export const formatDateOnly = (dateVal, locale = 'ar') => {
+export const formatDateOnly = (dateVal, locale = null) => {
   if (!dateVal) return '—';
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return String(dateVal);
-  const loc = locale === 'ar' ? 'ar-EG' : 'en-US';
+  const loc = resolveLocale(locale) === 'ar' ? 'ar-EG' : 'en-US';
 
   const match = String(dateVal).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
@@ -98,11 +101,11 @@ export const formatDateOnly = (dateVal, locale = 'ar') => {
   });
 };
 
-export const formatDateTime = (dateVal, locale = 'ar') => {
+export const formatDateTime = (dateVal, locale = null) => {
   if (!dateVal) return '—';
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return String(dateVal);
-  const loc = locale === 'ar' ? 'ar-EG' : 'en-US';
+  const loc = resolveLocale(locale) === 'ar' ? 'ar-EG' : 'en-US';
   return d.toLocaleString(loc, {
     year: 'numeric',
     month: 'short',

@@ -79,7 +79,7 @@
 
     <!-- Desktop table -->
     <div class="hidden overflow-x-auto md:block">
-      <table class="w-full min-w-[520px] table-auto text-right">
+      <table class="w-full min-w-[520px] table-auto text-start">
         <thead class="bg-[var(--bg)]">
           <tr>
             <th scope="col" class="w-12 px-4 py-3.5">

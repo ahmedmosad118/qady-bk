@@ -25,9 +25,9 @@
           {{ $t('auth.email') }}
         </label>
 
-        <div class="relative">
+        <div class="relative" dir="ltr">
           <Mail
-            class="pointer-events-none absolute right-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
+            class="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
             aria-hidden="true"
           />
           <input
@@ -40,7 +40,7 @@
             autocomplete="username"
             spellcheck="false"
             placeholder="name@example.com"
-            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-4 pr-11 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
+            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-11 pr-4 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
             :class="fieldClass(errors.email)"
             :aria-invalid="Boolean(errors.email)"
             :aria-describedby="errors.email ? 'email-error' : undefined"
@@ -66,9 +66,9 @@
           </label>
         </div>
 
-        <div class="relative">
+        <div class="relative" dir="ltr">
           <Lock
-            class="pointer-events-none absolute right-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
+            class="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted)]"
             aria-hidden="true"
           />
           <input
@@ -79,14 +79,14 @@
             autocomplete="current-password"
             spellcheck="false"
             placeholder="••••••••"
-            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-12 pr-11 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
+            class="h-12 w-full rounded-xl border bg-[var(--card)] pl-11 pr-12 text-left text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/70"
             :class="fieldClass(errors.password)"
             :aria-invalid="Boolean(errors.password)"
             :aria-describedby="errors.password ? 'password-error' : undefined"
           />
           <button
             type="button"
-            class="absolute left-2.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+            class="absolute right-2.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
             :aria-label="showPassword ? $t('auth.hidePassword') : $t('auth.showPassword')"
             :title="showPassword ? $t('auth.hidePassword') : $t('auth.showPassword')"
             @click="showPassword = !showPassword"

@@ -1,11 +1,11 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl" @keydown.esc="$emit('close')">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" @keydown.esc="$emit('close')">
     <div class="w-full max-w-[560px] max-h-[92vh] overflow-y-auto rounded-3xl bg-[var(--card)] p-6 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Title -->
       <div class="flex items-center justify-between border-b border-[var(--border)] pb-3 mb-4">
         <div class="flex items-center gap-2">
           <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-          <h3 class="text-xl font-black">تحصيل الفاتورة وتأكيد الدفع</h3>
+          <h3 class="text-xl font-black">{{ $t('pos.modals.pay.title') }}</h3>
         </div>
         <button
           type="button"
@@ -18,8 +18,8 @@
 
       <!-- Total Required -->
       <div class="mb-4 rounded-2xl bg-[var(--soft)] p-4 text-center text-[var(--crimson)] border border-[var(--crimson)]/20 shadow-sm">
-        <span class="block text-sm font-bold text-[var(--muted)] mb-1">المبلغ المطلوب سداده</span>
-        <b class="text-3xl font-black tracking-tight">{{ formatNumber(totalAmount) }} <small class="text-base font-normal">ج.م</small></b>
+        <span class="block text-sm font-bold text-[var(--muted)] mb-1">{{ $t('pos.modals.pay.amountRequired') }}</span>
+        <b class="text-3xl font-black tracking-tight">{{ formatNumber(totalAmount) }} <small class="text-base font-normal">{{ $t('common.currency') }}</small></b>
       </div>
 
       <!-- Payment Method Selector -->
@@ -36,17 +36,17 @@
           ]"
           @click="selectMethod(method)"
         >
-          <Banknote v-if="(method.type || '') === 'cash' || (!method.type && method.name === 'نقدي')" class="w-6 h-6" />
-          <CreditCard v-else-if="(method.type || '') === 'visa' || (!method.type && method.name === 'فيزا')" class="w-6 h-6" />
+          <Banknote v-if="method.type === 'cash'" class="w-6 h-6" />
+          <CreditCard v-else-if="method.type === 'visa'" class="w-6 h-6" />
           <Building2 v-else class="w-6 h-6" />
-          <span>{{ method.name }}</span>
+          <span>{{ methodLabel(method) }}</span>
         </button>
       </div>
 
       <!-- Cash Payment Details -->
       <div v-if="isCashMethod" class="space-y-3 mb-4">
         <div>
-          <label class="block text-sm font-bold mb-1 text-[var(--text)]">المبلغ المدفوع من العميل (ج.م)</label>
+          <label class="block text-sm font-bold mb-1 text-[var(--text)]">{{ $t('pos.modals.pay.paidAmountLabel') }}</label>
           <input
             ref="paidInputRef"
             v-model.number="paidAmount"
@@ -67,31 +67,31 @@
             class="px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--bar)] text-[var(--text)] text-sm font-bold hover:bg-[var(--border)] transition cursor-pointer"
             @click="setPaid(amt)"
           >
-            {{ amt === totalAmount ? 'المبلغ كاملًا' : `${formatNumber(amt)} ج.م` }}
+            {{ amt === totalAmount ? $t('pos.modals.pay.exactAmount') : `${formatNumber(amt)} ${$t('common.currency')}` }}
           </button>
         </div>
 
         <!-- Change Calculation -->
         <div class="flex items-center justify-between py-3 px-2 rounded-xl bg-[var(--bar)] border border-[var(--border)] font-black text-lg">
-          <span class="text-sm font-bold text-[var(--muted)]">الباقي للعميل:</span>
+          <span class="text-sm font-bold text-[var(--muted)]">{{ $t('pos.modals.pay.changeDue') }}</span>
           <span :class="isPaidSufficient ? 'text-emerald-600 dark:text-emerald-400 text-xl font-black' : 'text-red-600 text-sm font-bold'">
-            {{ isPaidSufficient ? `${formatNumber(changeAmount)} ج.م` : 'المبلغ المدفوع غير كافٍ' }}
+            {{ isPaidSufficient ? `${formatNumber(changeAmount)} ${$t('common.currency')}` : $t('pos.modals.pay.insufficientAmount') }}
           </span>
         </div>
       </div>
 
       <!-- Non-Cash Notice -->
       <div v-else class="p-4 rounded-xl bg-[var(--bar)] text-[var(--muted)] text-sm mb-4 border border-[var(--border)]">
-        سيتم تسجيل الفاتورة مسددة بالكامل عبر <strong class="text-[var(--text)]">{{ selectedMethodName }}</strong> بمبلغ <strong>{{ formatNumber(totalAmount) }} ج.م</strong>.
+        {{ $t('pos.modals.pay.nonCashNotice', { method: selectedMethodName, amount: formatNumber(totalAmount) }) }}
       </div>
 
       <!-- Notes Field -->
       <div class="mb-5">
-        <label class="block text-xs font-semibold mb-1 text-[var(--muted)]">ملاحظات على الفاتورة (اختياري)</label>
+        <label class="block text-xs font-semibold mb-1 text-[var(--muted)]">{{ $t('pos.modals.pay.notesLabel') }}</label>
         <input
           v-model="notes"
           type="text"
-          placeholder="مثال: خصم خاص بنقابة المحامين، تم التسليم باليد..."
+          :placeholder="$t('pos.modals.pay.notesPlaceholder')"
           class="w-full h-10 px-3 text-sm rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] transition"
           @keyup.enter="confirmPayment(true)"
         />
@@ -106,7 +106,7 @@
           :disabled="loading"
           @click="$emit('close')"
         >
-          إلغاء (Esc)
+          {{ $t('pos.modals.pay.cancelEsc') }}
         </button>
 
         <!-- Save Only Button (No Print) -->
@@ -114,11 +114,11 @@
           type="button"
           class="h-12 px-4 rounded-xl border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-bold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 cursor-pointer order-2"
           :disabled="loading || (isCashMethod && !isPaidSufficient)"
-          title="حفظ الفاتورة وترحيلها في النظام بدون طباعة إيصال"
+          :title="$t('pos.modals.pay.saveOnlyTooltip')"
           @click="confirmPayment(false)"
         >
           <Check class="w-4 h-4 text-emerald-600" />
-          <span>حفظ فقط</span>
+          <span>{{ $t('pos.modals.pay.saveOnly') }}</span>
         </button>
 
         <!-- Primary Action: Save & Print Invoice (Prominent Save Button) -->
@@ -130,7 +130,7 @@
         >
           <span v-if="loading" class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
           <Printer v-else class="w-5 h-5" />
-          <span>حفظ وطباعة الفاتورة (F10)</span>
+          <span>{{ $t('pos.modals.pay.saveAndPrint') }}</span>
         </button>
       </div>
     </div>
@@ -139,7 +139,10 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { X, Banknote, CreditCard, Building2, Printer, Check } from 'lucide-vue-next';
+
+const { t, te } = useI18n();
 
 const props = defineProps({
   totalAmount: {
@@ -163,17 +166,22 @@ const selectedMethodId = ref(null);
 const paidAmount = ref(props.totalAmount);
 const notes = ref('');
 
+function methodLabel(method) {
+  if (!method) return t('pos.paymentMethods.cash');
+  if (method.type && te(`pos.paymentMethods.${method.type}`)) {
+    return t(`pos.paymentMethods.${method.type}`);
+  }
+  return method.name || t('pos.paymentMethods.cash');
+}
+
 // Filter available payment methods to strictly cash, visa, bank transfer
 const availableMethods = computed(() => {
   const allowedTypes = ['cash', 'visa', 'bank_transfer'];
-  const allowedNames = ['نقدي', 'فيزا', 'تحويل بنكي'];
-  const list = props.paymentMethods.filter(
-    (m) => (m.type && allowedTypes.includes(m.type)) || (!m.type && allowedNames.includes(m.name))
-  );
+  const list = props.paymentMethods.filter((m) => m.type && allowedTypes.includes(m.type));
   return list.length > 0 ? list : [
-    { id: 1, name: 'نقدي', type: 'cash' },
-    { id: 2, name: 'فيزا', type: 'visa' },
-    { id: 3, name: 'تحويل بنكي', type: 'bank_transfer' },
+    { id: 1, name: t('pos.paymentMethods.cash'), type: 'cash' },
+    { id: 2, name: t('pos.paymentMethods.visa'), type: 'visa' },
+    { id: 3, name: t('pos.paymentMethods.bank_transfer'), type: 'bank_transfer' },
   ];
 });
 
@@ -181,13 +189,8 @@ const selectedMethod = computed(() => {
   return availableMethods.value.find((m) => m.id === selectedMethodId.value) || availableMethods.value[0];
 });
 
-const selectedMethodName = computed(() => selectedMethod.value?.name || 'نقدي');
-const isCashMethod = computed(() => {
-  if (selectedMethod.value?.type) {
-    return selectedMethod.value.type === 'cash';
-  }
-  return selectedMethodName.value === 'نقدي';
-});
+const selectedMethodName = computed(() => methodLabel(selectedMethod.value));
+const isCashMethod = computed(() => selectedMethod.value?.type === 'cash');
 
 const isPaidSufficient = computed(() => {
   if (!isCashMethod.value) return true;
@@ -208,7 +211,7 @@ const quickAmounts = computed(() => {
 
 function selectMethod(method) {
   selectedMethodId.value = method.id;
-  const isCash = method.type ? method.type === 'cash' : method.name === 'نقدي';
+  const isCash = method.type === 'cash';
   if (isCash) {
     paidAmount.value = props.totalAmount;
     nextTick(() => {

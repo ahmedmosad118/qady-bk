@@ -6,12 +6,20 @@ use App\Enums\ContactType;
 use App\Models\Contact;
 use App\Models\ContactAddress;
 use App\Models\User;
+use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ContactTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(ChartOfAccountSeeder::class);
+    }
 
     private function actingUser(): User
     {

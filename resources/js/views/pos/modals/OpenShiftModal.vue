@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
     <div class="w-full max-w-[520px] max-h-[92vh] overflow-y-auto rounded-3xl bg-[var(--card)] p-6 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Header -->
       <div class="flex items-center justify-between pb-3 mb-4 border-b border-[var(--border)]">
@@ -8,8 +8,8 @@
             <LockKeyhole class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="text-lg font-black">{{ posStore.isOpenShift ? 'إدارة الوردية' : 'اختيار أو فتح وردية عمل' }}</h3>
-            <p class="text-xs text-[var(--muted)]">لا يمكن إتمام المبيعات دون تحديد وردية عمل نشطة</p>
+            <h3 class="text-lg font-black">{{ posStore.isOpenShift ? $t('pos.modals.openShift.manageTitle') : $t('pos.modals.openShift.selectTitle') }}</h3>
+            <p class="text-xs text-[var(--muted)]">{{ $t('pos.modals.openShift.subtitle') }}</p>
           </div>
         </div>
         <button
@@ -29,7 +29,7 @@
           :class="activeTab === 'select' ? 'bg-[var(--card)] text-[var(--text)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--text)]'"
           @click="activeTab = 'select'"
         >
-          الورديات المفتوحة ({{ posStore.availableOpenShifts.length }})
+          {{ $t('pos.modals.openShift.openShiftsTab', { count: posStore.availableOpenShifts.length }) }}
         </button>
         <button
           type="button"
@@ -37,13 +37,13 @@
           :class="activeTab === 'new' ? 'bg-[var(--card)] text-[var(--text)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--text)]'"
           @click="activeTab = 'new'"
         >
-          فتح وردية جديدة
+          {{ $t('pos.modals.openShift.newShiftTab') }}
         </button>
       </div>
 
       <!-- Tab 1: Select Open Shift -->
       <div v-if="activeTab === 'select' && posStore.availableOpenShifts.length > 0" class="space-y-3 mb-4">
-        <p class="text-xs text-[var(--muted)]">اختر وردية العمل التي تود الربط عليها:</p>
+        <p class="text-xs text-[var(--muted)]">{{ $t('pos.modals.openShift.selectPrompt') }}</p>
         <div
           v-for="shift in posStore.availableOpenShifts"
           :key="shift.id"
@@ -57,13 +57,13 @@
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               <b class="text-sm font-black">{{ shift.shift_number }}</b>
               <span v-if="shift.opened_by === authStore.user?.id" class="text-[10px] font-bold bg-[var(--soft)] text-[var(--crimson)] px-1.5 py-0.5 rounded">
-                وردتك
+                {{ $t('pos.modals.openShift.yourShift') }}
               </span>
             </div>
             <div class="text-xs text-[var(--muted)] flex flex-wrap gap-2">
-              <span>المستخدم: {{ shift.opened_by_name || 'كاشير' }}</span>
+              <span>{{ $t('pos.modals.openShift.userPrefix', { name: shift.opened_by_name || $t('pos.salesPage.cashier') }) }}</span>
               <span>·</span>
-              <span>بدأت: {{ formatDate(shift.opened_at) }}</span>
+              <span>{{ $t('pos.modals.openShift.startedPrefix', { time: formatTime(shift.opened_at) }) }}</span>
             </div>
           </div>
 
@@ -76,7 +76,7 @@
             @click="selectShift(shift.id)"
           >
             <Check v-if="posStore.activeShift?.id === shift.id" class="w-3.5 h-3.5" />
-            <span>{{ posStore.activeShift?.id === shift.id ? 'الوردية الحالية' : 'اختيار هذه الوردية' }}</span>
+            <span>{{ posStore.activeShift?.id === shift.id ? $t('pos.modals.openShift.currentShift') : $t('pos.modals.openShift.chooseShift') }}</span>
           </button>
         </div>
       </div>
@@ -84,7 +84,7 @@
       <!-- Tab 2: Open New Shift -->
       <form v-else @submit.prevent="submitOpen" class="space-y-4">
         <div class="text-start">
-          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">الرصيد الافتتاحي في الدرج (ج.م)</label>
+          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.openShift.openingBalanceLabel') }}</label>
           <input
             v-model.number="openingBalance"
             type="number"
@@ -96,11 +96,11 @@
         </div>
 
         <div class="text-start">
-          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">ملاحظات الافتتاح (اختياري)</label>
+          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.openShift.notesLabel') }}</label>
           <input
             v-model="notes"
             type="text"
-            placeholder="مثال: استلام درج الصباح، عهدة البداية..."
+            :placeholder="$t('pos.modals.openShift.notesPlaceholder')"
             class="w-full h-10 px-3 text-sm rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
           />
         </div>
@@ -111,7 +111,7 @@
           :disabled="loading"
         >
           <span v-if="loading" class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-          <span>فتح وردية جديدة وتفعيل البيع</span>
+          <span>{{ $t('pos.modals.openShift.submitBtn') }}</span>
         </button>
       </form>
     </div>
@@ -120,9 +120,12 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { LockKeyhole, X, Check } from 'lucide-vue-next';
 import { usePosStore } from '../../../stores/pos';
 import { useAuthStore } from '../../../stores/auth';
+
+const { locale } = useI18n();
 
 defineProps({
   loading: {
@@ -153,9 +156,9 @@ function submitOpen() {
   });
 }
 
-function formatDate(isoStr) {
+function formatTime(isoStr) {
   if (!isoStr) return '';
-  return new Date(isoStr).toLocaleTimeString('ar-EG', {
+  return new Date(isoStr).toLocaleTimeString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
     hour: '2-digit',
     minute: '2-digit',
   });

@@ -3,7 +3,7 @@
     <!-- Compact Toolbar & Filter Drawer -->
     <FilterToolbar
       v-model:search="filters.search"
-      search-placeholder="رقم الفاتورة، اسم العميل، الهاتف..."
+      :search-placeholder="$t('pos.salesPage.searchPlaceholder')"
       :active-filters-count="activeFiltersCount"
       @search="onSearchDebounced"
       @reset="resetFilters"
@@ -11,15 +11,15 @@
       <div class="space-y-4">
         <!-- Payment Method -->
         <div>
-          <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">طريقة الدفع</label>
+          <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('pos.salesPage.paymentMethod') }}</label>
           <select
             v-model="filters.payment_method_id"
             class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
             @change="fetchSales(1)"
           >
-            <option value="">كل طرق الدفع</option>
+            <option value="">{{ $t('pos.salesPage.allPaymentMethods') }}</option>
             <option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">
-              {{ pm.name }}
+              {{ paymentMethodLabel(pm) }}
             </option>
           </select>
         </div>
@@ -51,19 +51,19 @@
 
     <!-- Data Table -->
     <div class="overflow-x-auto">
-      <table class="w-full text-right text-sm">
+      <table class="w-full text-start text-sm">
         <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
           <tr>
-            <th class="px-4 py-3.5">رقم الفاتورة</th>
-            <th class="px-4 py-3.5">التاريخ والوقت</th>
-            <th class="px-4 py-3.5">العميل</th>
-            <th class="px-4 py-3.5">الكاشير</th>
-            <th class="px-4 py-3.5 text-center">طريقة الدفع</th>
-            <th v-if="!shiftId" class="px-4 py-3.5 text-center">الوردية</th>
-            <th class="px-4 py-3.5 text-center">الأصناف</th>
-            <th class="px-4 py-3.5 text-end">إجمالي الفاتورة</th>
-            <th class="px-4 py-3.5 text-center">المرتجعات</th>
-            <th class="px-4 py-3.5 text-left">الإجراءات</th>
+            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.invoiceNumber') }}</th>
+            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.dateTime') }}</th>
+            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.customer') }}</th>
+            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.cashier') }}</th>
+            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.paymentMethod') }}</th>
+            <th v-if="!shiftId" class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.shift') }}</th>
+            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.items') }}</th>
+            <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.grandTotal') }}</th>
+            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.returns') }}</th>
+            <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.actions') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--border)]">
@@ -71,7 +71,7 @@
           <tr v-if="loading && sales.length === 0">
             <td :colspan="colspan" class="px-4 py-16 text-center text-sm text-[var(--muted)]">
               <Loader2 class="mx-auto h-7 w-7 animate-spin text-[var(--crimson)]" />
-              <span class="mt-2.5 block font-bold">جاري تحميل فواتير البيع...</span>
+              <span class="mt-2.5 block font-bold">{{ $t('pos.salesPage.loadingSales') }}</span>
             </td>
           </tr>
 
@@ -79,9 +79,9 @@
           <tr v-else-if="!loading && sales.length === 0">
             <td :colspan="colspan" class="px-4 py-16 text-center">
               <Receipt class="mx-auto h-12 w-12 text-[var(--muted)]/50" />
-              <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">لا توجد فواتير مبيعات مطابقة</h3>
+              <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">{{ $t('pos.salesPage.noSalesTitle') }}</h3>
               <p class="mt-1 text-xs text-[var(--muted)] max-w-sm mx-auto">
-                لم يتم العثور على أي فواتير مسجلة بناءً على معايير البحث والفلترة المحددة.
+                {{ $t('pos.salesPage.noSalesDesc') }}
               </p>
             </td>
           </tr>
@@ -97,10 +97,11 @@
             <td class="px-4 py-3.5 whitespace-nowrap">
               <button
                 type="button"
-                class="font-mono text-sm font-extrabold text-[var(--crimson)] hover:underline flex items-center gap-1.5 cursor-pointer"
+                class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
+                dir="ltr"
                 @click.stop="emit('open-sale', sale.id, 'info')"
               >
-                <Receipt class="w-3.5 h-3.5 shrink-0" />
+                <Receipt class="w-3.5 h-3.5 shrink-0 text-[var(--muted)]" />
                 <span>{{ sale.invoice_number }}</span>
               </button>
             </td>
@@ -108,7 +109,7 @@
             <!-- Date and Time -->
             <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
               <div class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
-                {{ formatDateTime(sale.sold_at || sale.created_at) }}
+                {{ formatDateTime(sale.sold_at || sale.created_at, locale) }}
               </div>
             </td>
 
@@ -124,7 +125,7 @@
                 v-else
                 class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--bar)] text-[var(--muted)]"
               >
-                عميل نقدي (Walk-in)
+                {{ $t('pos.walkInCustomer') }}
               </span>
             </td>
 
@@ -139,7 +140,7 @@
             <!-- Payment Method -->
             <td class="px-4 py-3.5 whitespace-nowrap text-center">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--bar)] text-[var(--text)]">
-                {{ sale.payment_method?.name || 'نقدي' }}
+                {{ paymentMethodLabel(sale.payment_method) }}
               </span>
             </td>
 
@@ -149,7 +150,8 @@
                 v-if="sale.shift || sale.pos_shift_id"
                 type="button"
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono font-bold border border-[var(--border)] hover:bg-[var(--bg)] transition cursor-pointer"
-                title="عرض تفاصيل الوردية"
+                dir="ltr"
+                :title="$t('pos.salesPage.viewShiftTooltip')"
                 @click.stop="emit('open-shift', sale.pos_shift_id || sale.shift?.id)"
               >
                 <Clock class="w-3 h-3 text-amber-600" />
@@ -167,7 +169,7 @@
             <td class="px-4 py-3.5 whitespace-nowrap text-end">
               <b class="text-sm font-black text-[var(--text)] font-mono">
                 {{ Number(sale.grand_total || 0).toFixed(2) }}
-                <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>
               </b>
             </td>
 
@@ -180,43 +182,43 @@
                 :class="isFullReturn(sale)
                   ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-500/20'
                   : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20'"
-                title="عرض تفاصيل المرتجعات المسجلة على هذه الفاتورة"
+                :title="$t('pos.salesPage.viewReturnsTooltip')"
                 @click.stop="emit('open-sale', sale.id, 'returns')"
               >
                 <span class="inline-flex items-center gap-1 text-[11px] font-extrabold">
                   <RotateCcw class="w-3 h-3" />
-                  <span>{{ isFullReturn(sale) ? 'مرتجع كامل' : 'مرتجع جزئي' }}</span>
+                  <span>{{ isFullReturn(sale) ? $t('pos.salesPage.fullReturn') : $t('pos.salesPage.partialReturn') }}</span>
                 </span>
                 <span class="font-mono text-[10px] font-bold">
-                  -{{ Number(sale.returns_total_amount || 0).toFixed(2) }} ج.م ({{ sale.returns_count }})
+                  -{{ Number(sale.returns_total_amount || 0).toFixed(2) }} {{ $t('common.currency') }} ({{ sale.returns_count }})
                 </span>
               </button>
               <span v-else class="text-xs text-[var(--muted)]">—</span>
             </td>
 
             <!-- Actions -->
-            <td class="px-4 py-3.5 whitespace-nowrap text-left" @click.stop>
+            <td class="px-4 py-3.5 whitespace-nowrap text-end" @click.stop>
               <div class="flex items-center justify-end gap-1.5">
                 <!-- Print Thermal Receipt -->
                 <button
                   type="button"
                   class="h-8 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                  title="طباعة إيصال الفاتورة الحراري"
+                  :title="$t('pos.salesPage.printReceiptTooltip')"
                   @click="emit('print', sale)"
                 >
                   <Printer class="w-3.5 h-3.5" />
-                  <span class="hidden sm:inline">طباعة</span>
+                  <span class="hidden sm:inline">{{ $t('pos.salesPage.printBtn') }}</span>
                 </button>
 
                 <!-- View Details -->
                 <button
                   type="button"
                   class="h-8 px-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--bg)] text-xs font-bold text-[var(--text)] transition flex items-center gap-1.5 cursor-pointer"
-                  title="عرض تفاصيل الفاتورة"
+                  :title="$t('pos.salesPage.viewDetailsTooltip')"
                   @click="emit('open-sale', sale.id, 'info')"
                 >
                   <Eye class="w-3.5 h-3.5 text-[var(--muted)]" />
-                  <span class="hidden sm:inline">تفاصيل</span>
+                  <span class="hidden sm:inline">{{ $t('pos.salesPage.detailsBtn') }}</span>
                 </button>
               </div>
             </td>
@@ -228,7 +230,7 @@
     <!-- Pagination -->
     <div v-if="meta.last_page > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-[var(--border)] bg-[var(--card)]">
       <span class="text-xs text-[var(--muted)]">
-        عرض الصفحة {{ meta.current_page }} من {{ meta.last_page }} (إجمالي {{ meta.total }} فاتورة)
+        {{ $t('pos.salesPage.paginationSummary', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
       </span>
       <div class="flex items-center gap-1.5">
         <button
@@ -237,8 +239,9 @@
           :disabled="meta.current_page <= 1"
           @click="fetchSales(meta.current_page - 1)"
         >
-          <ChevronRight class="w-4 h-4" />
-          <span>السابق</span>
+          <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
+          <ChevronLeft v-else class="w-4 h-4" />
+          <span>{{ $t('common.previous') }}</span>
         </button>
         <button
           type="button"
@@ -246,8 +249,9 @@
           :disabled="meta.current_page >= meta.last_page"
           @click="fetchSales(meta.current_page + 1)"
         >
-          <span>التالي</span>
-          <ChevronLeft class="w-4 h-4" />
+          <span>{{ $t('common.next') }}</span>
+          <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
+          <ChevronRight v-else class="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -256,6 +260,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Receipt,
   Clock,
@@ -268,7 +273,10 @@ import {
   RotateCcw,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import { formatDateTime } from '../../../utils/date';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
+
+const { t, te, locale } = useI18n();
 
 const props = defineProps({
   shiftId: {
@@ -368,22 +376,18 @@ async function fetchPaymentMethods() {
   }
 }
 
+function paymentMethodLabel(pm) {
+  if (!pm) return t('pos.paymentMethods.cash');
+  if (pm.type && te(`pos.paymentMethods.${pm.type}`)) {
+    return t(`pos.paymentMethods.${pm.type}`);
+  }
+  return pm.name || t('pos.paymentMethods.cash');
+}
+
 function isFullReturn(sale) {
   const grandTotal = Number(sale?.grand_total || 0);
   const returned = Number(sale?.returns_total_amount || 0);
   return returned > 0 && returned >= grandTotal - 0.01;
-}
-
-function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 watch(() => props.shiftId, () => {

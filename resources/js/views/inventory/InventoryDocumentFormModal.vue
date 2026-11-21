@@ -19,10 +19,10 @@
       <div class="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
         <div>
           <h2 class="text-lg font-extrabold text-[var(--text)]">
-            {{ isEdit ? $t('inventory.editDocument') : (fixedType ? 'إنشاء ' + typeLabel(fixedType) + ' جديد' : $t('inventory.createDocument')) }}
+            {{ isEdit ? $t('inventory.editDocument') : (fixedType ? $t('inventory.createTypedTitle', { type: typeLabel(fixedType) }) : $t('inventory.createDocument')) }}
           </h2>
           <p class="text-xs text-[var(--muted)]">
-            {{ isEdit ? document?.document_number : (fixedType ? 'إدخال بيانات وأصناف ' + typeLabel(fixedType) : $t('inventory.createSubtitle')) }}
+            {{ isEdit ? document?.document_number : (fixedType ? $t('inventory.createTypedSubtitle', { type: typeLabel(fixedType) }) : $t('inventory.createSubtitle')) }}
           </p>
         </div>
         <button
@@ -58,8 +58,8 @@
                 :options="documentTypeOptions"
                 :disabled="isEdit"
                 :clearable="false"
-                placeholder="-- اختر نوع المستند --"
-                search-placeholder="بحث في أنواع المستندات..."
+                :placeholder="$t('inventory.documentTypePlaceholder')"
+                :search-placeholder="$t('inventory.searchDocumentTypes')"
                 @change="onTypeChanged"
               />
               <p v-if="errors.document_type" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.document_type[0] }}</p>
@@ -78,7 +78,7 @@
                   <span>{{ typeLabel(form.document_type) }}</span>
                 </div>
                 <span class="rounded-md bg-[var(--crimson-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--crimson)]">
-                  محدد تلقائياً
+                  {{ $t('inventory.autoSelected') }}
                 </span>
               </div>
             </div>
@@ -106,7 +106,7 @@
                 v-model="form.adjustment_direction"
                 :options="adjustmentDirectionOptions"
                 :clearable="false"
-                placeholder="-- اختر اتجاه التسوية --"
+                :placeholder="$t('inventory.adjustmentDirectionPlaceholder')"
                 @change="onDirectionChanged"
               />
               <p v-if="errors.adjustment_direction" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.adjustment_direction[0] }}</p>
@@ -121,7 +121,7 @@
                 v-model="form.return_direction"
                 :options="returnDirectionOptions"
                 :clearable="false"
-                placeholder="-- اختر اتجاه المرتجع --"
+                :placeholder="$t('inventory.returnDirectionPlaceholder')"
                 @change="onDirectionChanged"
               />
               <p v-if="errors.return_direction" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.return_direction[0] }}</p>
@@ -141,8 +141,8 @@
               <SearchableSelect
                 v-model="form.source_warehouse_id"
                 :options="warehouseOptions"
-                placeholder="-- اختر المخزن المصدر --"
-                search-placeholder="بحث باسم المخزن أو الكود..."
+                :placeholder="$t('inventory.sourceWarehousePlaceholder')"
+                :search-placeholder="$t('inventory.searchWarehouses')"
                 :clearable="false"
               />
               <p v-if="errors.source_warehouse_id" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.source_warehouse_id[0] }}</p>
@@ -156,8 +156,8 @@
               <SearchableSelect
                 v-model="form.destination_warehouse_id"
                 :options="warehouseOptions"
-                placeholder="-- اختر المخزن المستهدف --"
-                search-placeholder="بحث باسم المخزن أو الكود..."
+                :placeholder="$t('inventory.destWarehousePlaceholder')"
+                :search-placeholder="$t('inventory.searchWarehouses')"
                 :clearable="false"
               />
               <p v-if="errors.destination_warehouse_id" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.destination_warehouse_id[0] }}</p>
@@ -214,14 +214,14 @@
             <p v-if="errors.items" class="text-xs text-[var(--crimson)]">{{ errors.items[0] }}</p>
 
             <div class="overflow-x-auto rounded-xl border border-[var(--border)] min-h-[280px]">
-              <table class="w-full text-right text-sm">
+              <table class="w-full text-start text-sm">
                 <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
                   <tr>
                     <th class="w-10 px-3 py-2.5 text-center">#</th>
                     <th class="w-[42%] min-w-[240px] px-3 py-2.5">{{ $t('inventory.fields.product') }}</th>
                     <th class="w-36 min-w-[140px] px-3 py-2.5 text-center">{{ $t('inventory.fields.quantity') }}</th>
                     <th class="min-w-[160px] px-3 py-2.5">{{ $t('inventory.fields.lineNotes') }}</th>
-                    <th class="w-14 px-3 py-2.5 text-center">حذف</th>
+                    <th class="w-14 px-3 py-2.5 text-center">{{ $t('inventory.deleteCol') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--border)]">
@@ -233,8 +233,8 @@
                         v-model="item.product_id"
                         :options="availableProductOptions(item.product_id)"
                         :paginate="10"
-                        placeholder="-- ابحث أو اختر منتج --"
-                        search-placeholder="ابحث بالاسم أو الباركود..."
+                        :placeholder="$t('inventory.searchProductPlaceholder')"
+                        :search-placeholder="$t('inventory.searchProductHint')"
                         :clearable="false"
                       />
                       <p v-if="errors[`items.${idx}.product_id`]" class="mt-1 text-[11px] text-[var(--crimson)]">
@@ -266,7 +266,7 @@
                       <button
                         type="button"
                         class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 transition-colors hover:bg-red-500/20 hover:text-red-700 shadow-xs cursor-pointer"
-                        :title="form.items.length > 1 ? 'حذف هذا السطر' : 'تفريغ السطر'"
+                        :title="form.items.length > 1 ? $t('inventory.removeRow') : $t('inventory.clearRow')"
                         @click="removeItemRow(idx)"
                       >
                         <Trash2 class="h-4 w-4 text-red-600" />
@@ -305,6 +305,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   Building2,
@@ -316,6 +317,8 @@ import {
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import api from '../../services/api';
+
+const { t } = useI18n();
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -331,18 +334,18 @@ const normalizedFixedType = computed(() => {
 });
 
 function typeLabel(type) {
-  if (!type) return 'مستند مخزني';
+  if (!type) return t('inventory.fallbackDocName');
   const clean = String(type).replace(/-/g, '_');
   const labels = {
-    goods_receipt: 'إذن استلام مخزني',
-    goods_delivery: 'إذن تسليم مخزني',
-    warehouse_transfer: 'إذن تحويل مخزني',
-    stock_adjustment: 'إذن تسوية جردية',
-    inventory_return: 'إذن مرتجع مخزني',
-    stock_write_off: 'إذن إهلاك',
-    opening_balance: 'رصيد افتتاحي',
+    goods_receipt: t('inventory.types.goods_receipt'),
+    goods_delivery: t('inventory.types.goods_delivery'),
+    warehouse_transfer: t('inventory.types.warehouse_transfer'),
+    stock_adjustment: t('inventory.types.stock_adjustment'),
+    inventory_return: t('inventory.types.inventory_return'),
+    stock_write_off: t('inventory.types.stock_write_off'),
+    opening_balance: t('inventory.types.opening_balance'),
   };
-  return labels[clean] || 'مستند مخزني';
+  return labels[clean] || t('inventory.fallbackDocName');
 }
 
 const emit = defineEmits(['close', 'saved']);
@@ -369,19 +372,19 @@ const form = reactive({
 // Document Types Options (Only show warehouse_transfer if more than 1 active warehouse!)
 const documentTypeOptions = computed(() => {
   const options = [
-    { value: 'goods_receipt', label: 'إذن استلام مخزني' },
-    { value: 'goods_delivery', label: 'إذن تسليم مخزني' },
+    { value: 'goods_receipt', label: t('inventory.types.goods_receipt') },
+    { value: 'goods_delivery', label: t('inventory.types.goods_delivery') },
   ];
 
   if (props.warehouses.length > 1) {
-    options.push({ value: 'warehouse_transfer', label: 'إذن تحويل مخزني' });
+    options.push({ value: 'warehouse_transfer', label: t('inventory.types.warehouse_transfer') });
   }
 
   options.push(
-    { value: 'stock_adjustment', label: 'إذن تسوية جردية' },
-    { value: 'inventory_return', label: 'إذن مرتجع مخزني' },
-    { value: 'stock_write_off', label: 'إذن إتلاف / هالك' },
-    { value: 'opening_balance', label: 'رصيد افتتاحي' },
+    { value: 'stock_adjustment', label: t('inventory.types.stock_adjustment') },
+    { value: 'inventory_return', label: t('inventory.types.inventory_return') },
+    { value: 'stock_write_off', label: t('inventory.types.stock_write_off') },
+    { value: 'opening_balance', label: t('inventory.types.opening_balance') },
   );
 
   return options;
@@ -391,31 +394,31 @@ const documentTypeOptions = computed(() => {
 const warehouseOptions = computed(() => {
   return props.warehouses.map(w => ({
     value: w.id,
-    label: `${w.name} (${w.code})${w.is_default ? ' ★ الافتراضي' : ''}`,
+    label: `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.defaultBadge') : ''}`,
   }));
 });
 
 // Directions Options
-const adjustmentDirectionOptions = [
-  { value: 'increase', label: 'تسوية بالزيادة (إضافة للمخزن)' },
-  { value: 'decrease', label: 'تسوية بالعجز (خصم من المخزن)' },
-];
+const adjustmentDirectionOptions = computed(() => [
+  { value: 'increase', label: t('inventory.directions.increaseLong') },
+  { value: 'decrease', label: t('inventory.directions.decreaseLong') },
+]);
 
-const returnDirectionOptions = [
-  { value: 'inbound', label: 'مرتجع وارد (إلى المخزن)' },
-  { value: 'outbound', label: 'مرتجع صادر (من المخزن)' },
-];
+const returnDirectionOptions = computed(() => [
+  { value: 'inbound', label: t('inventory.directions.inboundLong') },
+  { value: 'outbound', label: t('inventory.directions.outboundLong') },
+]);
 
 // Computed properties for conditional warehouse fields
 const isSourceRequired = computed(() => {
-  const t = form.document_type;
-  if (['goods_delivery', 'warehouse_transfer', 'stock_write_off'].includes(t)) {
+  const docType = form.document_type;
+  if (['goods_delivery', 'warehouse_transfer', 'stock_write_off'].includes(docType)) {
     return true;
   }
-  if (t === 'stock_adjustment' && form.adjustment_direction === 'decrease') {
+  if (docType === 'stock_adjustment' && form.adjustment_direction === 'decrease') {
     return true;
   }
-  if (t === 'inventory_return' && form.return_direction === 'outbound') {
+  if (docType === 'inventory_return' && form.return_direction === 'outbound') {
     return true;
   }
   return false;
@@ -590,9 +593,9 @@ async function submitForm() {
   } catch (err) {
     if (err?.response?.status === 422 && err.response.data?.errors) {
       errors.value = err.response.data.errors;
-      submitError.value = 'يرجى مراجعة الأخطاء الموضحة أدناه.';
+      submitError.value = t('inventory.validationError');
     } else {
-      submitError.value = err?.response?.data?.message || 'تعذر حفظ المستند المخزني';
+      submitError.value = err?.response?.data?.message || t('inventory.saveError');
     }
   } finally {
     submitting.value = false;

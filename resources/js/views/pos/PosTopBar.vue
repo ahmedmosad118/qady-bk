@@ -1,5 +1,5 @@
 <template>
-  <header class="h-[62px] flex items-center gap-3 px-4 bg-[var(--card)] border-b border-[var(--border)] select-none" dir="rtl">
+  <header class="h-[62px] flex items-center gap-3 px-4 bg-[var(--card)] border-b border-[var(--border)] select-none">
     <!-- Brand / Logo -->
     <div class="flex items-center gap-2.5">
       <svg class="w-9 h-9" viewBox="0 0 200 200">
@@ -16,13 +16,13 @@
         <rect x="10" y="174" width="180" height="8" rx="2" fill="var(--text)"/>
       </svg>
       <div class="leading-tight">
-        <b class="block text-base font-black text-[var(--text)]">نقطة البيع</b>
-        <span class="text-[11px] font-semibold text-[var(--muted)]">مكتبة القاضي</span>
+        <b class="block text-base font-black text-[var(--text)]">{{ $t('pos.brandTitle') }}</b>
+        <span class="text-[11px] font-semibold text-[var(--muted)]">{{ $t('pos.brandSubtitle') }}</span>
       </div>
     </div>
 
     <!-- Status Chips -->
-    <div class="flex items-center gap-2 mr-2">
+    <div class="flex items-center gap-2 ms-2">
       <!-- Online / Offline -->
       <span
         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
@@ -30,7 +30,7 @@
       >
         <Wifi v-if="posStore.isOnline" class="w-3 h-3 text-emerald-600" />
         <WifiOff v-else class="w-3 h-3 text-amber-600" />
-        <span>{{ posStore.isOnline ? 'متصل' : 'أوفلاين' }}</span>
+        <span>{{ posStore.isOnline ? $t('pos.online') : $t('pos.offline') }}</span>
       </span>
     </div>
 
@@ -44,12 +44,12 @@
         v-if="posStore.offlineQueue.length > 0"
         type="button"
         class="h-9 px-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 transition flex items-center gap-1.5 relative"
-        title="عمليات أوفلاين تنتظر المزامنة مع السيرفر"
+        :title="$t('pos.offlineQueueTooltip')"
         @click="$emit('open-offline-queue')"
       >
         <RefreshCw v-if="posStore.syncingQueue" class="w-4 h-4 text-amber-600 animate-spin" />
         <CloudOff v-else class="w-4 h-4 text-amber-600" />
-        <span class="hidden sm:inline">طابور الأوفلاين</span>
+        <span class="hidden sm:inline">{{ $t('pos.offlineQueue') }}</span>
         <span
           class="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-white text-[11px] font-black"
           :class="posStore.conflictOfflineCount > 0 ? 'bg-red-600' : 'bg-amber-600'"
@@ -62,23 +62,23 @@
       <button
         type="button"
         class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1.5"
-        title="البحث عن فاتورة سابقة أو إجراء مرتجع"
+        :title="$t('pos.searchReturnTooltip')"
         @click="$emit('open-returns')"
       >
         <Search class="w-4 h-4 text-[var(--muted)]" />
-        <span class="hidden lg:inline">بحث / مرتجع</span>
+        <span class="hidden lg:inline">{{ $t('pos.searchReturn') }}</span>
       </button>
 
       <!-- Shift Cash Movement (Expense / Withdrawal) -->
       <button
         type="button"
         class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1.5"
-        title="تسجيل مصروف نقدي أو سحب عهدة من الدرج"
+        :title="$t('pos.cashMovementTooltip')"
         :disabled="!posStore.isOpenShift"
         @click="$emit('open-expense')"
       >
         <ArrowLeftRight class="w-4 h-4 text-[var(--muted)]" />
-        <span class="hidden lg:inline">حركة نقدية</span>
+        <span class="hidden lg:inline">{{ $t('pos.cashMovement') }}</span>
       </button>
 
       <!-- Hold Current Cart -->
@@ -86,11 +86,11 @@
         type="button"
         class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1.5 disabled:opacity-50"
         :disabled="!posStore.isOpenShift || posStore.cartLinesCount === 0"
-        title="تعليق الفاتورة الحالية في المتصفح"
+        :title="$t('pos.holdTooltip')"
         @click="posStore.holdCurrentCart()"
       >
         <Pause class="w-4 h-4 text-[var(--crimson)]" />
-        <span>تعليق</span>
+        <span>{{ $t('pos.hold') }}</span>
         <kbd class="hidden sm:inline font-mono text-[10px] bg-[var(--bar)] px-1 rounded border border-[var(--border)]">F4</kbd>
       </button>
 
@@ -101,7 +101,7 @@
         @click="$emit('open-held')"
       >
         <Archive class="w-4 h-4 text-[var(--muted)]" />
-        <span>المعلّقة</span>
+        <span>{{ $t('pos.heldList') }}</span>
         <span
           v-if="posStore.heldCount > 0"
           class="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-[var(--crimson)] text-white text-[11px] font-black"
@@ -118,7 +118,7 @@
         @click="$emit('open-close-shift')"
       >
         <LockKeyhole class="w-4 h-4" />
-        <span class="hidden sm:inline">إغلاق الوردية</span>
+        <span class="hidden sm:inline">{{ $t('pos.closeShift') }}</span>
       </button>
       <button
         v-else
@@ -127,17 +127,17 @@
         @click="$emit('open-open-shift')"
       >
         <LockKeyholeOpen class="w-4 h-4" />
-        <span>فتح وردية</span>
+        <span>{{ $t('pos.openShift') }}</span>
       </button>
 
       <!-- Return to Dashboard -->
       <router-link
         to="/"
         class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)] text-xs font-bold hover:border-[var(--muted)] transition flex items-center gap-1"
-        title="العودة إلى لوحة التحكم الرئيسية"
+        :title="$t('pos.backToDashboardTooltip')"
       >
         <LayoutDashboard class="w-4 h-4" />
-        <span class="hidden xl:inline">لوحة التحكم</span>
+        <span class="hidden xl:inline">{{ $t('pos.backToDashboard') }}</span>
       </router-link>
     </div>
   </header>

@@ -1,5 +1,8 @@
 <template>
-  <div class="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg)] text-[var(--text)] font-sans select-none" dir="rtl">
+  <div
+    class="h-screen w-screen overflow-hidden flex flex-col bg-[var(--bg)] text-[var(--text)] font-sans select-none"
+    :dir="$i18n.locale === 'ar' ? 'rtl' : 'ltr'"
+  >
     <!-- Top Bar -->
     <PosTopBar
       class="flex-none"
@@ -104,6 +107,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import PosTopBar from './PosTopBar.vue';
 import PosCatalog from './PosCatalog.vue';
 import PosCart from './PosCart.vue';
@@ -122,6 +126,7 @@ import OfflineQueueModal from './modals/OfflineQueueModal.vue';
 import { usePosStore } from '../../stores/pos';
 import { useNotificationStore } from '../../stores/notification';
 
+const { t } = useI18n();
 const posStore = usePosStore();
 const notify = useNotificationStore();
 
@@ -147,13 +152,13 @@ const submittingCustomer = ref(false);
 
 function handleOpenPay() {
   if (!posStore.isOpenShift) {
-    notify.error('الوردية مغلقة. يجب فتح وردية عمل جديدة أولاً.');
+    notify.error(t('pos.shiftClosedOpenFirst'));
     showOpenShiftModal.value = true;
     return;
   }
 
   if (posStore.cartLinesCount === 0) {
-    notify.info('السلة فارغة.');
+    notify.info(t('pos.cartEmptyToast'));
     return;
   }
 
@@ -167,7 +172,7 @@ async function handleConfirmCheckout(paymentData) {
     if (paymentData.autoPrint !== false) {
       showReceiptModal.value = true;
     } else {
-      notify.success('تم حفظ وترحيل الفاتورة بنجاح.');
+      notify.success(t('pos.saleSavedToast'));
       catalogRef.value?.focusSearch();
     }
   }
@@ -199,7 +204,7 @@ function handleSelectShift(shiftId) {
   const ok = posStore.selectShift(shiftId);
   if (ok) {
     showOpenShiftModal.value = false;
-    notify.success('تم اختيار الوردية بنجاح.');
+    notify.success(t('pos.shiftSelectedToast'));
   }
 }
 

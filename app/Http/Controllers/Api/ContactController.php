@@ -69,7 +69,11 @@ class ContactController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $contact->load('addresses'),
+            'data' => $contact->load([
+                'addresses',
+                'receivableAccount:id,code,name',
+                'payableAccount:id,code,name',
+            ]),
         ]);
     }
 

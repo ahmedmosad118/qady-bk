@@ -85,7 +85,7 @@
           <!-- Date Range -->
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('common.previous') === 'Previous' ? 'From' : 'من' }})</label>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('purchaseOrders.dateFrom') }})</label>
               <input
                 v-model="filters.order_date_from"
                 type="date"
@@ -94,7 +94,7 @@
               />
             </div>
             <div>
-              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('common.previous') === 'Previous' ? 'To' : 'إلى' }})</label>
+              <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('purchaseOrders.orderDate') }} ({{ $t('purchaseOrders.dateTo') }})</label>
               <input
                 v-model="filters.order_date_to"
                 type="date"
@@ -108,7 +108,7 @@
 
       <!-- Table Section -->
       <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
+        <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="px-5 py-3.5">{{ $t('purchaseOrders.orderNumber') }}</th>
@@ -119,7 +119,7 @@
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.itemsCount') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.totalDiscounts') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.total') }}</th>
-              <th class="px-5 py-3.5 text-left">{{ $t('purchaseOrders.actions') }}</th>
+              <th class="px-5 py-3.5 text-end">{{ $t('purchaseOrders.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
@@ -168,7 +168,7 @@
               <td class="px-5 py-4">
                 <button
                   type="button"
-                  class="font-mono text-sm font-black text-[var(--crimson)] hover:underline"
+                  class="font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                   dir="ltr"
                   @click="openDetailModal(order)"
                 >
@@ -228,7 +228,7 @@
               </td>
 
               <!-- Actions -->
-              <td class="px-5 py-4 text-left">
+              <td class="px-5 py-4 text-end">
                 <div class="flex items-center justify-end gap-1">
                   <!-- View Details -->
                   <button
@@ -245,7 +245,7 @@
                     v-if="getLinkedInvoice(order)"
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--crimson)] hover:bg-[var(--crimson-soft)]"
-                    :title="`فتح فاتورة الشراء (${getLinkedInvoice(order).invoice_number})`"
+                    :title="$t('purchaseOrders.openLinkedInvoice', { number: getLinkedInvoice(order).invoice_number })"
                     @click="goToLinkedInvoice(getLinkedInvoice(order).id)"
                   >
                     <Receipt class="h-4 w-4" />
@@ -307,7 +307,7 @@
         class="flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] p-4 sm:flex-row sm:px-6"
       >
         <span class="text-xs text-[var(--muted)]">
-          {{ $t('common.page') }} {{ meta.current_page }} {{ $t('common.of') }} {{ meta.last_page }} ({{ meta.total }} أمر شراء)
+          {{ $t('common.page') }} {{ meta.current_page }} {{ $t('common.of') }} {{ meta.last_page }} {{ $t('purchaseOrders.ordersCountParen', { count: meta.total }) }}
         </span>
 
         <div class="flex items-center gap-2">
@@ -522,7 +522,7 @@ async function loadOrders() {
       meta.total = res.data.meta.total;
     }
   } catch (err) {
-    loadError.value = err.response?.data?.message || 'تعذر تحميل أوامر الشراء.';
+    loadError.value = err.response?.data?.message || t('purchaseOrders.loadError');
   } finally {
     loading.value = false;
   }
@@ -582,16 +582,16 @@ async function openDetailModal(order) {
 }
 
 function onOrderSaved() {
-  showSuccess({ title: 'تم الحفظ', text: 'تم حفظ أمر الشراء بنجاح.' });
+  showSuccess({ title: t('purchaseOrders.savedSuccessTitle'), text: t('purchaseOrders.savedSuccessText') });
   loadOrders();
 }
 
 async function confirmOrderAction(order) {
   const confirmed = await confirmAction({
-    title: t('purchaseOrders.confirmTitle') || 'تأكيد وتحويل أمر الشراء',
-    text: t('purchaseOrders.confirmMessage') || 'هل أنت متأكد من تأكيد أمر الشراء وتحويله؟ سيتم قفل الأمر ولن يمكن تعديله بعد ذلك.',
-    confirmButtonText: 'نعم، تأكيد وتحويل',
-    cancelButtonText: 'إلغاء',
+    title: t('purchaseOrders.confirmTitle'),
+    text: t('purchaseOrders.confirmMessage'),
+    confirmButtonText: t('purchaseOrders.confirmBtnYes'),
+    cancelButtonText: t('common.cancel'),
     icon: 'question',
   });
   if (!confirmed) return;
@@ -602,10 +602,10 @@ async function confirmOrderAction(order) {
     if (detailModalOpen.value && selectedOrder.value?.id === order.id) {
       selectedOrder.value = res.data.data;
     }
-    showSuccess({ title: 'تم التأكيد', text: 'تم تأكيد أمر الشراء وتحويله بنجاح.' });
+    showSuccess({ title: t('purchaseOrders.confirmSuccessTitle'), text: t('purchaseOrders.confirmSuccessText') });
     loadOrders();
   } catch (err) {
-    showError({ title: 'خطأ', text: err.response?.data?.message || 'تعذر تأكيد أمر الشراء.' });
+    showError({ title: t('common.errorAlertTitle'), text: err.response?.data?.message || t('purchaseOrders.confirmErrorText') });
   } finally {
     actionLoading.value = false;
   }
@@ -614,14 +614,14 @@ async function confirmOrderAction(order) {
 async function cancelOrderAction(order) {
   const swal = getSwalInstance();
   const resPrompt = await swal.fire({
-    title: t('purchaseOrders.cancelTitle') || 'إلغاء أمر الشراء',
-    text: t('purchaseOrders.cancelMessage') || 'هل أنت متأكد من إلغاء أمر الشراء؟',
+    title: t('purchaseOrders.cancelTitle'),
+    text: t('purchaseOrders.cancelMessage'),
     input: 'text',
-    inputPlaceholder: t('purchaseOrders.cancelReason') || 'سبب الإلغاء (اختياري)...',
+    inputPlaceholder: t('purchaseOrders.cancelReason'),
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'نعم، إلغاء الأمر',
-    cancelButtonText: 'تراجع',
+    confirmButtonText: t('purchaseOrders.cancelBtnYes'),
+    cancelButtonText: t('purchaseOrders.backBtn'),
     customClass: {
       confirmButton: 'sarh-swal-btn sarh-swal-delete',
       cancelButton: 'sarh-swal-btn sarh-swal-cancel',
@@ -638,10 +638,10 @@ async function cancelOrderAction(order) {
     if (detailModalOpen.value && selectedOrder.value?.id === order.id) {
       selectedOrder.value = res.data.data;
     }
-    showSuccess({ title: 'تم الإلغاء', text: 'تم إلغاء أمر الشراء بنجاح.' });
+    showSuccess({ title: t('purchaseOrders.cancelSuccessTitle'), text: t('purchaseOrders.cancelSuccessText') });
     loadOrders();
   } catch (err) {
-    showError({ title: 'خطأ', text: err.response?.data?.message || 'تعذر إلغاء أمر الشراء.' });
+    showError({ title: t('common.errorAlertTitle'), text: err.response?.data?.message || t('purchaseOrders.cancelErrorText') });
   } finally {
     actionLoading.value = false;
   }
@@ -649,10 +649,10 @@ async function cancelOrderAction(order) {
 
 async function deleteOrderAction(order) {
   const confirmed = await confirmDelete({
-    title: t('purchaseOrders.delete') || 'حذف مسودة أمر الشراء',
-    text: t('purchaseOrders.deleteConfirm') || 'هل أنت متأكد من حذف مسودة أمر الشراء؟ لا يمكن التراجع عن هذا الإجراء.',
-    confirmButtonText: 'نعم، احذف',
-    cancelButtonText: 'إلغاء',
+    title: t('purchaseOrders.delete'),
+    text: t('purchaseOrders.deleteConfirm'),
+    confirmButtonText: t('purchaseOrders.deleteBtnYes'),
+    cancelButtonText: t('common.cancel'),
   });
   if (!confirmed) return;
 
@@ -661,10 +661,10 @@ async function deleteOrderAction(order) {
     if (detailModalOpen.value && selectedOrder.value?.id === order.id) {
       detailModalOpen.value = false;
     }
-    showSuccess({ title: 'تم الحذف', text: 'تم حذف مسودة أمر الشراء بنجاح.' });
+    showSuccess({ title: t('purchaseOrders.deleteSuccessTitle'), text: t('purchaseOrders.deleteSuccessText') });
     loadOrders();
   } catch (err) {
-    showError({ title: 'خطأ', text: err.response?.data?.message || 'تعذر حذف أمر الشراء.' });
+    showError({ title: t('common.errorAlertTitle'), text: err.response?.data?.message || t('purchaseOrders.deleteErrorText') });
   }
 }
 

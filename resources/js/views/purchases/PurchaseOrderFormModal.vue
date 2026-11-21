@@ -110,7 +110,7 @@
 
             <!-- Items Table -->
             <div class="rounded-xl border border-[var(--border)] overflow-visible">
-              <table class="w-full table-fixed text-right text-xs">
+              <table class="w-full table-fixed text-start text-xs">
                 <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
                   <tr>
                     <th class="w-[4%] px-1 py-2.5 text-center">#</th>
@@ -118,7 +118,7 @@
                     <th class="w-[11%] px-1 py-2.5 text-center">{{ $t('purchaseOrders.quantity') }}</th>
                     <th class="w-[13%] px-1 py-2.5 text-center">{{ $t('purchaseOrders.unitPrice') }}</th>
                     <th class="w-[21%] px-1 py-2.5 text-center">{{ $t('purchaseOrders.discount') }}</th>
-                    <th class="w-[11%] px-2 py-2.5 text-left">{{ $t('purchaseOrders.lineTotal') }}</th>
+                    <th class="w-[11%] px-2 py-2.5 text-end">{{ $t('purchaseOrders.lineTotal') }}</th>
                     <th class="w-[4%] px-1 py-2.5 text-center"></th>
                   </tr>
                 </thead>
@@ -172,7 +172,7 @@
                       </p>
                     </td>
 
-                    <!-- Discount (Value + Segmented Toggle [% | ج.م]) -->
+                    <!-- Discount (Value + Segmented Toggle) -->
                     <td class="px-1 py-2.5 text-center">
                       <div class="flex items-center justify-center gap-1">
                         <input
@@ -199,15 +199,15 @@
                             :class="item.discount_type === 'fixed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)]'"
                             @click="item.discount_type = 'fixed'"
                           >
-                            ج.م
+                            {{ $t('common.currency') }}
                           </button>
                         </div>
                       </div>
                     </td>
 
                     <!-- Line Total -->
-                    <td class="px-2 py-2.5 text-left font-bold font-mono text-xs text-[var(--text)] whitespace-nowrap">
-                      {{ formatMoney(calcLineTotal(item)) }} <span class="text-[10px] font-normal text-[var(--muted)]">ج.م</span>
+                    <td class="px-2 py-2.5 text-end font-bold font-mono text-xs text-[var(--text)] whitespace-nowrap">
+                      {{ formatMoney(calcLineTotal(item)) }} <span class="text-[10px] font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
                     </td>
 
                     <!-- Remove Line -->
@@ -246,9 +246,9 @@
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label class="block text-xs font-bold text-[var(--text)]">
-                  مرفق أمر الشراء
+                  {{ $t('purchaseOrders.attachmentTitle') }}
                 </label>
-                <span class="text-[10px] text-[var(--muted)] font-normal">(اختياري)</span>
+                <span class="text-[10px] text-[var(--muted)] font-normal">{{ $t('purchaseOrders.optionalBadge') }}</span>
               </div>
 
               <div
@@ -266,23 +266,23 @@
                 <div v-if="!selectedFileName" class="flex flex-col items-center justify-center">
                   <UploadCloud class="h-6 w-6 text-[var(--muted)] transition-colors group-hover:text-[var(--crimson)] mb-1" />
                   <p class="text-xs font-bold text-[var(--text)]">
-                    انقر لإرفاق ملف أو اسحبه هنا
+                    {{ $t('purchaseOrders.uploadClickOrDrag') }}
                   </p>
                   <p class="text-[10px] text-[var(--muted)] mt-0.5">
-                    PDF, PNG, JPG, DOCX (حتى 10MB)
+                    {{ $t('purchaseOrders.uploadFormatsHint') }}
                   </p>
                 </div>
 
                 <div v-else class="flex items-center gap-2 max-w-full px-2" @click.stop>
                   <FileText class="h-6 w-6 text-[var(--crimson)] shrink-0" />
-                  <div class="text-right truncate flex-1 min-w-0">
+                  <div class="text-start truncate flex-1 min-w-0">
                     <p class="text-xs font-bold text-[var(--text)] truncate">{{ selectedFileName }}</p>
-                    <p class="text-[10px] text-emerald-600 font-semibold">جاهز للإرفاق</p>
+                    <p class="text-[10px] text-emerald-600 font-semibold">{{ $t('purchaseOrders.readyToAttach') }}</p>
                   </div>
                   <button
                     type="button"
-                    class="rounded-lg p-1 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-600 transition-colors mr-2 shrink-0"
-                    title="حذف الملف"
+                    class="rounded-lg p-1 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-600 transition-colors me-2 shrink-0"
+                    :title="$t('purchaseOrders.removeFile')"
                     @click="removeSelectedFile"
                   >
                     <X class="h-4 w-4" />
@@ -294,7 +294,7 @@
 
           <!-- Bottom Summary & Order Discount Section -->
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2 border-t border-[var(--border)]">
-            <!-- Order-Level Discount (Right in RTL) -->
+            <!-- Order-Level Discount -->
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 space-y-3">
               <div class="text-xs font-extrabold text-[var(--text)]">
                 {{ $t('purchaseOrders.orderDiscount') }}
@@ -302,7 +302,7 @@
 
               <div class="space-y-1.5">
                 <label class="block text-[11px] font-bold text-[var(--muted)]">
-                  قيمة الخصم
+                  {{ $t('purchaseOrders.discountAmountLabel') }}
                 </label>
                 <div class="flex items-center gap-2">
                   <input
@@ -329,23 +329,23 @@
                       :class="form.discount_type === 'fixed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)]'"
                       @click="form.discount_type = 'fixed'"
                     >
-                      ج.م
+                      {{ $t('common.currency') }}
                     </button>
                   </div>
                 </div>
                 <div class="flex items-center gap-1.5 text-xs text-[var(--muted)] pt-1">
                   <RotateCcw class="h-3 w-3 text-[var(--muted)]" />
-                  <span>خصمت {{ formatMoney(calcOrderDiscountAmount) }} ج.م</span>
+                  <span>{{ $t('purchaseOrders.discountedAmount', { amount: formatMoney(calcOrderDiscountAmount) }) }} {{ $t('common.currency') }}</span>
                 </div>
               </div>
             </div>
 
-            <!-- Grand Totals & Financial Breakdown (Left in RTL) -->
+            <!-- Grand Totals & Financial Breakdown -->
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 space-y-2.5">
               <!-- Subtotal before order discount -->
               <div class="flex items-center justify-between text-xs">
-                <span class="font-bold text-[var(--muted)]">الإجمالي قبل الخصم</span>
-                <span class="font-mono font-bold text-[var(--text)]">{{ formatMoney(calcGrossTotal) }} ج.م</span>
+                <span class="font-bold text-[var(--muted)]">{{ $t('purchaseOrders.subtotalBeforeDiscount') }}</span>
+                <span class="font-mono font-bold text-[var(--text)]">{{ formatMoney(calcGrossTotal) }} {{ $t('common.currency') }}</span>
               </div>
 
               <!-- Item discounts line -->
@@ -354,7 +354,7 @@
                 class="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400"
               >
                 <span class="font-bold">{{ $t('purchaseOrders.itemDiscounts') }}</span>
-                <span class="font-mono font-bold">- {{ formatMoney(calcItemDiscountsTotal) }} ج.م</span>
+                <span class="font-mono font-bold">- {{ formatMoney(calcItemDiscountsTotal) }} {{ $t('common.currency') }}</span>
               </div>
 
               <!-- Order Discount line -->
@@ -364,17 +364,17 @@
               >
                 <span class="font-bold">
                   {{ $t('purchaseOrders.orderDiscount') }}
-                  <span class="text-[11px] font-normal">({{ form.discount_type === 'percentage' ? '%' + (form.discount_value || 0) : 'مبلغ ثابت' }})</span>
+                  <span class="text-[11px] font-normal">({{ form.discount_type === 'percentage' ? '%' + (form.discount_value || 0) : $t('purchaseOrders.fixedAmountBadge') }})</span>
                 </span>
-                <span class="font-mono font-bold">- {{ formatMoney(calcOrderDiscountAmount) }} ج.م</span>
+                <span class="font-mono font-bold">- {{ formatMoney(calcOrderDiscountAmount) }} {{ $t('common.currency') }}</span>
               </div>
 
               <div class="border-t border-[var(--border)] my-1"></div>
 
               <!-- Subtotal after order discount -->
               <div class="flex items-center justify-between text-xs">
-                <span class="font-bold text-[var(--muted)]">الإجمالي بعد الخصم</span>
-                <span class="font-mono font-bold text-[var(--text)]">{{ formatMoney(calcOrderGrandTotal) }} ج.م</span>
+                <span class="font-bold text-[var(--muted)]">{{ $t('purchaseOrders.subtotalAfterDiscount') }}</span>
+                <span class="font-mono font-bold text-[var(--text)]">{{ formatMoney(calcOrderGrandTotal) }} {{ $t('common.currency') }}</span>
               </div>
 
               <div class="border-t border-[var(--border)] my-1"></div>
@@ -384,19 +384,19 @@
                 <span class="text-base font-extrabold text-[var(--text)]">{{ $t('purchaseOrders.total') }}</span>
                 <div class="flex items-baseline gap-1">
                   <span class="text-2xl font-black font-mono text-[var(--text)]">{{ formatMoney(calcOrderGrandTotal) }}</span>
-                  <span class="text-xs font-bold text-[var(--muted)]">ج.م</span>
+                  <span class="text-xs font-bold text-[var(--muted)]">{{ $t('common.currency') }}</span>
                 </div>
               </div>
 
               <!-- Total Savings Pill (Green Badge) -->
               <div class="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/30">
-                <span>إجمالي التوفير</span>
-                <span class="font-mono">{{ formatMoney(totalSavings) }} ج.م <span v-if="savingsPercent > 0">({{ savingsPercent }}%)</span></span>
+                <span>{{ $t('purchaseOrders.totalSavings') }}</span>
+                <span class="font-mono">{{ formatMoney(totalSavings) }} {{ $t('common.currency') }} <span v-if="savingsPercent > 0">({{ savingsPercent }}%)</span></span>
               </div>
 
               <!-- Items & Quantity Summary -->
               <div class="text-center text-[11px] text-[var(--muted)] pt-1">
-                {{ form.items.length }} أصناف • إجمالي الكميات {{ totalQuantity }}
+                {{ $t('purchaseOrders.itemsCountSummary', { items: form.items.length, qty: totalQuantity }) }}
               </div>
             </div>
           </div>
@@ -648,7 +648,7 @@ async function submitForm() {
   // Validate items
   const validItems = form.items.filter((i) => i.product_id && Number(i.quantity) > 0);
   if (validItems.length === 0) {
-    submitError.value = 'يجب اختيار صنف واحد على الأقل وتحديد كميته.';
+    submitError.value = t('purchaseOrders.selectAtLeastOneItem');
     return;
   }
 
@@ -690,9 +690,9 @@ async function submitForm() {
   } catch (err) {
     if (err.response?.status === 422) {
       errors.value = err.response.data.errors || {};
-      submitError.value = err.response.data.message || 'بيانات النموذج غير مكتملة أو تحتوي على أخطاء.';
+      submitError.value = err.response.data.message || t('purchaseOrders.validationError');
     } else {
-      submitError.value = err.response?.data?.message || 'حدث خطأ غير متوقع أثناء حفظ أمر الشراء.';
+      submitError.value = err.response?.data?.message || t('purchaseOrders.saveError');
     }
   } finally {
     submitting.value = false;

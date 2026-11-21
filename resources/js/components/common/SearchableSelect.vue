@@ -305,9 +305,9 @@ const normalizeSearchText = (str) => {
     .toLowerCase()
     .normalize('NFKC')
     .replace(/[\u064B-\u065F\u0670]/g, '')
-    .replace(/[أإآٱ]/g, 'ا')
-    .replace(/ة/g, 'ه')
-    .replace(/ى/g, 'ي')
+    .replace(/[\u0623\u0625\u0622\u0671]/g, '\u0627')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064a')
     .trim();
 };
 
@@ -380,13 +380,14 @@ const showScrollFooter = computed(() => {
   return filteredOptions.value.length > scrollChunkSize.value;
 });
 
-const clearTitle = computed(() => (isRtl.value ? 'مسح الاختيار' : 'Clear'));
-const loadingMoreLabel = computed(() => (isRtl.value ? 'جاري تحميل المزيد...' : 'Loading more...'));
-const scrollHintLabel = computed(() => (isRtl.value ? 'اسحب للمزيد' : 'Scroll for more'));
+const clearTitle = computed(() => t('common.clear'));
+const loadingMoreLabel = computed(() => t('common.loadingMore'));
+const scrollHintLabel = computed(() => t('common.scrollForMore'));
 const countSummaryLabel = computed(() => {
-  return isRtl.value
-    ? `عرض ${visibleOptions.value.length} من ${filteredOptions.value.length}`
-    : `Showing ${visibleOptions.value.length} of ${filteredOptions.value.length}`;
+  return t('common.showingCountOf', {
+    visible: visibleOptions.value.length,
+    total: filteredOptions.value.length,
+  });
 });
 
 watch(searchQuery, () => {

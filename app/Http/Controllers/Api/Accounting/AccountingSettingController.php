@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\Accounting;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Accounting\UpdateAccountingSettingRequest;
+use App\Services\Accounting\AccountingSettingService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Gate;
+
+class AccountingSettingController extends Controller
+{
+    public function __construct(
+        protected AccountingSettingService $accountingSettingService,
+    ) {}
+
+    /**
+     * Display current accounting settings, key definitions, and compatible accounts per key.
+     */
+    public function show(): JsonResponse
+    {
+        Gate::authorize('accounting.settings.view');
+
+        $setting = $this->accountingSettingService->getSettings();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $setting->id,
+                'type' => $setting->type,
+                'data' => $setting->data,
+                'items' => $this->accountingSettingService->getStructuredSettings(),
+                'compatible_accounts' => $this->accountingSettingService->getCompatibleAccountsByKey(),
+            ],
+        ]);
+    }
+
+    /**
+     * Update accounting settings.
+     */
+    public function update(UpdateAccountingSettingRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $setting = $this->accountingSettingService->updateSettings($validated['settings']);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('accounting.messages.settings_updated'),
+            'data' => [
+                'id' => $setting->id,
+                'type' => $setting->type,
+                'data' => $setting->data,
+                'items' => $this->accountingSettingService->getStructuredSettings(),
+                'compatible_accounts' => $this->accountingSettingService->getCompatibleAccountsByKey(),
+            ],
+        ]);
+    }
+}

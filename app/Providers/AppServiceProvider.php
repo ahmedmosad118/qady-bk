@@ -67,5 +67,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('expense_categories.create', fn (User $user) => true);
         Gate::define('expense_categories.update', fn (User $user) => true);
         Gate::define('expense_categories.delete', fn (User $user) => true);
+
+        // Accounting Authorization Gates (Integration points with current/future permission systems)
+        Gate::define('accounting.accounts.view', fn (User $user) => true);
+        Gate::define('accounting.accounts.create', fn (User $user) => true);
+        Gate::define('accounting.accounts.update', fn (User $user) => true);
+        Gate::define('accounting.accounts.delete', fn (User $user) => true);
+        Gate::define('accounting.settings.view', fn (User $user) => true);
+        Gate::define('accounting.settings.update', fn (User $user) => true);
     }
 }

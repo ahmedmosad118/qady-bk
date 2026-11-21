@@ -3,6 +3,7 @@ import {
   BookOpen,
   Boxes,
   Home,
+  Landmark,
   ReceiptText,
   ShieldCheck,
   ShoppingCart,
@@ -104,6 +105,19 @@ export const navigation = [
         items: [
           { label: 'nav.expenseCategories', to: '/expense-categories' },
           { label: 'nav.expenses', to: '/expenses' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'accounting',
+    label: 'nav.accountingGroup',
+    icon: Landmark,
+    sections: [
+      {
+        items: [
+          { label: 'nav.chartOfAccounts', to: '/accounting/accounts' },
+          { label: 'nav.accountingSettings', to: '/accounting/settings' },
         ],
       },
     ],

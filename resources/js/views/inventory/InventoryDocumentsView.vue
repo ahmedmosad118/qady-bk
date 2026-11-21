@@ -57,8 +57,8 @@
             <SearchableSelect
               v-model="filters.document_type"
               :options="typeFilterOptions"
-              placeholder="كل أنواع المستندات"
-              search-placeholder="بحث في أنواع المستندات..."
+              :placeholder="$t('inventory.allTypes')"
+              :search-placeholder="$t('inventory.searchDocumentTypes')"
               allow-empty
               @change="loadDocuments"
             />
@@ -70,8 +70,8 @@
             <SearchableSelect
               v-model="filters.status"
               :options="statusFilterOptions"
-              placeholder="كل الحالات"
-              search-placeholder="بحث في الحالات..."
+              :placeholder="$t('inventory.allStatuses')"
+              :search-placeholder="$t('inventory.searchStatuses')"
               allow-empty
               @change="loadDocuments"
             />
@@ -81,7 +81,7 @@
 
       <!-- Table View -->
       <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
+        <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.documentNumber') }}</th>
@@ -92,7 +92,7 @@
               <th class="hidden px-4 py-3.5 md:table-cell">{{ $t('inventory.fields.destinationWarehouse') }}</th>
               <th class="px-4 py-3.5 text-center">{{ $t('inventory.fields.itemsCount') }}</th>
               <th class="px-4 py-3.5 text-center">{{ $t('common.status') }}</th>
-              <th class="px-4 py-3.5 text-left">{{ $t('common.actions') }}</th>
+              <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
@@ -216,7 +216,7 @@
               </td>
 
               <!-- Actions -->
-              <td class="px-4 py-3.5 text-left">
+              <td class="px-4 py-3.5 text-end">
                 <div class="flex items-center justify-end gap-1.5">
                   <!-- Show Details (Always visible) -->
                   <button
@@ -376,36 +376,36 @@ function documentSourceInfo(doc) {
       return {
         clickable: true,
         icon: Receipt,
-        label: 'فاتورة بيع',
+        label: t('inventory.sources.posSaleLabel'),
         number: doc.referenceable?.invoice_number || `#${refId}`,
-        title: 'فتح تفاصيل فاتورة البيع المرتبطة',
+        title: t('inventory.sources.posSaleTitle'),
         onClick: () => openPosSaleModal(refId),
       };
     case 'pos_return':
       return {
         clickable: true,
         icon: RotateCcw,
-        label: 'مرتجع',
+        label: t('inventory.sources.posReturnLabel'),
         number: doc.referenceable?.return_number || `#${refId}`,
-        title: 'فتح تفاصيل فاتورة المرتجع المرتبطة',
+        title: t('inventory.sources.posReturnTitle'),
         onClick: () => openPosReturnModal(refId),
       };
     case 'stocktake':
       return {
         clickable: true,
         icon: ClipboardCheck,
-        label: 'جرد',
+        label: t('inventory.sources.stocktakeLabel'),
         number: doc.referenceable?.stocktake_number || `#${refId}`,
-        title: 'فتح مستند الجرد المرتبط',
+        title: t('inventory.sources.stocktakeTitle'),
         onClick: () => router.push({ path: '/inventory/stocktakes', query: { open: String(refId) } }),
       };
     case 'purchase_invoice':
       return {
         clickable: true,
         icon: Receipt,
-        label: 'فاتورة شراء',
+        label: t('inventory.sources.purchaseInvoiceLabel'),
         number: doc.referenceable?.invoice_number || `#${refId}`,
-        title: 'فتح فاتورة الشراء المرتبطة',
+        title: t('inventory.sources.purchaseInvoiceTitle'),
         onClick: () => router.push({ path: '/purchase-invoices', query: { open: String(refId) } }),
       };
     default:
@@ -436,34 +436,34 @@ const activeType = computed(() => {
 const pageTitle = computed(() => {
   if (!activeType.value) return t('inventory.title');
   const titles = {
-    goods_receipt: 'الاستلامات المخزنية',
-    goods_delivery: 'التسليمات المخزنية',
-    warehouse_transfer: 'التحويلات المخزنية',
-    stock_adjustment: 'التسويات المخزنية',
-    inventory_return: 'المرتجعات المخزنية',
-    stock_write_off: 'الاهلاكات المخزنية',
-    opening_balance: 'الأرصدة الافتتاحية للمخزون',
+    goods_receipt: t('inventory.pageTitles.goods_receipt'),
+    goods_delivery: t('inventory.pageTitles.goods_delivery'),
+    warehouse_transfer: t('inventory.pageTitles.warehouse_transfer'),
+    stock_adjustment: t('inventory.pageTitles.stock_adjustment'),
+    inventory_return: t('inventory.pageTitles.inventory_return'),
+    stock_write_off: t('inventory.pageTitles.stock_write_off'),
+    opening_balance: t('inventory.pageTitles.opening_balance'),
   };
   return titles[activeType.value] || t('inventory.title');
 });
 
 const pageSubtitle = computed(() => {
-  if (!activeType.value) return 'سجل عام لاستعراض والبحث في كافة الحركات والمستندات المخزنية (للعرض والتدقيق فقط).';
+  if (!activeType.value) return t('inventory.auditLogSubtitle');
   const subs = {
-    goods_receipt: 'متابعة وإصدار أذونات استلام وتوريد الكتب والمنتجات إلى المخزن.',
-    goods_delivery: 'توثيق وتسجيل أذونات تسليم الكتب والطلبيات للعملاء والجهات المستلمة.',
-    warehouse_transfer: 'إدارة حركات نقل وتحويل الكتب بين المستودعات والفروع المختلفة.',
-    stock_adjustment: 'تسجيل ومعالجة تسويات الفروق الجردية (زيادة أو عجز).',
-    inventory_return: 'إدارة أذونات المرتجعات الواردة والصادرة من وإلى المخزن.',
-    stock_write_off: 'توثيق استبعاد وإتلاف الكتب والمنتجات التالفة أو الهالكة.',
-    opening_balance: 'تسجيل وتوثيق الأرصدة الافتتاحية لكميات الكتب عند بدء النظام.',
+    goods_receipt: t('inventory.typeDescriptions.goods_receipt'),
+    goods_delivery: t('inventory.typeDescriptions.goods_delivery'),
+    warehouse_transfer: t('inventory.typeDescriptions.warehouse_transfer'),
+    stock_adjustment: t('inventory.typeDescriptions.stock_adjustment'),
+    inventory_return: t('inventory.typeDescriptions.inventory_return'),
+    stock_write_off: t('inventory.typeDescriptions.stock_write_off'),
+    opening_balance: t('inventory.typeDescriptions.opening_balance'),
   };
   return subs[activeType.value] || t('inventory.subtitle');
 });
 
 const createButtonText = computed(() => {
   if (!activeType.value) return t('inventory.createDocument');
-  return `+ إضافة ${typeLabel(activeType.value)}`;
+  return t('inventory.addTypedButton', { type: typeLabel(activeType.value) });
 });
 
 const loading = ref(false);
@@ -502,29 +502,26 @@ const activeFiltersCount = computed(() => {
 
 const hasActiveFilters = computed(() => Boolean(filters.search) || activeFiltersCount.value > 0);
 
-const typeFilterOptions = computed(() => {
-  const options = [
-    { value: '', label: 'كل أنواع المستندات' },
-    { value: 'warehouse_transfer', label: 'التحويلات' },
-    { value: 'goods_receipt', label: 'الاستلامات' },
-    { value: 'goods_delivery', label: 'التسليمات' },
-    { value: 'stock_adjustment', label: 'التسويات' },
-    { value: 'stock_write_off', label: 'الاهلاكات' },
-    { value: 'opening_balance', label: 'رصيد افتتاحي' },
-  ];
-  return options;
-});
+const typeFilterOptions = computed(() => [
+  { value: '', label: t('inventory.allTypes') },
+  { value: 'warehouse_transfer', label: t('inventory.filterTypes.warehouse_transfer') },
+  { value: 'goods_receipt', label: t('inventory.filterTypes.goods_receipt') },
+  { value: 'goods_delivery', label: t('inventory.filterTypes.goods_delivery') },
+  { value: 'stock_adjustment', label: t('inventory.filterTypes.stock_adjustment') },
+  { value: 'stock_write_off', label: t('inventory.filterTypes.stock_write_off') },
+  { value: 'opening_balance', label: t('inventory.filterTypes.opening_balance') },
+]);
 
-const statusFilterOptions = [
-  { value: '', label: 'كل الحالات' },
-  { value: 'draft', label: 'مسودة' },
-  { value: 'pending_approval', label: 'قيد الاعتماد' },
-  { value: 'approved', label: 'معتمد' },
-  { value: 'posted', label: 'مرحّل' },
-  { value: 'rejected', label: 'مرفوض' },
-  { value: 'cancelled', label: 'ملغي' },
-  { value: 'reversed', label: 'معكوس' },
-];
+const statusFilterOptions = computed(() => [
+  { value: '', label: t('inventory.allStatuses') },
+  { value: 'draft', label: t('inventory.statuses.draft') },
+  { value: 'pending_approval', label: t('inventory.statuses.pending_approval') },
+  { value: 'approved', label: t('inventory.statuses.approved') },
+  { value: 'posted', label: t('inventory.statuses.posted') },
+  { value: 'rejected', label: t('inventory.statuses.rejected') },
+  { value: 'cancelled', label: t('inventory.statuses.cancelled') },
+  { value: 'reversed', label: t('inventory.statuses.reversed') },
+]);
 
 // Modals state
 const detailModalOpen = ref(false);
@@ -584,7 +581,7 @@ async function loadDocuments() {
       stats.posted = res.data.stats.posted || 0;
     }
   } catch (err) {
-    loadError.value = err?.response?.data?.message || 'تعذر تحميل المستندات المخزنية.';
+    loadError.value = err?.response?.data?.message || t('inventory.loadError');
   } finally {
     loading.value = false;
   }
@@ -640,13 +637,13 @@ function onDocumentUpdated(updatedDoc) {
 }
 
 async function confirmDelete(doc) {
-  if (!confirm(`هل أنت متأكد من رغبتك في حذف المسودة ${doc.document_number}؟`)) return;
+  if (!confirm(t('inventory.confirmDeleteDraft', { number: doc.document_number }))) return;
 
   try {
     await api.delete(`/inventory-documents/${doc.id}`);
     loadDocuments();
   } catch (err) {
-    alert(err?.response?.data?.message || 'تعذر حذف المسودة');
+    alert(err?.response?.data?.message || t('inventory.deleteDraftError'));
   }
 }
 
@@ -654,26 +651,26 @@ function typeLabel(type) {
   if (!type) return '';
   const clean = String(type).replace(/-/g, '_');
   const labels = {
-    goods_receipt: 'إذن استلام',
-    goods_delivery: 'إذن تسليم',
-    warehouse_transfer: 'إذن تحويل',
-    stock_adjustment: 'إذن تسوية',
-    inventory_return: 'إذن مرتجع',
-    stock_write_off: 'إذن إهلاك',
-    opening_balance: 'رصيد افتتاحي',
+    goods_receipt: t('inventory.shortTypes.goods_receipt'),
+    goods_delivery: t('inventory.shortTypes.goods_delivery'),
+    warehouse_transfer: t('inventory.shortTypes.warehouse_transfer'),
+    stock_adjustment: t('inventory.shortTypes.stock_adjustment'),
+    inventory_return: t('inventory.shortTypes.inventory_return'),
+    stock_write_off: t('inventory.shortTypes.stock_write_off'),
+    opening_balance: t('inventory.shortTypes.opening_balance'),
   };
   return labels[clean] || clean;
 }
 
 function statusLabel(status) {
   const labels = {
-    draft: 'مسودة',
-    pending_approval: 'قيد الاعتماد',
-    approved: 'معتمد',
-    posted: 'مرحّل',
-    rejected: 'مرفوض',
-    cancelled: 'ملغي',
-    reversed: 'معكوس',
+    draft: t('inventory.statuses.draft'),
+    pending_approval: t('inventory.statuses.pending_approval'),
+    approved: t('inventory.statuses.approved'),
+    posted: t('inventory.statuses.posted'),
+    rejected: t('inventory.statuses.rejected'),
+    cancelled: t('inventory.statuses.cancelled'),
+    reversed: t('inventory.statuses.reversed'),
   };
   return labels[status] || status;
 }
@@ -701,10 +698,10 @@ function statusBadgeClass(status) {
 
 function directionLabel(dir) {
   const labels = {
-    increase: 'زيادة',
-    decrease: 'عجز',
-    inbound: 'وارد',
-    outbound: 'صادر',
+    increase: t('inventory.directions.increase'),
+    decrease: t('inventory.directions.decrease'),
+    inbound: t('inventory.directions.inbound'),
+    outbound: t('inventory.directions.outbound'),
   };
   return labels[dir] || dir;
 }

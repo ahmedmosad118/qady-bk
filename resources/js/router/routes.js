@@ -23,6 +23,8 @@ import PurchaseOrdersView from '../views/purchases/PurchaseOrdersView.vue';
 import PurchaseInvoicesView from '../views/purchases/PurchaseInvoicesView.vue';
 import ExpensesView from '../views/expenses/ExpensesView.vue';
 import ExpenseCategoriesView from '../views/expenses/ExpenseCategoriesView.vue';
+import ChartOfAccountsView from '../views/accounting/ChartOfAccountsView.vue';
+import AccountingSettingsView from '../views/accounting/AccountingSettingsView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
@@ -201,6 +203,18 @@ const routes = [
         name: 'settings',
         component: SettingsView,
         meta: { titleKey: 'nav.settings' },
+      },
+      {
+        path: 'accounting/accounts',
+        name: 'accounting.accounts',
+        component: ChartOfAccountsView,
+        meta: { titleKey: 'nav.chartOfAccounts' },
+      },
+      {
+        path: 'accounting/settings',
+        name: 'accounting.settings',
+        component: AccountingSettingsView,
+        meta: { titleKey: 'nav.accountingSettings' },
       },
     ],
   },

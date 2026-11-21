@@ -17,7 +17,11 @@ class ContactRepository
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $query = Contact::query()->with('defaultAddress');
+        $query = Contact::query()->with([
+            'defaultAddress',
+            'receivableAccount:id,code,name',
+            'payableAccount:id,code,name',
+        ]);
 
         if (!empty($filters['search'])) {
             $query->search((string) $filters['search']);

@@ -1,5 +1,5 @@
 <template>
-  <section class="flex flex-col min-h-0 p-4 overflow-hidden" dir="rtl">
+  <section class="flex flex-col min-h-0 p-4 overflow-hidden">
     <!-- Search Bar with Scanner Support -->
     <div class="relative flex items-center gap-2.5 h-[54px] px-4 rounded-2xl border-2 border-[var(--border)] bg-[var(--card)] focus-within:border-[var(--crimson)] transition">
       <Barcode class="w-6 h-6 text-[var(--muted)] flex-none" />
@@ -7,7 +7,7 @@
         ref="searchInputRef"
         v-model="posStore.searchQuery"
         type="text"
-        placeholder="امسح الباركود أو ابحث بالاسم…"
+        :placeholder="$t('pos.scanOrSearchPlaceholder')"
         autocomplete="off"
         class="flex-1 bg-transparent border-0 outline-none text-[var(--text)] font-bold text-base placeholder:text-[var(--muted)]/70"
         @keydown.enter="handleBarcodeOrEnter"
@@ -17,7 +17,7 @@
         v-if="posStore.searchQuery"
         type="button"
         class="p-1 rounded-lg text-[var(--muted)] hover:bg-[var(--bar)] transition"
-        title="مسح البحث"
+        :title="$t('pos.clearSearch')"
         @click="clearSearch"
       >
         <X class="w-4 h-4" />
@@ -39,7 +39,7 @@
         ]"
         @click="onSelectCategory(null)"
       >
-        الكل
+        {{ $t('common.all') }}
       </button>
       <button
         v-for="cat in posStore.categories"
@@ -60,13 +60,13 @@
     <!-- Products Grid with Infinite Scroll on Down Scroll -->
     <div
       ref="scrollContainerRef"
-      class="flex-1 overflow-y-auto pr-1"
+      class="flex-1 overflow-y-auto pe-1"
       @scroll="handleScroll"
     >
       <!-- Initial / Search Loading State -->
       <div v-if="posStore.loadingProducts && posStore.products.length === 0" class="py-20 text-center text-[var(--muted)]">
         <Loader2 class="w-8 h-8 animate-spin mx-auto mb-2 text-[var(--crimson)]" />
-        <p class="text-xs font-bold">جاري تحميل الكتب...</p>
+        <p class="text-xs font-bold">{{ $t('pos.loadingBooks') }}</p>
       </div>
 
       <div
@@ -102,7 +102,7 @@
           <!-- Price & Stock Footer -->
           <div class="flex items-center justify-between text-xs pt-1 border-t border-[var(--border)]/60">
             <b class="text-sm font-black text-[var(--text)]">
-              {{ formatMoney(prod.selling_price) }} <small class="text-[10px] font-normal text-[var(--muted)]">ج.م</small>
+              {{ formatMoney(prod.selling_price) }} <small class="text-[10px] font-normal text-[var(--muted)]">{{ $t('common.currency') }}</small>
             </b>
             <span
               :class="[
@@ -114,7 +114,7 @@
                     : 'text-[var(--muted)]'
               ]"
             >
-              {{ Number(prod.stock_quantity || 0) < 1 ? 'نفد' : `متبقي ${prod.stock_quantity}` }}
+              {{ Number(prod.stock_quantity || 0) < 1 ? $t('pos.outOfStock') : $t('pos.remainingStock', { count: prod.stock_quantity }) }}
             </span>
           </div>
         </button>
@@ -125,15 +125,15 @@
           class="col-span-full py-4 flex items-center justify-center gap-2 text-xs font-bold text-[var(--muted)]"
         >
           <Loader2 class="w-4 h-4 animate-spin text-[var(--crimson)]" />
-          <span>جاري تحميل المزيد من الكتب...</span>
+          <span>{{ $t('pos.loadingMoreBooks') }}</span>
         </div>
       </div>
 
       <!-- Empty State -->
       <div v-else class="text-center py-20 text-[var(--muted)]">
         <BookOpen class="w-12 h-12 mx-auto mb-3 text-[var(--muted)]/50" />
-        <h4 class="font-bold text-base text-[var(--text)] mb-1">لا توجد كتب مطابقة</h4>
-        <p class="text-xs">جرب البحث بكلمات أخرى أو تغيير التصنيف المختار.</p>
+        <h4 class="font-bold text-base text-[var(--text)] mb-1">{{ $t('pos.noMatchingBooks') }}</h4>
+        <p class="text-xs">{{ $t('pos.noMatchingBooksHint') }}</p>
       </div>
     </div>
   </section>

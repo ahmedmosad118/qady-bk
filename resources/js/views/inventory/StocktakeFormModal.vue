@@ -36,8 +36,8 @@
           <SearchableSelect
             v-model="form.warehouse_id"
             :options="warehouseOptions"
-            placeholder="-- اختر المخزن المراد جرده --"
-            search-placeholder="ابحث باسم المخزن أو الكود..."
+            :placeholder="$t('stocktaking.warehousePlaceholder')"
+            :search-placeholder="$t('stocktaking.warehouseSearchPlaceholder')"
             :clearable="false"
           />
           <p v-if="errors.warehouse_id" class="mt-1 text-xs text-[var(--crimson)]">{{ errors.warehouse_id[0] }}</p>
@@ -86,11 +86,11 @@
                 {{ $t('stocktaking.selectProducts') }} <span class="text-[var(--crimson)]">*</span>
               </label>
               <span class="text-[var(--muted)] text-[11px]">
-                يمكنك المسح المباشر بالباركود أو الاختيار والبحث اليدوي.
+                {{ $t('stocktaking.scanOrSelectHint') }}
               </span>
             </div>
             <span class="inline-flex items-center rounded-full bg-[var(--crimson-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--crimson)]">
-              {{ selectedProducts.length }} كتاب محدد
+              {{ $t('stocktaking.selectedCountBadge', { count: selectedProducts.length }) }}
             </span>
           </div>
 
@@ -99,9 +99,9 @@
             <div class="flex items-center justify-between">
               <span class="flex items-center gap-1.5 text-xs font-black text-[var(--crimson)]">
                 <Barcode class="h-4 w-4" />
-                <span>المسح والبحث السريع بالباركود:</span>
+                <span>{{ $t('stocktaking.quickBarcodeScan') }}</span>
               </span>
-              <span class="text-[10px] text-[var(--muted)] font-medium">يدعم أجهزة الباركود والضغط على Enter</span>
+              <span class="text-[10px] text-[var(--muted)] font-medium">{{ $t('stocktaking.barcodeScannerSupport') }}</span>
             </div>
 
             <div class="flex gap-2">
@@ -110,7 +110,7 @@
                   ref="barcodeInputRef"
                   v-model="barcodeInput"
                   type="text"
-                  placeholder="امسح الباركود بجهاز المسح أو اكتبه واضغط Enter..."
+                  :placeholder="$t('stocktaking.scanBarcodePlaceholder')"
                   class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 pl-8 text-xs font-mono font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson-soft)]"
                   dir="ltr"
                   @keydown.enter.prevent="handleBarcodeSubmit"
@@ -126,7 +126,7 @@
               >
                 <Loader2 v-if="isSearchingBarcode" class="h-3.5 w-3.5 animate-spin" />
                 <Plus v-else class="h-3.5 w-3.5" />
-                <span>إضافة</span>
+                <span>{{ $t('stocktaking.add') }}</span>
               </button>
             </div>
 
@@ -148,15 +148,15 @@
 
           <!-- 2. Manual Dropdown Selection -->
           <div class="space-y-1.5">
-            <span class="block text-xs font-bold text-[var(--muted)]">أو اختر كتاباً يدوياً من القائمة:</span>
+            <span class="block text-xs font-bold text-[var(--muted)]">{{ $t('stocktaking.orSelectManually') }}</span>
             <div class="flex gap-2">
               <div class="flex-1">
                 <SearchableSelect
                   v-model="productToAdd"
                   :options="unselectedProductOptions"
                   :paginate="10"
-                  placeholder="-- اختر كتاباً أو صنفاً لإضافته لنطاق الجرد --"
-                  search-placeholder="ابحث بالاسم أو الباركود..."
+                  :placeholder="$t('stocktaking.selectProductPlaceholder')"
+                  :search-placeholder="$t('stocktaking.searchProductPlaceholder')"
                   :clearable="false"
                 />
               </div>
@@ -167,7 +167,7 @@
                 @click="addProductToScope"
               >
                 <Plus class="h-4 w-4" />
-                <span>إضافة</span>
+                <span>{{ $t('stocktaking.add') }}</span>
               </button>
             </div>
           </div>
@@ -176,19 +176,19 @@
           <!-- 3. List of selected products -->
           <div class="rounded-xl border border-[var(--border)] bg-[var(--bg)] overflow-hidden">
             <div class="border-b border-[var(--border)] bg-[var(--card)] px-3.5 py-2 text-xs font-bold text-[var(--muted)] flex items-center justify-between">
-              <span>الكتب المختارة للجرد ({{ selectedProducts.length }}):</span>
+              <span>{{ $t('stocktaking.selectedBooksTitle', { count: selectedProducts.length }) }}</span>
               <button
                 v-if="selectedProducts.length > 0"
                 type="button"
                 class="text-[11px] text-red-500 hover:underline cursor-pointer"
                 @click="form.product_ids = []"
               >
-                مسح الكل
+                {{ $t('stocktaking.clearAll') }}
               </button>
             </div>
             <div class="max-h-48 overflow-y-auto divide-y divide-[var(--border)]">
               <div v-if="selectedProducts.length === 0" class="p-4 text-center text-xs text-[var(--muted)]">
-                لم تقم بإضافة أية كتب بعد. امسح الباركود أعلاه أو اختر من القائمة.
+                {{ $t('stocktaking.noBooksAddedYet') }}
               </div>
               <div
                 v-for="p in selectedProducts"
@@ -201,7 +201,7 @@
                 <button
                   type="button"
                   class="rounded-lg p-1.5 text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                  title="إزالة من القائمة"
+                  :title="$t('stocktaking.removeFromList')"
                   @click="removeProductFromScope(p.id)"
                 >
                   <Trash2 class="h-4 w-4" />
@@ -234,7 +234,7 @@
               v-model="form.notes"
               rows="2"
               class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] p-2.5 text-xs text-[var(--text)] outline-none focus:border-[var(--crimson)]"
-              placeholder="أية ملاحظات إضافية حول عملية الجرد..."
+              :placeholder="$t('stocktaking.notesPlaceholder')"
             />
           </div>
         </div>
@@ -265,6 +265,7 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   Barcode,
@@ -276,6 +277,8 @@ import {
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import api from '../../services/api';
+
+const { t } = useI18n();
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -331,7 +334,7 @@ const warehouseOptions = computed(() =>
     .filter(w => w.is_active)
     .map(w => ({
       value: w.id,
-      label: `${w.name} (${w.code})${w.is_default ? ' ★ الافتراضي' : ''}`,
+      label: `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.defaultBadge') : ''}`,
     }))
 );
 
@@ -380,7 +383,7 @@ async function handleBarcodeSubmit() {
   if (alreadyAdded) {
     barcodeFeedback.value = {
       type: 'warning',
-      message: `الصنف «${alreadyAdded.name}» مضاف بالفعل في قائمة الجرد.`,
+      message: t('stocktaking.alreadyAddedProduct', { name: alreadyAdded.name }),
     };
     barcodeInput.value = '';
     return;
@@ -413,7 +416,7 @@ async function handleBarcodeSubmit() {
       form.product_ids.push(product.id);
       barcodeFeedback.value = {
         type: 'success',
-        message: `تم العثور على: «${product.name}» وإضافته بنجاح!`,
+        message: t('stocktaking.foundAndAdded', { name: product.name }),
       };
     }
     barcodeInput.value = '';
@@ -425,7 +428,7 @@ async function handleBarcodeSubmit() {
   } else {
     barcodeFeedback.value = {
       type: 'error',
-      message: `لم يتم العثور على أي كتاب مسجل بالباركود: ${code}`,
+      message: t('stocktaking.barcodeNotFound', { code }),
     };
   }
 
@@ -463,7 +466,7 @@ async function handleSubmit() {
   }
 
   if (form.scope === 'selected' && form.product_ids.length === 0) {
-    errors.value = { product_ids: ['يجب اختيار كتاب أو صنف واحد على الأقل للجرد المحدد.'] };
+    errors.value = { product_ids: [t('stocktaking.selectAtLeastOneProduct')] };
     return;
   }
 
@@ -484,7 +487,7 @@ async function handleSubmit() {
     if (err.response?.status === 422 && err.response?.data?.errors) {
       errors.value = err.response.data.errors;
     } else {
-      submitError.value = err.response?.data?.message || 'حدث خطأ أثناء إنشاء مستند الجرد.';
+      submitError.value = err.response?.data?.message || t('stocktaking.createError');
     }
   } finally {
     isSubmitting.value = false;

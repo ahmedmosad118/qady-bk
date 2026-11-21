@@ -1,9 +1,9 @@
 <template>
-  <div class="space-y-6" dir="rtl">
+  <div class="space-y-6">
     <!-- Page Header -->
     <PageHeader
-      title="فواتير POS"
-      subtitle="استعراض ومتابعة فواتير البيع المكتملة وإعادة طباعة الإيصالات الرسمية وتتبع سندات الصرف المخزني."
+      :title="$t('pos.salesPage.title')"
+      :subtitle="$t('pos.salesPage.subtitle')"
     >
       <template #actions>
         <router-link
@@ -11,7 +11,7 @@
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
         >
           <Clock class="h-[18px] w-[18px] text-amber-600" />
-          <span>الورديات</span>
+          <span>{{ $t('pos.salesPage.shiftsBtn') }}</span>
         </router-link>
 
         <router-link
@@ -19,7 +19,7 @@
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
         >
           <Store class="h-[18px] w-[18px]" />
-          <span>شاشة الكاشير (POS)</span>
+          <span>{{ $t('pos.salesPage.cashierBtn') }}</span>
         </router-link>
       </template>
     </PageHeader>

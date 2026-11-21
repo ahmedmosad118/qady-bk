@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Accounting\AccountingSettingController;
+use App\Http\Controllers\Api\Accounting\ChartOfAccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
@@ -91,9 +93,21 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::delete('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'destroy']);
     Route::post('/purchase-invoices/{purchase_invoice}/cancel', [PurchaseInvoiceController::class, 'cancel']);
 
-    // Settings (Purchase Settings)
+    // Settings (Purchase & Accounting Settings)
     Route::get('/settings/purchase', [PurchaseSettingController::class, 'show']);
     Route::put('/settings/purchase', [PurchaseSettingController::class, 'update']);
+    Route::get('/settings/accounting', [AccountingSettingController::class, 'show']);
+    Route::put('/settings/accounting', [AccountingSettingController::class, 'update']);
+
+    // Chart of Accounts
+    Route::prefix('accounting/accounts')->group(function () {
+        Route::get('/tree', [ChartOfAccountController::class, 'tree']);
+        Route::get('/', [ChartOfAccountController::class, 'index']);
+        Route::post('/', [ChartOfAccountController::class, 'store']);
+        Route::get('/{account}', [ChartOfAccountController::class, 'show']);
+        Route::put('/{account}', [ChartOfAccountController::class, 'update']);
+        Route::delete('/{account}', [ChartOfAccountController::class, 'destroy']);
+    });
 
     // Warehouses (Strictly view & update only; no create, no delete)
     Route::get('/warehouses', [WarehouseController::class, 'index']);

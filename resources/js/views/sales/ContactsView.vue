@@ -67,7 +67,7 @@
             <div class="relative">
               <select
                 v-model="roleFilter"
-                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pe-9 ps-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('contacts.roleFilter')"
               >
                 <option value="all">{{ $t('contacts.roleAll') }}</option>
@@ -75,7 +75,7 @@
                 <option value="supplier">{{ $t('contacts.roleSupplier') }}</option>
               </select>
               <ChevronDown
-                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
                 aria-hidden="true"
               />
             </div>
@@ -87,7 +87,7 @@
             <div class="relative">
               <select
                 v-model="typeFilter"
-                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pe-9 ps-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('contacts.typeFilter')"
               >
                 <option value="all">{{ $t('contacts.allTypes') }}</option>
@@ -95,7 +95,7 @@
                 <option value="company">{{ $t('contacts.typeCompany') }}</option>
               </select>
               <ChevronDown
-                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
                 aria-hidden="true"
               />
             </div>
@@ -105,7 +105,7 @@
 
       <!-- Table -->
       <div v-if="loading || contacts.length" class="overflow-x-auto">
-        <table class="w-full min-w-[820px] table-auto text-right">
+        <table class="w-full min-w-[820px] table-auto text-start">
           <thead class="bg-[var(--bg)]">
             <tr>
               <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
@@ -176,13 +176,13 @@
                         v-if="activeRole === 'customer' && contact.is_supplier"
                         class="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400"
                       >
-                        مورد أيضاً
+                        {{ $t('contacts.alsoSupplier') }}
                       </span>
                       <span
                         v-else-if="activeRole === 'supplier' && contact.is_customer"
                         class="inline-flex shrink-0 items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
                       >
-                        عميل أيضاً
+                        {{ $t('contacts.alsoCustomer') }}
                       </span>
                     </div>
                     <p v-if="contact.company_contact_person" class="truncate text-xs text-[var(--muted)]">
@@ -426,14 +426,14 @@ const createButtonText = computed(() => {
 });
 
 const contactColHeader = computed(() => {
-  if (activeRole.value === 'customer') return 'العميل';
-  if (activeRole.value === 'supplier') return 'المورد / دار النشر';
+  if (activeRole.value === 'customer') return t('contacts.customerCol');
+  if (activeRole.value === 'supplier') return t('contacts.supplierCol');
   return t('contacts.contactCol');
 });
 
 const searchPlaceholder = computed(() => {
-  if (activeRole.value === 'customer') return 'بحث باسم العميل، الهاتف، البريد أو الرقم الضريبي...';
-  if (activeRole.value === 'supplier') return 'بحث باسم المورد أو دار النشر، الهاتف، السجل التجاري...';
+  if (activeRole.value === 'customer') return t('contacts.searchCustomers');
+  if (activeRole.value === 'supplier') return t('contacts.searchSuppliers');
   return t('contacts.searchPlaceholder');
 });
 
@@ -478,7 +478,7 @@ const activeSchema = computed(() => {
     },
     {
       name: 'name',
-      label: activeRole.value === 'supplier' ? 'اسم المورد / دار النشر' : activeRole.value === 'customer' ? 'اسم العميل' : 'contacts.fields.name',
+      label: activeRole.value === 'supplier' ? 'contacts.fields.supplierName' : activeRole.value === 'customer' ? 'contacts.fields.customerName' : 'contacts.fields.name',
       type: 'text',
       required: true,
       col: 6,
@@ -488,7 +488,7 @@ const activeSchema = computed(() => {
   if (!hideCompanyFields) {
     fields.push({
       name: 'company_contact_person',
-      label: activeRole.value === 'supplier' ? 'مسؤول التوريد / التواصل' : 'contacts.fields.companyContactPerson',
+      label: activeRole.value === 'supplier' ? 'contacts.fields.supplierContactPerson' : 'contacts.fields.companyContactPerson',
       type: 'text',
       col: 6,
     });
@@ -565,11 +565,11 @@ const stat1Value = computed(() => {
 });
 
 const stat2Label = computed(() => {
-  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'نشط ومتاح للتعامل';
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return t('contacts.activeAvailable');
   return t('contacts.customersCount');
 });
 const stat2Short = computed(() => {
-  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'نشط';
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return t('contacts.statusActive');
   return t('contacts.customersShort');
 });
 const stat2Value = computed(() => {
@@ -578,11 +578,11 @@ const stat2Value = computed(() => {
 });
 
 const stat3Label = computed(() => {
-  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'معطل حالياً';
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return t('contacts.inactiveCurrently');
   return t('contacts.suppliersCount');
 });
 const stat3Short = computed(() => {
-  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return 'معطل';
+  if (activeRole.value === 'customer' || activeRole.value === 'supplier') return t('contacts.statusInactive');
   return t('contacts.suppliersShort');
 });
 const stat3Value = computed(() => {

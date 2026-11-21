@@ -66,7 +66,7 @@
       <!-- Action Banner & Workflow Controls -->
       <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-xs">
         <div>
-          <span class="text-xs font-bold text-[var(--muted)] block">إجراءات المستند والمرحلة الحالية:</span>
+          <span class="text-xs font-bold text-[var(--muted)] block">{{ $t('stocktaking.detail.stageActions') }}</span>
           <span class="text-sm font-black text-[var(--text)]">{{ workflowStageDescription }}</span>
         </div>
 
@@ -89,7 +89,7 @@
             type="button"
             :disabled="actionInProgress || uncountedCount > 0"
             class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--text)] px-4 py-2 text-xs font-bold text-[var(--card)] shadow-xs hover:opacity-90 disabled:opacity-50 cursor-pointer"
-            :title="uncountedCount > 0 ? 'يجب إكمال عد كافة المنتجات قبل الإرسال للاعتماد' : ''"
+            :title="uncountedCount > 0 ? $t('stocktaking.detail.completeCountingFirst') : ''"
             @click="handleSubmitStocktake"
           >
             <Send class="h-3.5 w-3.5" />
@@ -141,26 +141,26 @@
 
       <!-- Rejection Banner if Rejected -->
       <div v-if="stocktake.status === 'rejected'" class="rounded-xl border border-rose-500/25 bg-rose-500/5 p-3.5 text-xs text-rose-700 dark:text-rose-400">
-        <span class="font-extrabold block">تم رفض نتائج الجرد:</span>
-        <span class="mt-0.5 block text-[var(--text)]">{{ stocktake.rejection_reason || 'يرجى مراجعة نتائج العد وإعادة العد للبنود المشكوك فيها ثم إعادة الإرسال للاعتماد.' }}</span>
+        <span class="font-extrabold block">{{ $t('stocktaking.detail.rejectedTitle') }}</span>
+        <span class="mt-0.5 block text-[var(--text)]">{{ stocktake.rejection_reason || $t('stocktaking.detail.rejectedDefaultMsg') }}</span>
       </div>
 
       <!-- Progress Stats Summary Bar -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
-          <span class="text-[11px] font-bold text-[var(--muted)] block">إجمالي الأصناف</span>
+          <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('stocktaking.detail.totalItems') }}</span>
           <span class="text-lg font-black text-[var(--text)] mt-0.5 block">{{ stocktake.total_items_count || stocktake.items?.length || 0 }}</span>
         </div>
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
-          <span class="text-[11px] font-bold text-emerald-600 block">تم العد</span>
+          <span class="text-[11px] font-bold text-emerald-600 block">{{ $t('stocktaking.detail.counted') }}</span>
           <span class="text-lg font-black text-emerald-600 mt-0.5 block">{{ stocktake.counted_items_count || 0 }}</span>
         </div>
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
-          <span class="text-[11px] font-bold text-[var(--muted)] block">جاري العد</span>
+          <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('stocktaking.detail.counting') }}</span>
           <span class="text-lg font-black text-[var(--text)] mt-0.5 block">{{ stocktake.counting_items_count || 0 }}</span>
         </div>
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 text-center">
-          <span class="text-[11px] font-bold text-[var(--muted)] block">بانتظار العد</span>
+          <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('stocktaking.detail.pendingCount') }}</span>
           <span class="text-lg font-black text-[var(--text)] mt-0.5 block">{{ stocktake.pending_items_count || 0 }}</span>
         </div>
       </div>
@@ -174,7 +174,7 @@
           @click="activeTab = 'counting'"
         >
           <Barcode class="h-3.5 w-3.5" />
-          <span>العد الفعلي (Blind Count)</span>
+          <span>{{ $t('stocktaking.detail.tabBlindCount') }}</span>
           <span class="rounded-full bg-[var(--bg)] border border-[var(--border)] text-[var(--muted)] px-1.5 py-0.2 text-[10px]">{{ stocktake.items?.length || 0 }}</span>
         </button>
 
@@ -186,7 +186,7 @@
           @click="activeTab = 'results'"
         >
           <Scale class="h-3.5 w-3.5" />
-          <span>مراجعة النتائج والفروقات</span>
+          <span>{{ $t('stocktaking.detail.tabVariances') }}</span>
           <span v-if="stocktake.increases_count || stocktake.decreases_count" class="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.2 text-[10px]">
             {{ (stocktake.increases_count || 0) + (stocktake.decreases_count || 0) }}
           </span>
@@ -200,7 +200,7 @@
           @click="activeTab = 'adjustments'"
         >
           <SlidersHorizontal class="h-3.5 w-3.5" />
-          <span>مستندات التسوية الناتجة</span>
+          <span>{{ $t('stocktaking.detail.tabAdjustments') }}</span>
           <span class="rounded-full bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] px-1.5 py-0.2 text-[10px]">
             {{ stocktake.inventory_documents.length }}
           </span>
@@ -213,7 +213,7 @@
           @click="activeTab = 'history'"
         >
           <History class="h-3.5 w-3.5" />
-          <span>سجل التدقيق</span>
+          <span>{{ $t('stocktaking.detail.tabAudit') }}</span>
         </button>
       </div>
 
@@ -222,12 +222,12 @@
         <!-- Search and Filter pills for items -->
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="relative w-full sm:w-64">
-            <Search class="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--muted)]" />
+            <Search class="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--muted)]" />
             <input
               v-model="itemsSearch"
               type="text"
-              placeholder="بحث بالاسم أو الباركود..."
-              class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pr-9 pl-3 text-xs outline-none focus:border-[var(--text)]"
+              :placeholder="$t('stocktaking.detail.searchItemPlaceholder')"
+              class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] ps-9 pe-3 text-xs outline-none focus:border-[var(--text)]"
             />
           </div>
 
@@ -249,21 +249,21 @@
 
         <!-- Items Table -->
         <div class="overflow-x-auto rounded-xl border border-[var(--border)] min-h-[300px]">
-          <table class="w-full text-right text-xs">
+          <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
                 <th class="w-10 px-3 py-2.5 text-center">#</th>
-                <th class="min-w-[200px] px-3 py-2.5">الكتاب / الصنف</th>
-                <th class="w-24 px-3 py-2.5 text-center">الباركود</th>
-                <th class="w-24 px-3 py-2.5 text-center">الحالة</th>
-                <th class="w-32 px-3 py-2.5 text-center">الكمية الفعلية</th>
-                <th class="min-w-[160px] px-3 py-2.5 text-center">إجراءات العد</th>
+                <th class="min-w-[200px] px-3 py-2.5">{{ $t('stocktaking.detail.bookOrItem') }}</th>
+                <th class="w-24 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.barcode') }}</th>
+                <th class="w-24 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.status') }}</th>
+                <th class="w-32 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.actualQty') }}</th>
+                <th class="min-w-[160px] px-3 py-2.5 text-center">{{ $t('stocktaking.detail.countingActions') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[var(--border)]">
               <tr v-if="filteredItems.length === 0">
                 <td colspan="6" class="p-8 text-center text-xs text-[var(--muted)]">
-                  لا توجد أصناف مطابقة للبحث أو الفلتر المختار.
+                  {{ $t('stocktaking.detail.noMatchingItems') }}
                 </td>
               </tr>
               <tr v-for="(item, idx) in filteredItems" :key="item.id" class="hover:bg-[var(--bg)]/50 transition-colors">
@@ -284,7 +284,7 @@
                     :class="itemStatusBadgeClass(item.count_status)"
                   >
                     <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-                    {{ item.count_status_label }}
+                    {{ itemStatusFilterLabel(item.count_status) || item.count_status_label }}
                   </span>
                 </td>
                 <td class="px-3 py-3 text-center">
@@ -296,7 +296,7 @@
                       step="any"
                       min="0"
                       class="h-8 w-24 rounded-lg border border-[var(--crimson)] bg-[var(--card)] px-2 text-center text-xs font-black text-[var(--text)] outline-none focus:ring-1 focus:ring-[var(--crimson)]"
-                      placeholder="أدخل الكمية"
+                      :placeholder="$t('stocktaking.detail.enterQty')"
                     />
                   </div>
                   <div v-else-if="item.count_status === 'counted'" class="text-sm font-black text-[var(--text)]">
@@ -313,7 +313,7 @@
                     @click="handleStartCountItem(item)"
                   >
                     <Play class="h-3 w-3 text-[var(--muted)]" />
-                    <span>بدء العد</span>
+                    <span>{{ $t('stocktaking.detail.startCount') }}</span>
                   </button>
 
                   <!-- Action: Record Count / Cancel Count -->
@@ -324,12 +324,12 @@
                       @click="handleRecordCountItem(item)"
                     >
                       <Check class="h-3 w-3" />
-                      <span>حفظ</span>
+                      <span>{{ $t('stocktaking.detail.save') }}</span>
                     </button>
                     <button
                       type="button"
                       class="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-500/20 cursor-pointer"
-                      title="إلغاء العد"
+                      :title="$t('stocktaking.detail.cancelCount')"
                       @click="handleCancelCountItem(item)"
                     >
                       <X class="h-3 w-3" />
@@ -341,14 +341,14 @@
                     <button
                       type="button"
                       class="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2 py-1 text-[11px] font-bold text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] cursor-pointer"
-                      title="إعادة العد للمنتج"
+                      :title="$t('stocktaking.detail.recountTitle')"
                       @click="handleRecountItem(item)"
                     >
                       <RotateCcw class="h-3 w-3" />
-                      <span>إعادة عد</span>
+                      <span>{{ $t('stocktaking.detail.recount') }}</span>
                     </button>
                   </div>
-                  <span v-else class="text-[var(--muted)] text-[11px]">مكتمل</span>
+                  <span v-else class="text-[var(--muted)] text-[11px]">{{ $t('stocktaking.detail.completed') }}</span>
                 </td>
               </tr>
             </tbody>
@@ -365,7 +365,7 @@
             :class="varianceFilter === 'all' ? 'border-[var(--text)] bg-[var(--bg)]' : 'border-[var(--border)] bg-[var(--card)]'"
             @click="varianceFilter = 'all'"
           >
-            <span class="text-[11px] font-bold text-[var(--muted)] block">كافة الأصناف المعدودة</span>
+            <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('stocktaking.detail.allCountedItems') }}</span>
             <span class="text-base font-black text-[var(--text)] mt-0.5 block">{{ stocktake.counted_items_count }}</span>
           </div>
 
@@ -374,7 +374,7 @@
             :class="varianceFilter === 'increase' ? 'border-emerald-500 bg-emerald-500/10' : 'border-[var(--border)] bg-[var(--card)]'"
             @click="varianceFilter = 'increase'"
           >
-            <span class="text-[11px] font-bold text-emerald-600 block">فائض / زيادة (+)</span>
+            <span class="text-[11px] font-bold text-emerald-600 block">{{ $t('stocktaking.detail.surplus') }}</span>
             <span class="text-base font-black text-emerald-600 mt-0.5 block">{{ stocktake.increases_count || 0 }}</span>
           </div>
 
@@ -383,7 +383,7 @@
             :class="varianceFilter === 'decrease' ? 'border-red-500 bg-red-500/10' : 'border-[var(--border)] bg-[var(--card)]'"
             @click="varianceFilter = 'decrease'"
           >
-            <span class="text-[11px] font-bold text-red-600 block">عجز / نقص (-)</span>
+            <span class="text-[11px] font-bold text-red-600 block">{{ $t('stocktaking.detail.shortage') }}</span>
             <span class="text-base font-black text-red-600 mt-0.5 block">{{ stocktake.decreases_count || 0 }}</span>
           </div>
 
@@ -392,29 +392,29 @@
             :class="varianceFilter === 'exact' ? 'border-blue-500 bg-blue-500/10' : 'border-[var(--border)] bg-[var(--card)]'"
             @click="varianceFilter = 'exact'"
           >
-            <span class="text-[11px] font-bold text-blue-600 block">مطابق تماماً (=)</span>
+            <span class="text-[11px] font-bold text-blue-600 block">{{ $t('stocktaking.detail.exactMatch') }}</span>
             <span class="text-base font-black text-blue-600 mt-0.5 block">{{ stocktake.exact_count || 0 }}</span>
           </div>
         </div>
 
         <!-- Results Table -->
         <div class="overflow-x-auto rounded-xl border border-[var(--border)] min-h-[300px]">
-          <table class="w-full text-right text-xs">
+          <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
                 <th class="w-10 px-3 py-2.5 text-center">#</th>
-                <th class="min-w-[200px] px-3 py-2.5">الكتاب / الصنف</th>
-                <th class="w-24 px-3 py-2.5 text-center">رصيد النظام</th>
-                <th class="w-24 px-3 py-2.5 text-center">الكمية الفعلية</th>
-                <th class="w-28 px-3 py-2.5 text-center">الفارق</th>
-                <th class="w-24 px-3 py-2.5 text-center">الاتجاه</th>
-                <th class="min-w-[120px] px-3 py-2.5">القائم بالعد</th>
+                <th class="min-w-[200px] px-3 py-2.5">{{ $t('stocktaking.detail.bookOrItem') }}</th>
+                <th class="w-24 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.systemBalance') }}</th>
+                <th class="w-24 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.actualQty') }}</th>
+                <th class="w-28 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.variance') }}</th>
+                <th class="w-24 px-3 py-2.5 text-center">{{ $t('stocktaking.detail.direction') }}</th>
+                <th class="min-w-[120px] px-3 py-2.5">{{ $t('stocktaking.detail.countedBy') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[var(--border)]">
               <tr v-if="filteredResultsItems.length === 0">
                 <td colspan="7" class="p-8 text-center text-xs text-[var(--muted)]">
-                  لا توجد نتائج مطابقة للفلتر المختار.
+                  {{ $t('stocktaking.detail.noMatchingResults') }}
                 </td>
               </tr>
               <tr v-for="(item, idx) in filteredResultsItems" :key="item.id" class="hover:bg-[var(--bg)]/50 transition-colors">
@@ -462,9 +462,9 @@
       <!-- TAB 3: GENERATED ADJUSTMENT DOCUMENTS -->
       <div v-if="activeTab === 'adjustments'" class="space-y-4">
         <div class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3.5 text-xs text-blue-700">
-          <span class="font-extrabold block">مستندات التسوية المخزنية:</span>
+          <span class="font-extrabold block">{{ $t('stocktaking.detail.adjustmentDocsTitle') }}</span>
           <span>
-            يتم توليد مسودات التسويات المخزنية تلقائياً عند اعتماد الجرد. لتسوية الفروقات نهائياً، يرجى مراجعة واعتماد وترحيل هذه المستندات وفق دورة المستندات المخزنية.
+            {{ $t('stocktaking.detail.adjustmentDocsHint') }}
           </span>
         </div>
 
@@ -486,17 +486,17 @@
 
             <div class="text-xs space-y-1 text-[var(--muted)]">
               <div class="flex justify-between">
-                <span>الاتجاه:</span>
+                <span>{{ $t('stocktaking.detail.direction') }}</span>
                 <span class="font-bold text-[var(--text)]">
-                  {{ doc.adjustment_direction === 'increase' ? 'تسوية بالزيادة (+)' : 'تسوية بالنقص (-)' }}
+                  {{ doc.adjustment_direction === 'increase' ? $t('stocktaking.detail.adjustmentIncrease') : $t('stocktaking.detail.adjustmentDecrease') }}
                 </span>
               </div>
               <div class="flex justify-between">
-                <span>عدد الأصناف:</span>
-                <span class="font-bold text-[var(--text)]">{{ doc.items?.length || 0 }} صنف</span>
+                <span>{{ $t('stocktaking.detail.itemsCountLabel') }}</span>
+                <span class="font-bold text-[var(--text)]">{{ doc.items?.length || 0 }} {{ $t('stocktaking.detail.itemsUnit') }}</span>
               </div>
               <div class="flex justify-between">
-                <span>تاريخ المستند:</span>
+                <span>{{ $t('stocktaking.detail.docDateLabel') }}</span>
                 <span class="font-bold text-[var(--text)]">{{ formatDate(doc.document_date) }}</span>
               </div>
             </div>
@@ -506,7 +506,7 @@
                 to="/inventory"
                 class="inline-flex items-center gap-1 text-xs font-bold text-[var(--text)] hover:underline"
               >
-                <span>الانتقال للمستندات للترحيل</span>
+                <span>{{ $t('stocktaking.detail.goToDocuments') }}</span>
                 <ExternalLink class="h-3 w-3 text-[var(--muted)]" />
               </router-link>
             </div>
@@ -518,7 +518,7 @@
       <div v-if="activeTab === 'history'" class="space-y-3">
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 divide-y divide-[var(--border)]">
           <div v-if="!stocktake.histories || stocktake.histories.length === 0" class="py-4 text-center text-xs text-[var(--muted)]">
-            لا يوجد سجل تدقيق متاح.
+            {{ $t('stocktaking.detail.noAuditLog') }}
           </div>
           <div
             v-for="h in stocktake.histories"
@@ -528,7 +528,7 @@
             <div>
               <span class="font-bold text-[var(--text)] block">{{ historyActionLabel(h.action) }}</span>
               <span v-if="h.reason" class="text-[11px] text-[var(--muted)] block mt-0.5">{{ h.reason }}</span>
-              <span v-if="h.user" class="text-[10px] text-[var(--muted)] block">بواسطة: {{ h.user.name }}</span>
+              <span v-if="h.user" class="text-[10px] text-[var(--muted)] block">{{ $t('stocktaking.detail.byUser') }} {{ h.user.name }}</span>
             </div>
             <span class="text-[10px] font-mono text-[var(--muted)] shrink-0" dir="ltr">
               {{ formatDateTime(h.created_at) }}
@@ -541,13 +541,13 @@
     <!-- Reject Reason Modal -->
     <div v-if="openRejectModal" class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div class="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl space-y-4">
-        <h3 class="text-sm font-extrabold text-[var(--text)]">سبب رفض مستند الجرد</h3>
+        <h3 class="text-sm font-extrabold text-[var(--text)]">{{ $t('stocktaking.detail.rejectModalTitle') }}</h3>
         <textarea
           v-model="rejectReason"
           rows="3"
           required
           class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs outline-none focus:border-[var(--crimson)]"
-          placeholder="يرجى توضيح سبب الرفض والبنود المطلوب إعادة فحصها..."
+          :placeholder="$t('stocktaking.detail.rejectModalPlaceholder')"
         />
         <div class="flex items-center justify-end gap-2">
           <button
@@ -555,7 +555,7 @@
             class="rounded-xl border border-[var(--border)] px-4 py-2 text-xs font-bold text-[var(--muted)]"
             @click="openRejectModal = false"
           >
-            إلغاء
+            {{ $t('common.cancel') }}
           </button>
           <button
             type="button"
@@ -563,7 +563,7 @@
             :disabled="!rejectReason.trim()"
             @click="handleRejectStocktake"
           >
-            تأكيد الرفض
+            {{ $t('stocktaking.detail.confirmReject') }}
           </button>
         </div>
       </div>
@@ -573,6 +573,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Ban,
   Barcode,
@@ -595,6 +596,9 @@ import {
 } from 'lucide-vue-next';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import api from '../../services/api';
+import { formatDateTime as formatAppDateTime } from '../../utils/date';
+
+const { t, locale } = useI18n();
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -631,7 +635,7 @@ async function loadStocktake() {
       }
     }
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل تحميل بيانات مستند الجرد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.loadError');
   }
 }
 
@@ -683,16 +687,8 @@ const filteredResultsItems = computed(() => {
 });
 
 const workflowStageDescription = computed(() => {
-  switch (stocktake.value?.status) {
-    case 'draft': return 'المستند في مرحلة المسودة؛ يمكنك بدء التنفيذ لتثبيت المنتجات.';
-    case 'in_progress': return 'الجرد قيد التنفيذ والعد الفعلي؛ قم بتسجيل الكميات ثم إرسال الجرد للاعتماد.';
-    case 'pending_approval': return 'تم إكمال العد وبانتظار مراجعة واعتماد الإدارة.';
-    case 'approved': return 'تم اعتماد نتائج الجرد وتوليد مستندات التسوية الناتجة؛ بانتظار ترحيلها لإكمال الجرد.';
-    case 'rejected': return 'تم رفض النتائج؛ يمكنك إعادة عد البنود وتصحيحها ثم إعادة الإرسال.';
-    case 'cancelled': return 'تم إلغاء مستند الجرد.';
-    case 'completed': return 'اكتملت عملية الجرد وترحيل كافة التسويات بنجاح.';
-    default: return '—';
-  }
+  const s = stocktake.value?.status;
+  return s ? t(`stocktaking.detail.statusHint.${s}`) : '—';
 });
 
 // Actions
@@ -704,7 +700,7 @@ async function handleStartStocktake() {
     await loadStocktake();
     emit('updated');
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل بدء الجرد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.startError');
   } finally {
     actionInProgress.value = false;
   }
@@ -718,7 +714,7 @@ async function handleSubmitStocktake() {
     await loadStocktake();
     emit('updated');
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل إرسال الجرد للاعتماد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.submitError');
   } finally {
     actionInProgress.value = false;
   }
@@ -732,7 +728,7 @@ async function handleApproveStocktake() {
     await loadStocktake();
     emit('updated');
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل اعتماد الجرد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.approveError');
   } finally {
     actionInProgress.value = false;
   }
@@ -750,24 +746,24 @@ async function handleRejectStocktake() {
     await loadStocktake();
     emit('updated');
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل رفض الجرد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.rejectError');
   } finally {
     actionInProgress.value = false;
   }
 }
 
 async function handleCancelStocktake() {
-  if (!confirm('هل أنت متأكد من إلغاء مستند الجرد المخزني؟')) return;
+  if (!confirm(t('stocktaking.detail.confirmCancel'))) return;
   actionInProgress.value = true;
   actionError.value = '';
   try {
     await api.post(`/stocktakes/${stocktake.value.id}/cancel`, {
-      reason: 'إلغاء بواسطة المستخدم',
+      reason: t('stocktaking.detail.defaultCancelReason'),
     });
     await loadStocktake();
     emit('updated');
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل إلغاء الجرد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.cancelError');
   } finally {
     actionInProgress.value = false;
   }
@@ -779,14 +775,14 @@ async function handleStartCountItem(item) {
     await api.post(`/stocktake-items/${item.id}/start-counting`);
     await loadStocktake();
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل بدء عد المنتج.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.startCountError');
   }
 }
 
 async function handleRecordCountItem(item) {
   const qty = itemDraftCounts[item.id];
   if (qty === undefined || qty === null || qty < 0) {
-    actionError.value = 'يرجى إدخال كمية صحيحة (صفر أو أكبر).';
+    actionError.value = t('stocktaking.detail.invalidQtyError');
     return;
   }
   actionError.value = '';
@@ -796,12 +792,12 @@ async function handleRecordCountItem(item) {
     });
     await loadStocktake();
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل تسجيل الكمية الفعلية.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.recordCountError');
   }
 }
 
 async function handleCancelCountItem(item) {
-  const reason = prompt('يرجى إدخال سبب إلغاء عملية العد:');
+  const reason = prompt(t('stocktaking.detail.cancelCountReasonPrompt'));
   if (!reason || !reason.trim()) return;
   actionError.value = '';
   try {
@@ -810,12 +806,12 @@ async function handleCancelCountItem(item) {
     });
     await loadStocktake();
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل إلغاء العد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.cancelCountError');
   }
 }
 
 async function handleRecountItem(item) {
-  const reason = prompt('يرجى إدخال سبب إعادة العد للمنتج:');
+  const reason = prompt(t('stocktaking.detail.recountReasonPrompt'));
   if (!reason || !reason.trim()) return;
   actionError.value = '';
   try {
@@ -824,7 +820,7 @@ async function handleRecountItem(item) {
     });
     await loadStocktake();
   } catch (err) {
-    actionError.value = err.response?.data?.message || 'فشل طلب إعادة العد.';
+    actionError.value = err.response?.data?.message || t('stocktaking.detail.recountError');
   }
 }
 
@@ -837,16 +833,17 @@ function copyStocktakeNumber() {
 
 // Helpers & Formatters
 function statusLabel(status) {
-  switch (status) {
-    case 'draft': return 'مسودة';
-    case 'in_progress': return 'قيد التنفيذ';
-    case 'pending_approval': return 'قيد الاعتماد';
-    case 'approved': return 'معتمد';
-    case 'rejected': return 'مرفوض';
-    case 'cancelled': return 'ملغي';
-    case 'completed': return 'مكتمل';
-    default: return status || '—';
-  }
+  if (!status) return '—';
+  const map = {
+    draft: t('stocktaking.statuses.draft'),
+    in_progress: t('stocktaking.statuses.in_progress'),
+    pending_approval: t('stocktaking.statuses.pending_approval'),
+    approved: t('stocktaking.statuses.approved'),
+    rejected: t('stocktaking.statuses.rejected'),
+    cancelled: t('stocktaking.statuses.cancelled'),
+    completed: t('stocktaking.statuses.completed'),
+  };
+  return map[status] || status;
 }
 
 function statusBadgeClass(status) {
@@ -863,13 +860,13 @@ function statusBadgeClass(status) {
 }
 
 function itemStatusFilterLabel(st) {
-  switch (st) {
-    case 'all': return 'الكل';
-    case 'pending': return 'بانتظار العد';
-    case 'counting': return 'جاري العد';
-    case 'counted': return 'تم العد';
-    default: return st;
-  }
+  const map = {
+    all: t('stocktaking.itemStatuses.all'),
+    pending: t('stocktaking.itemStatuses.pending'),
+    counting: t('stocktaking.itemStatuses.counting'),
+    counted: t('stocktaking.itemStatuses.counted'),
+  };
+  return map[st] || st;
 }
 
 function itemStatusBadgeClass(st) {
@@ -882,16 +879,16 @@ function itemStatusBadgeClass(st) {
 }
 
 function scopeLabel(scope) {
-  return scope === 'full' ? 'جرد كامل' : 'منتجات مختارة';
+  return scope === 'full' ? t('stocktaking.scopeFullShort') : t('stocktaking.scopeSelectedShort');
 }
 
 function varianceDirectionLabel(dir) {
-  switch (dir) {
-    case 'increase': return 'زيادة (+)';
-    case 'decrease': return 'عجز (-)';
-    case 'exact': return 'مطابق (=)';
-    default: return dir;
-  }
+  const map = {
+    increase: t('stocktaking.variances.increase'),
+    decrease: t('stocktaking.variances.decrease'),
+    exact: t('stocktaking.variances.exact'),
+  };
+  return map[dir] || dir;
 }
 
 function varianceBadgeClass(dir) {
@@ -913,21 +910,21 @@ function varianceTextClass(dir) {
 }
 
 function historyActionLabel(action) {
-  switch (action) {
-    case 'created': return 'إنشاء مسودة الجرد';
-    case 'started': return 'بدء تنفيذ الجرد';
-    case 'start_counting': return 'بدء عد صنف';
-    case 'recorded_count': return 'تسجيل الكمية الفعلية';
-    case 'cancel_count': return 'إلغاء عملية العد';
-    case 'recount': return 'إعادة عد الصنف';
-    case 'submitted': return 'إرسال الجرد للاعتماد';
-    case 'approved': return 'اعتماد نتائج الجرد وتوليد التسويات';
-    case 'approved_and_completed': return 'اعتماد واكتمال الجرد فوراً (بدون فروق)';
-    case 'rejected': return 'رفض نتائج الجرد';
-    case 'cancelled': return 'إلغاء مستند الجرد';
-    case 'completed': return 'اكتمال ترحيل التسويات وإغلاق الجرد';
-    default: return action;
-  }
+  const map = {
+    created: t('stocktaking.detail.historyActions.created'),
+    started: t('stocktaking.detail.historyActions.started'),
+    start_counting: t('stocktaking.detail.historyActions.start_counting'),
+    recorded_count: t('stocktaking.detail.historyActions.recorded_count'),
+    cancel_count: t('stocktaking.detail.historyActions.cancel_count'),
+    recount: t('stocktaking.detail.historyActions.recount'),
+    submitted: t('stocktaking.detail.historyActions.submitted'),
+    approved: t('stocktaking.detail.historyActions.approved'),
+    approved_and_completed: t('stocktaking.detail.historyActions.approved_and_completed'),
+    rejected: t('stocktaking.detail.historyActions.rejected'),
+    cancelled: t('stocktaking.detail.historyActions.cancelled'),
+    completed: t('stocktaking.detail.historyActions.completed'),
+  };
+  return map[action] || action;
 }
 
 function formatDate(val) {
@@ -938,12 +935,10 @@ function formatDate(val) {
 function formatTime(val) {
   if (!val) return '';
   const d = new Date(val);
-  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(locale.value === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+  return formatAppDateTime(val, locale.value) || '—';
 }
 </script>

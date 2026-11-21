@@ -46,8 +46,8 @@
             <SearchableSelect
               v-model="filters.warehouse_id"
               :options="warehouseFilterOptions"
-              placeholder="كل المخازن"
-              search-placeholder="بحث بالمخزن..."
+              :placeholder="$t('stocktaking.allWarehouses')"
+              :search-placeholder="$t('stocktaking.searchWarehouse')"
               :clearable="true"
               @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
@@ -59,8 +59,8 @@
             <SearchableSelect
               v-model="filters.status"
               :options="statusFilterOptions"
-              placeholder="كل الحالات"
-              search-placeholder="بحث بالحالة..."
+              :placeholder="$t('stocktaking.allStatuses')"
+              :search-placeholder="$t('stocktaking.searchStatus')"
               :clearable="true"
               @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
@@ -72,8 +72,8 @@
             <SearchableSelect
               v-model="filters.scope"
               :options="scopeFilterOptions"
-              placeholder="كل النطاقات"
-              search-placeholder="بحث بالنطاق..."
+              :placeholder="$t('stocktaking.allScopes')"
+              :search-placeholder="$t('stocktaking.searchScope')"
               :clearable="true"
               @update:model-value="meta.current_page = 1; loadStocktakes()"
             />
@@ -83,7 +83,7 @@
 
       <!-- Table Section -->
       <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
+        <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="w-12 px-4 py-3 text-center">#</th>
@@ -127,7 +127,7 @@
               </td>
               <td class="px-4 py-3.5 text-center">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--bg)] text-[var(--muted)] border border-[var(--border)]">
-                  {{ st.scope === 'full' ? 'جرد كامل' : 'منتجات مختارة' }}
+                  {{ st.scope === 'full' ? $t('stocktaking.scopeFullShort') : $t('stocktaking.scopeSelectedShort') }}
                 </span>
               </td>
               <td class="px-4 py-3.5 text-center text-xs text-[var(--muted)]">
@@ -159,7 +159,7 @@
                 <button
                   type="button"
                   class="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] hover:border-[var(--crimson)] hover:text-[var(--crimson)] transition-colors cursor-pointer"
-                  title="عرض ومتابعة الجرد"
+                  :title="$t('stocktaking.viewAndTrack')"
                   @click="openStocktakeDrawer(st.id)"
                 >
                   <Eye class="h-4 w-4" />
@@ -173,7 +173,7 @@
       <!-- Pagination -->
       <div v-if="meta.total > meta.per_page" class="flex items-center justify-between border-t border-[var(--border)] px-4 py-3 sm:px-6">
         <span class="text-xs text-[var(--muted)]">
-          عرض {{ (meta.current_page - 1) * meta.per_page + 1 }} إلى {{ Math.min(meta.current_page * meta.per_page, meta.total) }} من أصل {{ meta.total }} مستند
+          {{ $t('stocktaking.showingRange', { from: (meta.current_page - 1) * meta.per_page + 1, to: Math.min(meta.current_page * meta.per_page, meta.total), total: meta.total }) }}
         </span>
         <div class="flex items-center gap-2">
           <button
@@ -182,7 +182,7 @@
             :disabled="meta.current_page <= 1"
             @click="changePage(meta.current_page - 1)"
           >
-            السابق
+            {{ $t('common.previous') }}
           </button>
           <span class="text-xs font-bold font-mono px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
           <button
@@ -191,7 +191,7 @@
             :disabled="meta.current_page >= meta.last_page"
             @click="changePage(meta.current_page + 1)"
           >
-            التالي
+            {{ $t('common.next') }}
           </button>
         </div>
       </div>
@@ -218,6 +218,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   ClipboardCheck,
@@ -231,6 +232,7 @@ import StocktakeFormModal from './StocktakeFormModal.vue';
 import StocktakeDetailModal from './StocktakeDetailModal.vue';
 import api from '../../services/api';
 
+const { t } = useI18n();
 const route = useRoute();
 const loading = ref(false);
 const loadError = ref('');
@@ -296,20 +298,20 @@ const warehouseFilterOptions = computed(() =>
   }))
 );
 
-const statusFilterOptions = [
-  { value: 'draft', label: 'مسودة' },
-  { value: 'in_progress', label: 'قيد التنفيذ' },
-  { value: 'pending_approval', label: 'قيد الاعتماد' },
-  { value: 'approved', label: 'معتمد' },
-  { value: 'rejected', label: 'مرفوض' },
-  { value: 'cancelled', label: 'ملغي' },
-  { value: 'completed', label: 'مكتمل' },
-];
+const statusFilterOptions = computed(() => [
+  { value: 'draft', label: t('stocktaking.statuses.draft') },
+  { value: 'in_progress', label: t('stocktaking.statuses.in_progress') },
+  { value: 'pending_approval', label: t('stocktaking.statuses.pending_approval') },
+  { value: 'approved', label: t('stocktaking.statuses.approved') },
+  { value: 'rejected', label: t('stocktaking.statuses.rejected') },
+  { value: 'cancelled', label: t('stocktaking.statuses.cancelled') },
+  { value: 'completed', label: t('stocktaking.statuses.completed') },
+]);
 
-const scopeFilterOptions = [
-  { value: 'full', label: 'جرد كامل' },
-  { value: 'selected', label: 'منتجات مختارة' },
-];
+const scopeFilterOptions = computed(() => [
+  { value: 'full', label: t('stocktaking.scopeFullShort') },
+  { value: 'selected', label: t('stocktaking.scopeSelectedShort') },
+]);
 
 async function loadStocktakes() {
   loading.value = true;
@@ -340,7 +342,7 @@ async function loadStocktakes() {
       stats.completed = res.data.stats.completed;
     }
   } catch (err) {
-    loadError.value = err.response?.data?.message || 'فشل تحميل بيانات الجرد المخزني.';
+    loadError.value = err.response?.data?.message || t('stocktaking.loadError');
   } finally {
     loading.value = false;
   }
@@ -384,16 +386,16 @@ function progressPercentage(st) {
 }
 
 function statusLabel(status) {
-  switch (status) {
-    case 'draft': return 'مسودة';
-    case 'in_progress': return 'قيد التنفيذ';
-    case 'pending_approval': return 'قيد الاعتماد';
-    case 'approved': return 'معتمد';
-    case 'rejected': return 'مرفوض';
-    case 'cancelled': return 'ملغي';
-    case 'completed': return 'مكتمل';
-    default: return status || '—';
-  }
+  const map = {
+    draft: t('stocktaking.statuses.draft'),
+    in_progress: t('stocktaking.statuses.in_progress'),
+    pending_approval: t('stocktaking.statuses.pending_approval'),
+    approved: t('stocktaking.statuses.approved'),
+    rejected: t('stocktaking.statuses.rejected'),
+    cancelled: t('stocktaking.statuses.cancelled'),
+    completed: t('stocktaking.statuses.completed'),
+  };
+  return map[status] || status || '—';
 }
 
 function statusBadgeClass(status) {

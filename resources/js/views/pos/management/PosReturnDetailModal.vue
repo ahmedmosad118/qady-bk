@@ -8,16 +8,18 @@
           </div>
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-base font-extrabold text-[var(--text)]">تفاصيل فاتورة المرتجع</h2>
+              <h2 class="text-base font-extrabold text-[var(--text)]">{{ $t('posReturns.detailsTitle') }}</h2>
               <span
                 v-if="returnRecord"
                 class="rounded-md bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 font-mono text-xs font-black text-[var(--text)]"
+                dir="ltr"
               >
                 {{ returnRecord.return_number }}
               </span>
             </div>
             <p class="mt-0.5 text-xs text-[var(--muted)]">
-              {{ returnRecord ? formatDateTime(returnRecord.returned_at) : 'جاري التحميل...' }}
+              <span v-if="returnRecord" dir="ltr" class="font-mono">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
+              <span v-else>{{ $t('common.loading') }}</span>
             </p>
           </div>
         </div>
@@ -30,7 +32,7 @@
             @click="openLinkedDoc(returnRecord.inventory_documents[0])"
           >
             <PackageCheck class="w-3.5 h-3.5" />
-            <span>إذن الاستلام ({{ returnRecord.inventory_documents[0].document_number }})</span>
+            <span>{{ $t('posReturns.linkedReceipt') }} ({{ returnRecord.inventory_documents[0].document_number }})</span>
           </button>
           <button
             v-if="returnRecord?.sale?.id"
@@ -39,7 +41,7 @@
             @click="$emit('open-sale', returnRecord.sale.id)"
           >
             <Receipt class="w-3.5 h-3.5 text-[var(--muted)]" />
-            <span>الفاتورة الأصلية</span>
+            <span>{{ $t('posReturns.originalInvoice') }}</span>
           </button>
           <button
             type="button"
@@ -78,7 +80,7 @@
     <!-- Loading Body -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-24 text-[var(--muted)]">
       <Loader2 class="w-8 h-8 animate-spin text-[var(--muted)] mb-3" />
-      <p class="text-sm font-medium">جاري تحميل بيانات المرتجع...</p>
+      <p class="text-sm font-medium">{{ $t('posReturns.loadingReturnDetails') }}</p>
     </div>
 
     <!-- Error Body -->
@@ -95,33 +97,34 @@
       <div v-show="activeTab === 'info'" class="space-y-6">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
-            <p class="text-[11px] font-bold text-[var(--muted)]">إجمالي المرتجع المسترد</p>
+            <p class="text-[11px] font-bold text-[var(--muted)]">{{ $t('posReturns.totalRefundedAmount') }}</p>
             <p class="mt-1 font-mono text-lg font-black text-[var(--text)] tabular-nums">
-              {{ Number(returnRecord.total_returned || 0).toFixed(2) }} <span class="text-xs font-normal text-[var(--muted)]">ج.م</span>
+              {{ Number(returnRecord.total_returned || 0).toFixed(2) }} <span class="text-xs font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
             </p>
           </div>
 
           <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
-            <p class="text-[11px] font-bold text-[var(--muted)]">عدد الأصناف المرتجعة</p>
+            <p class="text-[11px] font-bold text-[var(--muted)]">{{ $t('posReturns.returnedItemsCountLabel') }}</p>
             <p class="mt-1 font-mono text-lg font-black text-[var(--text)] tabular-nums">
               {{ returnRecord.items?.length || 0 }}
             </p>
           </div>
 
           <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
-            <p class="text-[11px] font-bold text-[var(--muted)]">طريقة الاسترداد</p>
+            <p class="text-[11px] font-bold text-[var(--muted)]">{{ $t('posReturns.refundMethod') }}</p>
             <p class="mt-1 text-sm font-black text-[var(--text)] flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-              {{ returnRecord.payment_method?.name || '—' }}
+              {{ paymentMethodLabel(returnRecord.payment_method) }}
             </p>
           </div>
 
           <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3.5">
-            <p class="text-[11px] font-bold text-[var(--muted)]">الفاتورة الأصلية</p>
+            <p class="text-[11px] font-bold text-[var(--muted)]">{{ $t('posReturns.originalInvoice') }}</p>
             <button
               v-if="returnRecord.sale?.id"
               type="button"
               class="mt-1 font-mono text-sm font-black text-[var(--text)] hover:underline flex items-center gap-1 cursor-pointer"
+              dir="ltr"
               @click="$emit('open-sale', returnRecord.sale.id)"
             >
               <span>{{ returnRecord.sale.invoice_number }}</span>
@@ -134,27 +137,28 @@
         <!-- Key Value Table -->
         <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
           <div class="bg-[var(--bg)]/60 px-4 py-2.5 border-b border-[var(--border)] text-xs font-bold text-[var(--text)]">
-            بيانات وتفاصيل المرتجع
+            {{ $t('posReturns.returnDetailsHeader') }}
           </div>
           <div class="divide-y divide-[var(--border)] text-xs">
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-[var(--muted)] font-medium">رقم المرتجع</span>
-              <span class="font-mono font-bold text-[var(--text)]">{{ returnRecord.return_number }}</span>
+              <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.returnNumber') }}</span>
+              <span class="font-mono font-bold text-[var(--text)]" dir="ltr">{{ returnRecord.return_number }}</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-[var(--muted)] font-medium">تاريخ ووقت المرتجع</span>
-              <span class="font-bold text-[var(--text)]">{{ formatDateTime(returnRecord.returned_at) }}</span>
+              <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.returnDateTime') }}</span>
+              <span class="font-mono font-bold text-[var(--text)]" dir="ltr">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-[var(--muted)] font-medium">الموظف المسؤول (الكاشير)</span>
+              <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.responsibleCashier') }}</span>
               <span class="font-bold text-[var(--text)]">{{ returnRecord.creator?.name || '—' }}</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-[var(--muted)] font-medium">الوردية</span>
+              <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.shift') }}</span>
               <button
                 v-if="returnRecord.shift?.id"
                 type="button"
                 class="font-mono font-bold text-[var(--text)] hover:underline cursor-pointer"
+                dir="ltr"
                 @click="$emit('open-shift', returnRecord.shift.id)"
               >
                 {{ returnRecord.shift.shift_number }}
@@ -162,11 +166,12 @@
               <span v-else class="font-bold text-[var(--muted)]">—</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-[var(--muted)] font-medium">إذن الاستلام المخزني المرتبط</span>
+              <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.linkedReceiptDoc') }}</span>
               <button
                 v-if="returnRecord.inventory_documents?.length"
                 type="button"
                 class="inline-flex items-center gap-1.5 font-mono font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                dir="ltr"
                 @click="openLinkedDoc(returnRecord.inventory_documents[0])"
               >
                 <PackageCheck class="w-3.5 h-3.5" />
@@ -175,8 +180,8 @@
               <span v-else class="font-bold text-[var(--muted)]">—</span>
             </div>
             <div class="flex items-start justify-between gap-4 px-4 py-3">
-              <span class="text-[var(--muted)] font-medium shrink-0">ملاحظات المرتجع</span>
-              <span class="font-medium text-[var(--text)] text-left">{{ returnRecord.notes || 'لا توجد ملاحظات مدونة' }}</span>
+              <span class="text-[var(--muted)] font-medium shrink-0">{{ $t('posReturns.returnNotes') }}</span>
+              <span class="font-medium text-[var(--text)] text-end">{{ returnRecord.notes || $t('posReturns.noNotes') }}</span>
             </div>
           </div>
         </div>
@@ -186,42 +191,42 @@
           <div class="flex items-center justify-between px-4 py-3 bg-[var(--bg)]/60 border-b border-[var(--border)]">
             <div class="flex items-center gap-2">
               <BookOpen class="w-4 h-4 text-[var(--muted)]" />
-              <span class="text-xs font-bold text-[var(--text)]">الكتب والأصناف المرتجعة</span>
+              <span class="text-xs font-bold text-[var(--text)]">{{ $t('posReturns.returnedItemsTitle') }}</span>
             </div>
             <span class="rounded-full bg-[var(--card)] border border-[var(--border)] px-2 py-0.5 text-[11px] font-extrabold text-[var(--muted)]">
-              {{ returnRecord.items?.length || 0 }} صنف
+              {{ $t('posReturns.itemCountBadge', { count: returnRecord.items?.length || 0 }) }}
             </span>
           </div>
           <div class="overflow-x-auto">
-            <table class="w-full text-right border-collapse">
+            <table class="w-full text-start border-collapse">
               <thead>
                 <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[11px] font-bold text-[var(--muted)]">
-                  <th class="px-4 py-3">المنتج / الكتاب</th>
-                  <th class="px-4 py-3 text-center">الكمية المرتجعة</th>
-                  <th class="px-4 py-3">سعر الوحدة</th>
-                  <th class="px-4 py-3">الخصم الموزع</th>
-                  <th class="px-4 py-3">المبلغ المسترد</th>
+                  <th class="px-4 py-3 text-start">{{ $t('posReturns.productCol') }}</th>
+                  <th class="px-4 py-3 text-center">{{ $t('posReturns.returnedQtyCol') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('posReturns.unitPriceCol') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('posReturns.allocatedDiscountCol') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('posReturns.refundedAmountCol') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border)] text-xs">
                 <tr v-for="item in returnRecord.items" :key="item.id" class="hover:bg-[var(--bg)]/40">
                   <td class="px-4 py-3">
-                    <div class="font-bold text-[var(--text)]">{{ item.product?.name || `منتج #${item.product_id}` }}</div>
+                    <div class="font-bold text-[var(--text)]">{{ item.product?.name || $t('posReturns.productFallback', { id: item.product_id }) }}</div>
                     <div class="text-[11px] text-[var(--muted)] font-mono flex items-center gap-2 mt-0.5">
-                      <span v-if="item.product?.barcode">Barcode: {{ item.product.barcode }}</span>
+                      <span v-if="item.product?.barcode">{{ $t('posReturns.barcodeLabel') }} {{ item.product.barcode }}</span>
                     </div>
                   </td>
                   <td class="px-4 py-3 text-center font-mono font-extrabold text-[var(--text)]">
                     {{ Number(item.quantity).toFixed(item.quantity % 1 === 0 ? 0 : 2) }}
                   </td>
                   <td class="px-4 py-3 font-mono font-semibold text-[var(--muted)]">
-                    {{ Number(item.unit_price || 0).toFixed(2) }} ج.م
+                    {{ Number(item.unit_price || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
                   <td class="px-4 py-3 font-mono font-semibold text-[var(--muted)]">
-                    -{{ Number(item.allocated_discount || 0).toFixed(2) }} ج.م
+                    -{{ Number(item.allocated_discount || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
                   <td class="px-4 py-3 font-mono font-black text-[var(--text)]">
-                    {{ Number(item.refund_amount || 0).toFixed(2) }} ج.م
+                    {{ Number(item.refund_amount || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
                 </tr>
               </tbody>
@@ -240,12 +245,12 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-mono text-sm font-black text-[var(--text)]">{{ returnRecord.sale.invoice_number }}</span>
+                  <span class="font-mono text-sm font-black text-[var(--text)]" dir="ltr">{{ returnRecord.sale.invoice_number }}</span>
                   <span class="rounded-md bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted)]">
-                    {{ returnRecord.sale.payment_method?.name || '—' }}
+                    {{ paymentMethodLabel(returnRecord.sale.payment_method) }}
                   </span>
                 </div>
-                <p class="mt-0.5 text-xs text-[var(--muted)]">{{ formatDateTime(returnRecord.sale.sold_at) }}</p>
+                <p class="mt-0.5 text-xs text-[var(--muted)] font-mono" dir="ltr">{{ formatDateTime(returnRecord.sale.sold_at, locale) }}</p>
               </div>
             </div>
 
@@ -254,31 +259,31 @@
               class="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 text-xs font-bold text-[var(--text)] transition hover:bg-[var(--bg)] cursor-pointer"
               @click="$emit('open-sale', returnRecord.sale.id)"
             >
-              <span>عرض الفاتورة الأصلية</span>
+              <span>{{ $t('posReturns.viewOriginalSale') }}</span>
               <ArrowUpLeft class="w-3.5 h-3.5 text-[var(--muted)]" />
             </button>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div class="rounded-xl bg-[var(--bg)] p-3">
-              <span class="text-[var(--muted)] block">العميل</span>
+              <span class="text-[var(--muted)] block">{{ $t('posReturns.customer') }}</span>
               <span class="mt-1 block font-bold text-[var(--text)]">
-                {{ returnRecord.sale.customer?.name || 'عميل نقدي عابر' }}
+                {{ returnRecord.sale.customer?.name || $t('posReturns.walkInCustomer') }}
               </span>
-              <span v-if="returnRecord.sale.customer?.phone" class="mt-0.5 block font-mono text-[11px] text-[var(--muted)]">
+              <span v-if="returnRecord.sale.customer?.phone" class="mt-0.5 block font-mono text-[11px] text-[var(--muted)]" dir="ltr">
                 {{ returnRecord.sale.customer.phone }}
               </span>
             </div>
             <div class="rounded-xl bg-[var(--bg)] p-3">
-              <span class="text-[var(--muted)] block">إجمالي الفاتورة الأصلية</span>
+              <span class="text-[var(--muted)] block">{{ $t('posReturns.originalSaleValue') }}</span>
               <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">
-                {{ Number(returnRecord.sale.grand_total || 0).toFixed(2) }} ج.م
+                {{ Number(returnRecord.sale.grand_total || 0).toFixed(2) }} {{ $t('common.currency') }}
               </span>
             </div>
             <div class="rounded-xl bg-[var(--bg)] p-3">
-              <span class="text-[var(--muted)] block font-bold">قيمة هذا المرتجع</span>
+              <span class="text-[var(--muted)] block font-bold">{{ $t('posReturns.thisReturnValue') }}</span>
               <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">
-                {{ Number(returnRecord.total_returned || 0).toFixed(2) }} ج.م
+                {{ Number(returnRecord.total_returned || 0).toFixed(2) }} {{ $t('common.currency') }}
               </span>
             </div>
           </div>
@@ -302,62 +307,63 @@
                   <button
                     type="button"
                     class="font-mono text-xs font-extrabold text-[var(--text)] hover:underline cursor-pointer flex items-center gap-1"
+                    dir="ltr"
                     @click="openLinkedDoc(doc)"
                   >
                     <span>{{ doc.document_number }}</span>
                     <ArrowUpLeft class="w-3 h-3 text-[var(--muted)]" />
                   </button>
                   <p class="text-[11px] text-[var(--muted)]">
-                    إذن استلام مخزني (مرتجع مبيعات POS)
+                    {{ $t('posReturns.linkedReceiptTitle') }}
                   </p>
                 </div>
               </div>
 
               <div class="flex items-center gap-2">
                 <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                  {{ doc.status === 'posted' ? 'تم الترحيل للمخزون' : doc.status }}
+                  {{ doc.status === 'posted' ? $t('posReturns.postedToStock') : doc.status }}
                 </span>
                 <button
                   type="button"
                   class="px-2.5 py-1 rounded-lg bg-[var(--card)] border border-[var(--border)] text-[11px] font-bold text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer"
                   @click="openLinkedDoc(doc)"
                 >
-                  عرض تفاصيل المستند
+                  {{ $t('posReturns.viewDocDetails') }}
                 </button>
               </div>
             </div>
 
             <div class="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-[var(--bg)]/20 border-b border-[var(--border)]">
               <div>
-                <span class="text-[var(--muted)] block">المستودع المستلم</span>
+                <span class="text-[var(--muted)] block">{{ $t('posReturns.receivingWarehouse') }}</span>
                 <span class="font-bold text-[var(--text)] mt-0.5 block">
                   {{ doc.destination_warehouse?.name || '—' }}
                 </span>
               </div>
               <div>
-                <span class="text-[var(--muted)] block">منشئ المستند</span>
+                <span class="text-[var(--muted)] block">{{ $t('posReturns.docCreator') }}</span>
                 <span class="font-bold text-[var(--text)] mt-0.5 block">{{ doc.creator?.name || '—' }}</span>
               </div>
               <div>
-                <span class="text-[var(--muted)] block">عدد الأصناف المستلمة</span>
-                <span class="font-bold text-[var(--text)] mt-0.5 block">{{ doc.items?.length || 0 }} أصناف</span>
+                <span class="text-[var(--muted)] block">{{ $t('posReturns.receivedItemsCount') }}</span>
+                <span class="font-bold text-[var(--text)] mt-0.5 block">{{ $t('posReturns.itemsPlural', { count: doc.items?.length || 0 }) }}</span>
               </div>
             </div>
 
             <div class="overflow-x-auto">
-              <table class="w-full text-right border-collapse">
+              <table class="w-full text-start border-collapse">
                 <thead>
                   <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[10px] font-bold text-[var(--muted)]">
-                    <th class="px-4 py-2">الكتاب / الصنف</th>
-                    <th class="px-4 py-2 text-center">الكمية المرجعة للمخزن</th>
-                    <th class="px-4 py-2">التكلفة</th>
+                    <th class="px-4 py-2 text-start">{{ $t('posReturns.productCol') }}</th>
+                    <th class="px-4 py-2 text-center">{{ $t('posReturns.returnedQtyToStock') }}</th>
+                    <th class="px-4 py-2 text-start">{{ $t('posReturns.costCol') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--border)] text-xs">
                   <tr v-for="dItem in doc.items" :key="dItem.id">
                     <td class="px-4 py-2.5 font-bold text-[var(--text)]">{{ dItem.product?.name }}</td>
                     <td class="px-4 py-2.5 text-center font-mono font-extrabold text-emerald-600">+{{ Number(dItem.quantity) }}</td>
-                    <td class="px-4 py-2.5 font-mono text-[var(--muted)]">{{ Number(dItem.unit_cost || 0).toFixed(2) }} ج.م</td>
+                    <td class="px-4 py-2.5 font-mono text-[var(--muted)]">{{ Number(dItem.unit_cost || 0).toFixed(2) }} {{ $t('common.currency') }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -366,20 +372,20 @@
         </div>
         <div v-else class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
           <PackageCheck class="w-8 h-8 text-[var(--muted)]/50 mx-auto mb-2" />
-          <p class="text-xs font-bold text-[var(--text)]">لا توجد مستندات مخزنية مرتبطة</p>
+          <p class="text-xs font-bold text-[var(--text)]">{{ $t('posReturns.noLinkedDocs') }}</p>
         </div>
       </div>
     </div>
 
     <template #footer>
       <div class="flex items-center justify-between border-t border-[var(--border)] bg-[var(--bg)]/60 px-6 py-3.5">
-        <span class="text-[11px] font-medium text-[var(--muted)]">مكتبة القاضي · نظام إدارة المرتجعات والمخزون</span>
+        <span class="text-[11px] font-medium text-[var(--muted)]">{{ $t('posReturns.footerBrand') }}</span>
         <button
           type="button"
           class="px-5 py-2 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer"
           @click="$emit('close')"
         >
-          إغلاق
+          {{ $t('common.close') }}
         </button>
       </div>
     </template>
@@ -389,6 +395,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
   RotateCcw,
   X,
@@ -402,8 +409,18 @@ import {
 } from 'lucide-vue-next';
 import AppDrawer from '../../../components/ui/AppDrawer.vue';
 import api from '../../../services/api';
+import { formatDateTime } from '../../../utils/date';
 
 const router = useRouter();
+const { t, te, locale } = useI18n();
+
+function paymentMethodLabel(pm) {
+  if (!pm) return '—';
+  if (pm.type && te(`pos.paymentMethods.${pm.type}`)) {
+    return t(`pos.paymentMethods.${pm.type}`);
+  }
+  return pm.name || '—';
+}
 
 const props = defineProps({
   returnId: {
@@ -420,9 +437,9 @@ const error = ref(null);
 const activeTab = ref('info');
 
 const tabs = computed(() => [
-  { id: 'info', label: 'بيانات المرتجع', icon: FileText },
-  { id: 'sale', label: 'الفاتورة الأصلية والعميل', icon: Receipt },
-  { id: 'inventory', label: 'إذن الاستلام المخزني', icon: PackageCheck, badge: returnRecord.value?.inventory_documents?.length || 0 },
+  { id: 'info', label: t('posReturns.tabs.info'), icon: FileText },
+  { id: 'sale', label: t('posReturns.tabs.sale'), icon: Receipt },
+  { id: 'inventory', label: t('posReturns.tabs.inventory'), icon: PackageCheck, badge: returnRecord.value?.inventory_documents?.length || 0 },
 ]);
 
 async function loadReturnDetails() {
@@ -434,10 +451,10 @@ async function loadReturnDetails() {
     if (res.data?.success) {
       returnRecord.value = res.data.data;
     } else {
-      error.value = 'تعذر جلب تفاصيل المرتجع.';
+      error.value = t('posReturns.fetchError');
     }
   } catch (err) {
-    error.value = err.response?.data?.message || 'حدث خطأ أثناء تحميل تفاصيل المرتجع.';
+    error.value = err.response?.data?.message || t('posReturns.loadError');
   } finally {
     loading.value = false;
   }
@@ -463,18 +480,6 @@ function openLinkedDoc(doc) {
       search: doc.document_number || undefined,
       open: String(doc.id),
     },
-  });
-}
-
-function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
 

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
+import i18n from '../i18n';
 import { AUTH_STORAGE_KEYS, STORAGE_KEYS } from '../config/storage.js';
 
 /**
@@ -80,7 +81,7 @@ export const useAuthStore = defineStore('auth', {
 
         return { success: true, data };
       } catch (err) {
-        this.error = err.response?.data?.message || 'فشل تسجيل الدخول. يرجى التحقق من البيانات.';
+        this.error = err.response?.data?.message || i18n.global.t('auth.loginFailed');
         return {
           success: false,
           message: this.error,
@@ -142,7 +143,7 @@ export const useAuthStore = defineStore('auth', {
         persistUser(this.user);
         return { success: true, message: response.data.message, data: response.data.data };
       } catch (err) {
-        const message = err.response?.data?.message || 'فشل تحديث بيانات الملف الشخصي';
+        const message = err.response?.data?.message || i18n.global.t('profile.profileUpdateFailed');
         return {
           success: false,
           message,
@@ -180,7 +181,7 @@ export const useAuthStore = defineStore('auth', {
           avatar_url: response.data.avatar_url,
         };
       } catch (err) {
-        const message = err.response?.data?.message || 'فشل رفع الصورة الشخصية';
+        const message = err.response?.data?.message || i18n.global.t('profile.avatarUploadFailed');
         return {
           success: false,
           message,
@@ -198,7 +199,7 @@ export const useAuthStore = defineStore('auth', {
         const response = await api.post('/auth/change-password', payload);
         return { success: true, message: response.data.message };
       } catch (err) {
-        const message = err.response?.data?.message || 'فشل تغيير كلمة المرور';
+        const message = err.response?.data?.message || i18n.global.t('profile.passwordChangeFailed');
         return {
           success: false,
           message,

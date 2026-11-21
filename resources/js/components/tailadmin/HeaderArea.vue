@@ -19,13 +19,13 @@
         <!-- Global search (dashboard) -->
         <div v-if="isDashboard" class="relative hidden w-64 lg:block xl:w-80">
           <Search
-            class="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+            class="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
             aria-hidden="true"
           />
           <input
             v-model="globalSearch"
             type="search"
-            class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-4 pr-10 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/75 focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson)]/15"
+            class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] ps-10 pe-4 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/75 focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson)]/15"
             :placeholder="$t('dashboard.searchPlaceholder')"
             :aria-label="$t('dashboard.searchPlaceholder')"
             @keyup.enter="submitSearch"
@@ -50,8 +50,7 @@
 
           <div
             v-if="langOpen"
-            class="absolute z-50 mt-2 w-36 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-xl"
-            :class="locale === 'ar' ? 'left-0' : 'right-0'"
+            class="absolute end-0 z-50 mt-2 w-36 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-xl"
             role="menu"
           >
             <button
@@ -61,7 +60,7 @@
               role="menuitem"
               @click="switchLocale('ar')"
             >
-              <span>العربية</span>
+              <span>{{ $t('header.arabic') }}</span>
               <Check v-if="locale === 'ar'" class="h-4 w-4 text-[var(--crimson)]" aria-hidden="true" />
             </button>
             <button
@@ -71,7 +70,7 @@
               role="menuitem"
               @click="switchLocale('en')"
             >
-              <span>English</span>
+              <span>{{ $t('header.english') }}</span>
               <Check v-if="locale === 'en'" class="h-4 w-4 text-[var(--crimson)]" aria-hidden="true" />
             </button>
           </div>
@@ -108,7 +107,7 @@ import DropdownUser from './DropdownUser.vue';
 defineEmits(['toggle-sidebar']);
 
 const themeStore = useThemeStore();
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -124,7 +123,7 @@ const submitSearch = () => {
 };
 
 const currentLocaleLabel = computed(() => {
-  return locale.value === 'ar' ? 'العربية' : 'English';
+  return locale.value === 'ar' ? t('header.arabic') : t('header.english');
 });
 
 const switchLocale = (target) => {

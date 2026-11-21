@@ -1,9 +1,9 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
     <div class="w-full max-w-[460px] rounded-3xl bg-[var(--card)] p-6 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Header -->
       <div class="flex items-center justify-between pb-3 mb-4 border-b border-[var(--border)]">
-        <h3 class="text-xl font-black">تسجيل حركة نقدية في الوردية</h3>
+        <h3 class="text-xl font-black">{{ $t('pos.modals.expense.title') }}</h3>
         <button
           type="button"
           class="rounded-xl p-1 text-[var(--muted)] hover:bg-[var(--border)] transition"
@@ -25,7 +25,7 @@
           ]"
           @click="txType = 'expense'"
         >
-          مصروف نقدي
+          {{ $t('pos.modals.expense.typeExpense') }}
         </button>
         <button
           type="button"
@@ -37,13 +37,13 @@
           ]"
           @click="txType = 'withdrawal'"
         >
-          سحب نقدي (عهدة/توريد)
+          {{ $t('pos.modals.expense.typeWithdrawal') }}
         </button>
       </div>
 
       <form @submit.prevent="submitTx">
         <div class="mb-3">
-          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">المبلغ (ج.م) *</label>
+          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.expense.amountLabel') }}</label>
           <input
             v-model.number="amount"
             type="number"
@@ -55,22 +55,22 @@
         </div>
 
         <div class="mb-3">
-          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">بيان الحركة / اسم المصروف *</label>
+          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.expense.nameLabel') }}</label>
           <input
             v-model="name"
             type="text"
             required
-            placeholder="مثال: ضيافة، أدوات نظافة، توريد للخزينة الرئيسية..."
+            :placeholder="$t('pos.modals.expense.namePlaceholder')"
             class="w-full h-11 px-3 text-sm rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
           />
         </div>
 
         <div class="mb-5">
-          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">تفاصيل إضافية (اختياري)</label>
+          <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.expense.descLabel') }}</label>
           <textarea
             v-model="description"
             rows="2"
-            placeholder="أي تفاصيل أو ملاحظات إضافية..."
+            :placeholder="$t('pos.modals.expense.descPlaceholder')"
             class="w-full p-3 text-sm rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] resize-none"
           ></textarea>
         </div>
@@ -82,7 +82,7 @@
             :disabled="loading"
             @click="$emit('close')"
           >
-            إلغاء
+            {{ $t('common.cancel') }}
           </button>
           <button
             type="submit"
@@ -90,7 +90,7 @@
             :disabled="loading"
           >
             <span v-if="loading" class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-            <span>تأكيد التسجيل</span>
+            <span>{{ $t('pos.modals.expense.submitBtn') }}</span>
           </button>
         </div>
       </form>

@@ -254,10 +254,10 @@ const saveRecord = async () => {
 
 const confirmDelete = async (id) => {
   const confirmed = await alertService.confirmDelete({
-    title: locale.value === 'ar' ? 'تأكيد الحذف النهائي' : 'Confirm Deletion',
+    title: t('common.confirmDeleteTitle'),
     text: t('common.confirmDelete'),
-    confirmButtonText: locale.value === 'ar' ? 'نعم، احذف السجل' : 'Yes, Delete',
-    cancelButtonText: locale.value === 'ar' ? 'إلغاء الأمر' : 'Cancel',
+    confirmButtonText: t('common.confirmDeleteBtn'),
+    cancelButtonText: t('common.cancel'),
   });
 
   if (!confirmed) {
@@ -270,7 +270,7 @@ const confirmDelete = async (id) => {
     loadData(currentPage.value, currentSearch.value);
     emit('record-deleted', id);
   } catch (err) {
-    notificationStore.error(err.response?.data?.message || 'Error deleting record.');
+    notificationStore.error(err.response?.data?.message || t('common.deleteError'));
   }
 };
 
@@ -278,12 +278,10 @@ const confirmBulkDelete = async (ids) => {
   if (!ids || ids.length === 0) return;
 
   const confirmed = await alertService.confirmDelete({
-    title: locale.value === 'ar' ? 'تأكيد حذف العناصر المحددة' : 'Confirm Bulk Deletion',
-    text: locale.value === 'ar'
-      ? `هل أنت متأكد من رغبتك في حذف ${ids.length} سجل محدد نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`
-      : `Are you sure you want to permanently delete ${ids.length} selected records?`,
-    confirmButtonText: locale.value === 'ar' ? `نعم، احذف (${ids.length})` : 'Yes, Delete',
-    cancelButtonText: locale.value === 'ar' ? 'إلغاء الأمر' : 'Cancel',
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count: ids.length }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count: ids.length }),
+    cancelButtonText: t('common.cancel'),
   });
 
   if (!confirmed) {
@@ -304,19 +302,11 @@ const confirmBulkDelete = async (ids) => {
   }
 
   if (successCount > 0) {
-    notificationStore.success(
-      locale.value === 'ar'
-        ? `تم حذف ${successCount} سجل بنجاح.`
-        : `Successfully deleted ${successCount} records.`
-    );
+    notificationStore.success(t('common.bulkDeleteSuccess', { count: successCount }));
     emit('record-deleted', ids);
   }
   if (failErrors.length > 0) {
-    notificationStore.error(
-      locale.value === 'ar'
-        ? `تعذر حذف بعض العناصر (${failErrors.length}) نظراً لارتباطها ببيانات حيوية أخرى.`
-        : `Failed to delete ${failErrors.length} items.`
-    );
+    notificationStore.error(t('common.bulkDeletePartialError', { count: failErrors.length }));
   }
 
   tableRef.value?.clearSelection?.();

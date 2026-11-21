@@ -9,6 +9,9 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   name: {
@@ -19,6 +22,6 @@ const props = defineProps({
 
 const initial = computed(() => {
   const trimmed = (props.name || '').trim();
-  return trimmed ? Array.from(trimmed)[0] : '؟';
+  return trimmed ? Array.from(trimmed)[0] : t('common.avatarFallbackInitial');
 });
 </script>

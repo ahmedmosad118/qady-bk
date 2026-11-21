@@ -2,8 +2,8 @@
   <div class="space-y-6">
     <!-- Page Header -->
     <PageHeader
-      title="أرصدة المخازن وحركات المنتجات"
-      subtitle="متابعة الأرصدة الحالية الدقيقة لكل منتج في كل مخزن، واستعراض سجل الحركات وبطاقة الصنف التاريخية."
+      :title="$t('warehouseStocks.title')"
+      :subtitle="$t('warehouseStocks.subtitle')"
     >
       <template #actions>
         <router-link
@@ -21,7 +21,7 @@
       <!-- Compact Toolbar & Filter Drawer -->
       <FilterToolbar
         v-model:search="filters.search"
-        search-placeholder="بحث بالاسم أو الباركود..."
+        :search-placeholder="$t('warehouseStocks.searchPlaceholder')"
         :active-filters-count="activeFiltersCount"
         @search="debouncedSearch"
         @reset="resetFilters"
@@ -33,8 +33,8 @@
             <SearchableSelect
               v-model="filters.warehouse_id"
               :options="warehouseOptions"
-              placeholder="كل المخازن"
-              search-placeholder="بحث في المخازن..."
+              :placeholder="$t('warehouseStocks.allWarehouses')"
+              :search-placeholder="$t('warehouseStocks.searchWarehouses')"
               allow-empty
               @change="filters.page = 1; loadStocks()"
             />
@@ -42,11 +42,11 @@
 
           <!-- Stock Availability Filter -->
           <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">حالة التوفر</label>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('warehouseStocks.availability') }}</label>
             <SearchableSelect
               v-model="filters.has_stock"
               :options="stockStatusOptions"
-              placeholder="حالة التوفر"
+              :placeholder="$t('warehouseStocks.availability')"
               allow-empty
               @change="filters.page = 1; loadStocks()"
             />
@@ -56,16 +56,16 @@
 
       <!-- Table -->
       <div class="overflow-x-auto">
-        <table class="w-full text-right text-sm">
+        <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th class="w-12 px-4 py-3.5 text-center">#</th>
-              <th class="px-4 py-3.5">اسم المنتج</th>
-              <th class="px-4 py-3.5">الباركود</th>
-              <th class="px-4 py-3.5">المخزن</th>
-              <th class="px-4 py-3.5 text-center">الرصيد الحالي</th>
-              <th class="px-4 py-3.5 text-center">آخر تحديث</th>
-              <th class="px-4 py-3.5 text-left">الإجراءات</th>
+              <th class="px-4 py-3.5">{{ $t('warehouseStocks.productName') }}</th>
+              <th class="px-4 py-3.5">{{ $t('warehouseStocks.barcode') }}</th>
+              <th class="px-4 py-3.5">{{ $t('warehouseStocks.warehouse') }}</th>
+              <th class="px-4 py-3.5 text-center">{{ $t('warehouseStocks.currentStock') }}</th>
+              <th class="px-4 py-3.5 text-center">{{ $t('warehouseStocks.lastUpdated') }}</th>
+              <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
@@ -73,7 +73,7 @@
             <tr v-if="loading && stocks.length === 0">
               <td colspan="7" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
                 <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--muted)]" />
-                <span class="mt-2 block">جاري تحميل الأرصدة...</span>
+                <span class="mt-2 block">{{ $t('warehouseStocks.loading') }}</span>
               </td>
             </tr>
 
@@ -81,8 +81,8 @@
             <tr v-else-if="stocks.length === 0">
               <td colspan="7" class="px-4 py-12 text-center">
                 <Boxes class="mx-auto h-10 w-10 text-[var(--muted)]/50" />
-                <h3 class="mt-3 text-base font-bold text-[var(--text)]">لا توجد أرصدة مخزنية مطابقة</h3>
-                <p class="mt-1 text-xs text-[var(--muted)]">لم يتم العثور على أية منتجات مطابقة للفلاتر المحددة.</p>
+                <h3 class="mt-3 text-base font-bold text-[var(--text)]">{{ $t('warehouseStocks.noStocks') }}</h3>
+                <p class="mt-1 text-xs text-[var(--muted)]">{{ $t('warehouseStocks.noStocksHint') }}</p>
               </td>
             </tr>
 
@@ -125,7 +125,7 @@
                     v-if="stock.warehouse?.is_default"
                     class="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
                   >
-                    رئيسي
+                    {{ $t('warehouses.mainShort') }}
                   </span>
                 </div>
               </td>
@@ -146,15 +146,15 @@
               </td>
 
               <!-- Actions -->
-              <td class="px-4 py-3.5 text-left">
+              <td class="px-4 py-3.5 text-end">
                 <button
                   type="button"
                   class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-bold text-[var(--text)] shadow-xs transition-colors hover:bg-[var(--bg)] cursor-pointer"
-                  title="عرض بطاقة حركة الصنف"
+                  :title="$t('warehouseStocks.stockCardTitle')"
                   @click="openStockCard(stock)"
                 >
                   <Receipt class="h-3.5 w-3.5 text-[var(--muted)]" />
-                  <span>بطاقة الصنف</span>
+                  <span>{{ $t('warehouseStocks.stockCard') }}</span>
                 </button>
               </td>
             </tr>
@@ -168,7 +168,7 @@
         class="flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] p-4 sm:flex-row sm:px-6"
       >
         <span class="text-xs text-[var(--muted)]">
-          الصفحة {{ meta.current_page }} من {{ meta.last_page }} ({{ meta.total }} منتج)
+          {{ $t('warehouseStocks.pageOf', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
         </span>
 
         <div class="flex items-center gap-2">
@@ -178,7 +178,7 @@
             class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
             @click="changePage(meta.current_page - 1)"
           >
-            السابق
+            {{ $t('common.previous') }}
           </button>
           <button
             type="button"
@@ -186,7 +186,7 @@
             class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
             @click="changePage(meta.current_page + 1)"
           >
-            التالي
+            {{ $t('common.next') }}
           </button>
         </div>
       </div>
@@ -217,11 +217,11 @@
                   {{ activeStockRow.product.barcode }}
                 </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-600 border border-emerald-500/20">
-                  الرصيد الحالي: {{ Number(stockCardData?.current_stock ?? activeStockRow?.quantity ?? 0).toLocaleString() }} وحدة
+                  {{ $t('warehouseStocks.currentBalanceLabel') }} {{ Number(stockCardData?.current_stock ?? activeStockRow?.quantity ?? 0).toLocaleString() }} {{ $t('warehouseStocks.unitLabel') }}
                 </span>
               </div>
               <p class="mt-1 text-xs text-[var(--muted)]">
-                بطاقة حركة الصنف في: <span class="font-bold text-[var(--text)]">{{ activeStockRow?.warehouse?.name }}</span>
+                {{ $t('warehouseStocks.stockCardIn') }} <span class="font-bold text-[var(--text)]">{{ activeStockRow?.warehouse?.name }}</span>
               </p>
             </div>
           </div>
@@ -230,7 +230,7 @@
             <button
               type="button"
               class="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
-              title="طباعة بطاقة الصنف"
+              :title="$t('warehouseStocks.printStockCard')"
               @click="printCard"
             >
               <Printer class="h-5 w-5" />
@@ -250,16 +250,16 @@
       <template #actions>
         <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-bold text-[var(--muted)]">فلترة الحركات:</span>
+            <span class="font-bold text-[var(--muted)]">{{ $t('warehouseStocks.filterMovements') }}</span>
             <!-- Direction -->
             <select
               v-model="cardFilters.direction"
               class="h-8 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-xs font-bold text-[var(--text)] outline-none"
               @change="fetchStockCard"
             >
-              <option value="">كل الحركات (وارد وصادر)</option>
-              <option value="inbound">الوارد فقط (INBOUND)</option>
-              <option value="outbound">الصادر فقط (OUTBOUND)</option>
+              <option value="">{{ $t('warehouseStocks.allDirections') }}</option>
+              <option value="inbound">{{ $t('warehouseStocks.inboundOnly') }}</option>
+              <option value="outbound">{{ $t('warehouseStocks.outboundOnly') }}</option>
             </select>
 
             <!-- Date From -->
@@ -269,7 +269,7 @@
               class="h-8 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 text-xs text-[var(--text)] outline-none"
               @change="fetchStockCard"
             />
-            <span class="text-[var(--muted)]">إلى</span>
+            <span class="text-[var(--muted)]">{{ $t('warehouseStocks.to') }}</span>
             <!-- Date To -->
             <input
               v-model="cardFilters.date_to"
@@ -281,7 +281,7 @@
 
           <div>
             <span class="font-extrabold text-[var(--muted)]">
-              إجمالي الحركات: <span class="text-[var(--text)]">{{ stockCardData?.movements?.length || 0 }}</span>
+              {{ $t('warehouseStocks.totalMovements') }} <span class="text-[var(--text)]">{{ stockCardData?.movements?.length || 0 }}</span>
             </span>
           </div>
         </div>
@@ -298,30 +298,30 @@
             <AlertCircle class="h-4 w-4 shrink-0" />
             <span>{{ cardError }}</span>
           </span>
-          <button type="button" class="underline underline-offset-4" @click="fetchStockCard">إعادة المحاولة</button>
+          <button type="button" class="underline underline-offset-4" @click="fetchStockCard">{{ $t('common.retry') }}</button>
         </div>
 
         <!-- Loading -->
         <div v-if="cardLoading" class="py-12 text-center text-[var(--muted)]">
           <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--crimson)]" />
-          <span class="mt-2 block text-xs">جاري تجهيز بطاقة الصنف وحساب الأرصدة التراكمية...</span>
+          <span class="mt-2 block text-xs">{{ $t('warehouseStocks.loadingCard') }}</span>
         </div>
 
         <!-- Movements Table -->
         <div v-else class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs">
           <div class="overflow-x-auto">
-            <table class="w-full text-right text-xs">
+            <table class="w-full text-start text-xs">
               <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
                 <tr>
                   <th class="w-10 px-3 py-3 text-center">#</th>
-                  <th class="px-3 py-3">تاريخ الحركة</th>
-                  <th class="px-3 py-3">رقم المستند</th>
-                  <th class="px-3 py-3">نوع المستند</th>
-                  <th class="px-3 py-3 text-center">الاتجاه</th>
-                  <th class="px-3 py-3 text-center text-emerald-600">وارد (+)</th>
-                  <th class="px-3 py-3 text-center text-[var(--crimson)]">صادر (-)</th>
-                  <th class="px-3 py-3 text-center font-black">الرصيد بعد الحركة</th>
-                  <th class="px-3 py-3">المستخدم</th>
+                  <th class="px-3 py-3">{{ $t('warehouseStocks.movementDate') }}</th>
+                  <th class="px-3 py-3">{{ $t('warehouseStocks.documentNumber') }}</th>
+                  <th class="px-3 py-3">{{ $t('warehouseStocks.documentType') }}</th>
+                  <th class="px-3 py-3 text-center">{{ $t('warehouseStocks.direction') }}</th>
+                  <th class="px-3 py-3 text-center text-emerald-600">{{ $t('warehouseStocks.inboundCol') }}</th>
+                  <th class="px-3 py-3 text-center text-[var(--crimson)]">{{ $t('warehouseStocks.outboundCol') }}</th>
+                  <th class="px-3 py-3 text-center font-black">{{ $t('warehouseStocks.balanceAfter') }}</th>
+                  <th class="px-3 py-3">{{ $t('warehouseStocks.user') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border)]">
@@ -336,7 +336,7 @@
                   <td class="px-3 py-2.5 font-mono font-bold" dir="ltr">
                     <span>{{ m.document_number }}</span>
                     <span v-if="m.is_reversal" class="ms-1 rounded bg-amber-500/10 px-1 py-0.5 text-[10px] text-amber-600 font-sans">
-                      حركة عكسية
+                      {{ $t('warehouseStocks.reversalMovement') }}
                     </span>
                   </td>
                   <td class="px-3 py-2.5 font-semibold text-[var(--text)]">{{ typeLabel(m.document_type) }}</td>
@@ -347,7 +347,7 @@
                     >
                       <ArrowDown v-if="m.direction === 'inbound'" class="h-3 w-3" />
                       <ArrowUp v-else class="h-3 w-3" />
-                      <span>{{ m.direction === 'inbound' ? 'وارد' : 'صادر' }}</span>
+                      <span>{{ m.direction === 'inbound' ? $t('warehouseStocks.inbound') : $t('warehouseStocks.outbound') }}</span>
                     </span>
                   </td>
                   <td class="px-3 py-2.5 text-center font-bold text-emerald-600">
@@ -365,7 +365,7 @@
                 </tr>
                 <tr v-if="!stockCardData?.movements || stockCardData.movements.length === 0">
                   <td colspan="9" class="py-8 text-center text-xs text-[var(--muted)]">
-                    لا توجد حركات مخزنية مسجلة لهذا الصنف في هذا المخزن.
+                    {{ $t('warehouseStocks.noMovements') }}
                   </td>
                 </tr>
               </tbody>
@@ -379,6 +379,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   ArrowDown,
@@ -396,6 +397,9 @@ import AppDrawer from '../../components/ui/AppDrawer.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { formatDateOnly } from '../../utils/date';
+
+const { t, locale } = useI18n();
 
 const loading = ref(false);
 const stocks = ref([]);
@@ -433,15 +437,15 @@ const hasActiveFilters = computed(() => Boolean(filters.search) || activeFilters
 const warehouseOptions = computed(() => {
   return warehouses.value.map((w) => ({
     value: w.id,
-    label: `${w.name} (${w.code})${w.is_default ? ' ★ الرئيسي' : ''}`,
+    label: `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.mainBadge') : ''}`,
   }));
 });
 
-const stockStatusOptions = [
-  { value: '', label: 'الكل (المتوفر والصفر)' },
-  { value: '1', label: 'المتوفر فقط (> 0)' },
-  { value: '0', label: 'غير المتوفر فقط (= 0)' },
-];
+const stockStatusOptions = computed(() => [
+  { value: '', label: t('warehouseStocks.allAvailability') },
+  { value: '1', label: t('warehouseStocks.inStockOnly') },
+  { value: '0', label: t('warehouseStocks.outOfStockOnly') },
+]);
 
 let searchDebounce = null;
 function debouncedSearch() {
@@ -546,7 +550,7 @@ async function fetchStockCard() {
     const res = await api.get('/stock-movements/stock-card', { params });
     stockCardData.value = res.data?.data || null;
   } catch (err) {
-    cardError.value = err?.response?.data?.message || 'تعذر تحميل بيانات بطاقة الصنف من الخادم.';
+    cardError.value = err?.response?.data?.message || t('warehouseStocks.loadCardError');
     console.error('Failed to load stock card:', err);
   } finally {
     cardLoading.value = false;
@@ -558,20 +562,19 @@ function printCard() {
 }
 
 function formatDateTime(dtStr) {
-  if (!dtStr) return '—';
-  return new Date(dtStr).toLocaleDateString('ar-EG');
+  return formatDateOnly(dtStr, locale.value) || '—';
 }
 
 function typeLabel(type) {
   if (!type) return '—';
   const labels = {
-    goods_receipt: 'إذن استلام مخزني',
-    goods_delivery: 'إذن تسليم مخزني',
-    warehouse_transfer: 'إذن تحويل مخزني',
-    stock_adjustment: 'إذن تسوية جردية',
-    inventory_return: 'إذن مرتجع مخزني',
-    stock_write_off: 'إذن إتلاف / هالك',
-    opening_balance: 'رصيد افتتاحي',
+    goods_receipt: t('inventory.types.goods_receipt'),
+    goods_delivery: t('inventory.types.goods_delivery'),
+    warehouse_transfer: t('inventory.types.warehouse_transfer'),
+    stock_adjustment: t('inventory.types.stock_adjustment'),
+    inventory_return: t('inventory.types.inventory_return'),
+    stock_write_off: t('inventory.types.stock_write_off'),
+    opening_balance: t('inventory.types.opening_balance'),
   };
   return labels[type] || type;
 }

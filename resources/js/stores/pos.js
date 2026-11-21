@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
+import i18n from '../i18n';
 import { useAuthStore } from './auth.js';
 import { useNotificationStore } from './notification.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 const HELD_SALES_KEY = 'qady_pos_held_sales';
 const OFFLINE_QUEUE_KEY = 'qady_pos_offline_queue';
@@ -250,8 +253,8 @@ export const usePosStore = defineStore('pos', {
         console.error('Failed to persist held sales in localStorage:', e);
         const isQuota = e?.name === 'QuotaExceededError' || e?.code === 22 || e?.number === -2147024882;
         const msg = isQuota
-          ? 'تعذر تعليق الفاتورة: نفدت مساحة التخزين المحلي (Local Storage) في المتصفح. يرجى حذف الفواتير القديمة غير الضرورية.'
-          : 'تعذر حفظ الفواتير المعلقة في التخزين المحلي للمتصفح. لم يتم تفريغ السلة.';
+          ? t('pos.store.heldQuotaExceeded')
+          : t('pos.store.heldPersistFailed');
         useNotificationStore().error(msg);
         return false;
       }
@@ -269,8 +272,8 @@ export const usePosStore = defineStore('pos', {
         console.error('Failed to persist offline queue in localStorage:', e);
         const isQuota = e?.name === 'QuotaExceededError' || e?.code === 22 || e?.number === -2147024882;
         const msg = isQuota
-          ? 'تعذر حفظ العملية في قائمة الأوفلاين: نفدت مساحة التخزين المحلي (Local Storage) في المتصفح.'
-          : 'فشل حفظ العملية في التخزين المحلي للمتصفح. لم يتم تفريغ السلة.';
+          ? t('pos.store.offlineQuotaExceeded')
+          : t('pos.store.offlinePersistFailed');
         useNotificationStore().error(msg);
         return false;
       }
@@ -350,7 +353,7 @@ export const usePosStore = defineStore('pos', {
       const shift = this.availableOpenShifts.find((s) => s.id === shiftId);
       if (shift) {
         this.activeShift = shift;
-        useNotificationStore().success(`تم اختيار الوردية رقم ${shift.shift_number} بنجاح.`);
+        useNotificationStore().success(t('pos.store.shiftSelected', { number: shift.shift_number }));
         return true;
       }
       return false;
@@ -520,7 +523,7 @@ export const usePosStore = defineStore('pos', {
           return formatted;
         }
       } catch (err) {
-        useNotificationStore().error(`لم يتم العثور على أي منتج مرتبط بالباركود: ${code}`);
+        useNotificationStore().error(t('pos.store.barcodeNotFound', { code }));
         return null;
       }
     },
@@ -532,7 +535,7 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (!this.isOpenShift) {
-        notify.error('الوردية مغلقة. يجب فتح وردية جديدة قبل إضافة المنتجات والبيع.');
+        notify.error(t('pos.store.shiftClosedAdd'));
         return false;
       }
 
@@ -542,7 +545,7 @@ export const usePosStore = defineStore('pos', {
       const availStock = Number(product.stock_quantity ?? 0);
 
       if (newQty > availStock) {
-        notify.error(`الرصيد المتاح من '${product.name}' في المخزن هو ${availStock} فقط.`);
+        notify.error(t('pos.store.insufficientStock', { name: product.name, stock: availStock }));
         return false;
       }
 
@@ -586,7 +589,7 @@ export const usePosStore = defineStore('pos', {
 
       const availStock = Number(item.product.stock_quantity ?? 0);
       if (qty > availStock) {
-        useNotificationStore().error(`الرصيد المتاح من '${item.name}' هو ${availStock} فقط.`);
+        useNotificationStore().error(t('pos.store.insufficientStock', { name: item.name, stock: availStock }));
         item.quantity = availStock;
       } else {
         item.quantity = qty;
@@ -608,7 +611,7 @@ export const usePosStore = defineStore('pos', {
       // Check permission if overridden
       if (parsed !== item.original_unit_price) {
         if (!authStore.hasPermission('pos.override_price')) {
-          useNotificationStore().error('ليس لديك صلاحية تعديل أو تجاوز سعر البيع.');
+          useNotificationStore().error(t('pos.store.noOverridePricePerm'));
           return;
         }
       }
@@ -629,7 +632,7 @@ export const usePosStore = defineStore('pos', {
 
       if (parsedVal > 0) {
         if (!authStore.hasPermission('pos.apply_item_discount')) {
-          useNotificationStore().error('ليس لديك صلاحية تطبيق خصومات على الأصناف.');
+          useNotificationStore().error(t('pos.store.noItemDiscountPerm'));
           return;
         }
       }
@@ -699,7 +702,7 @@ export const usePosStore = defineStore('pos', {
 
       if (parsed > 0) {
         if (!authStore.hasPermission('pos.apply_invoice_discount')) {
-          useNotificationStore().error('ليس لديك صلاحية تطبيق خصم على إجمالي الفاتورة.');
+          useNotificationStore().error(t('pos.store.noInvoiceDiscountPerm'));
           return;
         }
       }
@@ -722,14 +725,14 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (this.cartLinesCount === 0) {
-        notify.info('لا توجد أصناف في السلة لتعليقها.');
+        notify.info(t('pos.store.noItemsToHold'));
         return false;
       }
 
       const heldEntry = {
         id: 'hold_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         created_at: new Date().toISOString(),
-        reference_note: referenceNote.trim() || `فاتورة معلقة #${this.heldSales.length + 1}`,
+        reference_note: referenceNote.trim() || t('pos.store.heldDefaultNote', { number: this.heldSales.length + 1 }),
         customer: this.cart.customer ? { ...this.cart.customer } : null,
         items: JSON.parse(JSON.stringify(this.cart.items)),
         invoice_discount_type: this.cart.invoice_discount_type,
@@ -752,7 +755,7 @@ export const usePosStore = defineStore('pos', {
 
       // ONLY clear cart after successful, verified physical persistence
       this.clearCart();
-      notify.success(`تم تعليق الفاتورة بنجاح في المتصفح (${heldEntry.reference_note})`);
+      notify.success(t('pos.store.heldSuccess', { note: heldEntry.reference_note }));
       return true;
     },
 
@@ -769,13 +772,13 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (this.cartLinesCount > 0) {
-        notify.error('يوجد أصناف في السلة الحالية. يرجى إتمامها أو تفريغها أو تعليقها أولاً قبل استرجاع فاتورة معلقة.');
+        notify.error(t('pos.store.cartNotEmptyResume'));
         return { success: false, reason: 'cart_not_empty' };
       }
 
       const held = this.heldSales.find((h) => h.id === heldId);
       if (!held) {
-        notify.error('لم يتم العثور على الفاتورة المعلقة المحددة.');
+        notify.error(t('pos.store.heldNotFound'));
         return { success: false, reason: 'not_found' };
       }
 
@@ -788,7 +791,7 @@ export const usePosStore = defineStore('pos', {
           discrepancies.push({
             type: 'missing_product',
             name: rawItem.name,
-            message: `المنتج '${rawItem.name}' لم يعد متوفراً في الكتالوج الحالي.`,
+            message: t('pos.store.heldMissingProduct', { name: rawItem.name }),
           });
           continue;
         }
@@ -802,7 +805,7 @@ export const usePosStore = defineStore('pos', {
             name: rawItem.name,
             heldQty: reqQty,
             availableStock: availStock,
-            message: `الكمية المعلقة من '${rawItem.name}' هي ${reqQty}، بينما الرصيد المتاح بالمخزن حالياً هو ${availStock}.`,
+            message: t('pos.store.heldStockDeficit', { name: rawItem.name, req: reqQty, avail: availStock }),
           });
         }
 
@@ -812,7 +815,7 @@ export const usePosStore = defineStore('pos', {
             name: rawItem.name,
             oldPrice: rawItem.original_unit_price,
             newPrice: prod.selling_price,
-            message: `سعر الكتالوج للمنتج '${rawItem.name}' تغيّر من ${rawItem.original_unit_price} إلى ${prod.selling_price} ج.م.`,
+            message: t('pos.store.heldPriceChanged', { name: rawItem.name, oldPrice: rawItem.original_unit_price, newPrice: prod.selling_price }),
           });
         }
 
@@ -821,7 +824,7 @@ export const usePosStore = defineStore('pos', {
           discrepancies.push({
             type: 'permission_override_price',
             name: rawItem.name,
-            message: `الصنف '${rawItem.name}' يتضمن سعراً معدلاً (${rawItem.unit_price} ج.م) ولا تملك صلاحية تعديل السعر.`,
+            message: t('pos.store.heldNoPriceOverridePerm', { name: rawItem.name, price: rawItem.unit_price }),
           });
         }
 
@@ -829,7 +832,7 @@ export const usePosStore = defineStore('pos', {
           discrepancies.push({
             type: 'permission_item_discount',
             name: rawItem.name,
-            message: `الصنف '${rawItem.name}' يتضمن خصماً ولا تملك صلاحية خصم الأصناف.`,
+            message: t('pos.store.heldNoItemDiscountPerm', { name: rawItem.name }),
           });
         }
       }
@@ -837,7 +840,7 @@ export const usePosStore = defineStore('pos', {
       if (Number(held.invoice_discount_value || 0) > 0 && !authStore.hasPermission('pos.apply_invoice_discount')) {
         discrepancies.push({
           type: 'permission_invoice_discount',
-          message: 'الفاتورة تتضمن خصم إجمالي ولا تملك صلاحية تطبيق خصم الفاتورة.',
+          message: t('pos.store.heldNoInvoiceDiscountPerm'),
         });
       }
 
@@ -872,9 +875,9 @@ export const usePosStore = defineStore('pos', {
 
       if (discrepancies.length > 0) {
         const bullets = discrepancies.map((d) => `• ${d.message}`).join('\n');
-        notify.info(`تنبيهات استكمال الفاتورة:\n${bullets}`, 'تنبيه استكمال الفاتورة');
+        notify.info(t('pos.store.heldAlertsBody', { bullets }), t('pos.store.heldAlertsTitle'));
       } else {
-        notify.success('تم استرجاع الفاتورة المعلقة بنجاح دون أي تعديل على بياناتها.');
+        notify.success(t('pos.store.heldResumedSuccess'));
       }
 
       return { success: true, discrepancies };
@@ -886,7 +889,7 @@ export const usePosStore = defineStore('pos', {
     deleteHeldCart(heldId) {
       this.heldSales = this.heldSales.filter((h) => h.id !== heldId);
       this.persistHeldSales();
-      useNotificationStore().success('تم حذف الفاتورة المعلقة من المتصفح.');
+      useNotificationStore().success(t('pos.store.heldDeleted'));
     },
 
     /**
@@ -900,17 +903,17 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (this.submittingSale) {
-        return { success: false, message: 'عملية البيع قيد المعالجة حالياً.' };
+        return { success: false, message: t('pos.store.saleInProgress') };
       }
 
       if (!this.isOpenShift) {
-        notify.error('لا يمكن إتمام البيع. الوردية مغلقة حالياً.');
-        return { success: false, message: 'الوردية مغلقة.' };
+        notify.error(t('pos.store.cannotCheckoutShiftClosed'));
+        return { success: false, message: t('pos.store.shiftClosedShort') };
       }
 
       if (this.cartLinesCount === 0) {
-        notify.error('السلة فارغة. يجب إضافة صنف واحد على الأقل.');
-        return { success: false, message: 'السلة فارغة.' };
+        notify.error(t('pos.store.emptyCartCheckout'));
+        return { success: false, message: t('pos.store.emptyCartShort') };
       }
 
       // Maintain stable client_uuid on the cart during retries
@@ -967,7 +970,7 @@ export const usePosStore = defineStore('pos', {
 
           // Clear cart on successful sale confirmation from server
           this.clearCart();
-          notify.success(`تم حفظ وترحيل الفاتورة رقم ${sale.invoice_number} بنجاح.`);
+          notify.success(t('pos.store.salePostedSuccess', { number: sale.invoice_number }));
 
           return { success: true, sale: this.lastCompletedSale };
         } else {
@@ -1002,7 +1005,7 @@ export const usePosStore = defineStore('pos', {
           if (!saved) {
             // Rollback in-memory queue so it matches physical storage
             this.offlineQueue = backupQueue;
-            return { success: false, message: 'فشل حفظ الفاتورة في التخزين المحلي للأوفلاين.' };
+            return { success: false, message: t('pos.store.offlineSaveFailed') };
           }
 
           // If cart came from held sale, delete it now that offline persistence succeeded
@@ -1030,13 +1033,13 @@ export const usePosStore = defineStore('pos', {
 
           this.lastCompletedSale = offlineSaleFake;
           this.clearCart();
-          notify.info('تم حفظ الفاتورة محلياً بنجاح (وضع العمل بدون إنترنت). سيتم الترحيل فور عودة الاتصال.');
+          notify.info(t('pos.store.offlineSavedInfo'));
 
           return { success: true, sale: offlineSaleFake };
         }
       } catch (err) {
         console.error('Sale checkout failed:', err);
-        const msg = err.response?.data?.message || err.message || 'فشل إتمام البيع على الخادم.';
+        const msg = err.response?.data?.message || err.message || t('pos.store.checkoutServerFailed');
         notify.error(msg);
         return { success: false, message: msg };
       } finally {
@@ -1068,7 +1071,7 @@ export const usePosStore = defineStore('pos', {
               remaining.push({
                 ...item,
                 sync_status: 'conflict',
-                conflict_reason: resp.data.conflict_reason || resp.data.message || 'تعارض في المزامنة',
+                conflict_reason: resp.data.conflict_reason || resp.data.message || t('pos.store.syncConflictFallback'),
               });
               conflictCount++;
             }
@@ -1097,10 +1100,10 @@ export const usePosStore = defineStore('pos', {
         this.persistOfflineQueue();
 
         if (syncedCount > 0) {
-          useNotificationStore().success(`تمت مزامنة ${syncedCount} فاتورة أوفلاين مع الخادم بنجاح.`);
+          useNotificationStore().success(t('pos.store.syncSuccessCount', { count: syncedCount }));
         }
         if (conflictCount > 0) {
-          useNotificationStore().error(`يوجد ${conflictCount} فاتورة أوفلاين متعارضة تتطلب المراجعة.`);
+          useNotificationStore().error(t('pos.store.syncConflictCount', { count: conflictCount }));
         }
       } finally {
         this.syncingQueue = false;
@@ -1119,7 +1122,7 @@ export const usePosStore = defineStore('pos', {
         });
 
         this.activeShift = resp.data.data;
-        notify.success(`تم فتح وردية جديدة رقم: ${this.activeShift.shift_number}`);
+        notify.success(t('pos.store.shiftOpenedSuccess', { number: this.activeShift.shift_number }));
 
         // Ensure catalog, categories and warehouse info are fully loaded
         if (this.products.length === 0 || this.categories.length === 0) {
@@ -1128,7 +1131,7 @@ export const usePosStore = defineStore('pos', {
 
         return { success: true, shift: this.activeShift };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل فتح الوردية.';
+        const msg = err.response?.data?.message || t('pos.store.shiftOpenFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1141,7 +1144,7 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (!this.activeShift) {
-        notify.error('لا توجد وردية مفتوحة لإغلاقها.');
+        notify.error(t('pos.store.noOpenShiftToClose'));
         return { success: false };
       }
 
@@ -1153,10 +1156,10 @@ export const usePosStore = defineStore('pos', {
 
         const summary = resp.data.data;
         this.activeShift = null;
-        notify.success('تم إغلاق الوردية وتوثيق الفروقات المالية بنجاح.');
+        notify.success(t('pos.store.shiftClosedSuccess'));
         return { success: true, summary };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل إغلاق الوردية.';
+        const msg = err.response?.data?.message || t('pos.store.shiftCloseFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1176,10 +1179,10 @@ export const usePosStore = defineStore('pos', {
           description: description?.trim() || null,
         });
 
-        notify.success(`تم تسجيل مصروف نقدي بقيمة ${amount} ج.م بنجاح.`);
+        notify.success(t('pos.store.expenseRecordedSuccess', { amount }));
         return { success: true };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل تسجيل المصروف.';
+        const msg = err.response?.data?.message || t('pos.store.expenseRecordFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1199,10 +1202,10 @@ export const usePosStore = defineStore('pos', {
           description: description?.trim() || null,
         });
 
-        notify.success(`تم تسجيل سحب نقدي بقيمة ${amount} ج.م بنجاح.`);
+        notify.success(t('pos.store.withdrawalRecordedSuccess', { amount }));
         return { success: true };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل تسجيل السحب النقدي.';
+        const msg = err.response?.data?.message || t('pos.store.withdrawalRecordFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1235,7 +1238,7 @@ export const usePosStore = defineStore('pos', {
         const resp = await api.get(`/pos/sales/by-number/${term}`);
         return resp.data.data;
       } catch (err) {
-        useNotificationStore().error(`لم يتم العثور على أي فاتورة برقم: ${term}`);
+        useNotificationStore().error(t('pos.store.invoiceNotFound', { number: term }));
         return null;
       }
     },
@@ -1260,7 +1263,7 @@ export const usePosStore = defineStore('pos', {
       const notify = useNotificationStore();
 
       if (!this.isOpenShift) {
-        notify.error('الوردية مغلقة. يجب فتح وردية قبل إجراء عمليات الإرجاع.');
+        notify.error(t('pos.store.shiftClosedReturn'));
         return { success: false };
       }
 
@@ -1282,10 +1285,10 @@ export const usePosStore = defineStore('pos', {
         });
 
         const ret = resp.data.data;
-        notify.success(`تم إنشاء إشعار المرتجع رقم ${ret.return_number} ورد المبلغ بنجاح.`);
+        notify.success(t('pos.store.returnCreatedSuccess', { number: ret.return_number }));
         return { success: true, return: ret };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل إجراء عملية الإرجاع.';
+        const msg = err.response?.data?.message || t('pos.store.returnCreateFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1307,10 +1310,10 @@ export const usePosStore = defineStore('pos', {
         const created = resp.data.data;
         this.customers.unshift(created);
         this.setCustomer(created);
-        notify.success(`تمت إضافة العميل '${created.name}' واختياره للسلة.`);
+        notify.success(t('pos.store.customerCreatedSuccess', { name: created.name }));
         return { success: true, customer: created };
       } catch (err) {
-        const msg = err.response?.data?.message || 'فشل إنشاء العميل.';
+        const msg = err.response?.data?.message || t('pos.store.customerCreateFailed');
         notify.error(msg);
         return { success: false, message: msg };
       }

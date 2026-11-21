@@ -13,7 +13,7 @@
           </div>
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="font-extrabold text-base sm:text-lg leading-tight text-[var(--text)]">تفاصيل وردية البيع</h3>
+              <h3 class="font-extrabold text-base sm:text-lg leading-tight text-[var(--text)]">{{ $t('pos.shiftDetail.title') }}</h3>
               <span v-if="shift" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]" dir="ltr">
                 {{ shift.shift_number }}
               </span>
@@ -22,11 +22,11 @@
                 class="px-2.5 py-0.5 rounded-full text-xs font-bold"
                 :class="shift.closed_at ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30'"
               >
-                {{ shift.closed_at ? 'مغلقة' : 'مفتوحة حالياً' }}
+                {{ shift.closed_at ? $t('pos.shiftsPage.closedBadge') : $t('pos.shiftsPage.openBadge') }}
               </span>
             </div>
             <p class="text-xs text-[var(--muted)] mt-0.5">
-              مكتبة القاضي
+              {{ $t('common.system') }}
             </p>
           </div>
         </div>
@@ -74,7 +74,7 @@
       <!-- Loading State -->
       <div v-if="loading" class="py-16 text-center">
         <div class="inline-block w-8 h-8 border-3 border-[var(--muted)] border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-xs font-bold text-[var(--muted)] mt-3">جاري تحميل بيانات الوردية...</p>
+        <p class="text-xs font-bold text-[var(--muted)] mt-3">{{ $t('pos.shiftDetail.loading') }}</p>
       </div>
 
       <div v-else-if="summary" class="space-y-6">
@@ -83,30 +83,30 @@
             <!-- Key Financial Highlights Grid -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
-                <span class="text-[11px] font-bold text-[var(--muted)] block">الرصيد الافتتاحي</span>
+                <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('pos.shiftDetail.openingBalance') }}</span>
                 <b class="text-base font-extrabold text-[var(--text)] mt-1 block font-mono">
-                  {{ Number(summary.opening_balance || 0).toFixed(2) }} <span class="text-xs font-sans font-medium">ج.م</span>
+                  {{ Number(summary.opening_balance || 0).toFixed(2) }} <span class="text-xs font-sans font-medium">{{ $t('common.currency') }}</span>
                 </b>
               </div>
 
               <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
-                <span class="text-[11px] font-bold text-[var(--muted)] block">المبيعات النقدية</span>
+                <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('pos.shiftDetail.cashSales') }}</span>
                 <b class="text-base font-extrabold text-emerald-600 mt-1 block font-mono">
-                  +{{ Number(summary.cash_sales || 0).toFixed(2) }} <span class="text-xs font-sans font-medium">ج.م</span>
+                  +{{ Number(summary.cash_sales || 0).toFixed(2) }} <span class="text-xs font-sans font-medium">{{ $t('common.currency') }}</span>
                 </b>
               </div>
 
               <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
-                <span class="text-[11px] font-bold text-[var(--muted)] block">المصروفات والسحوبات</span>
+                <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('pos.shiftDetail.expensesWithdrawals') }}</span>
                 <b class="text-base font-extrabold text-[var(--text)] mt-1 block font-mono">
-                  -{{ (Number(summary.expenses || 0) + Number(summary.withdrawals || 0)).toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                  -{{ (Number(summary.expenses || 0) + Number(summary.withdrawals || 0)).toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>
                 </b>
               </div>
 
               <div class="p-3.5 rounded-2xl bg-[var(--card)] border border-[var(--border)]">
-                <span class="text-[11px] font-bold text-[var(--muted)] block">المرتجع النقدي</span>
+                <span class="text-[11px] font-bold text-[var(--muted)] block">{{ $t('pos.shiftDetail.cashReturns') }}</span>
                 <b class="text-base font-extrabold text-[var(--text)] mt-1 block font-mono">
-                  -{{ Number(summary.cash_returns || 0).toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">ج.م</span>
+                  -{{ Number(summary.cash_returns || 0).toFixed(2) }} <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>
                 </b>
               </div>
             </div>
@@ -116,28 +116,28 @@
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border)]">
                 <div class="flex items-center gap-2">
                   <Coins class="w-5 h-5 text-[var(--muted)]" />
-                  <h4 class="font-extrabold text-sm text-[var(--text)]">مطابقة وموازنة الدرج النقدي</h4>
+                  <h4 class="font-extrabold text-sm text-[var(--text)]">{{ $t('pos.shiftDetail.balancingTitle') }}</h4>
                 </div>
                 <span v-if="!shift.closed_at" class="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
-                  الوردية جارية (الرصيد المتوقع تقديري)
+                  {{ $t('pos.shiftDetail.runningEstimated') }}
                 </span>
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="p-3 rounded-xl bg-[var(--bar)]/50">
-                  <span class="text-xs text-[var(--muted)] block">النقدية المتوقعة بالدرج</span>
+                  <span class="text-xs text-[var(--muted)] block">{{ $t('pos.shiftDetail.expectedCash') }}</span>
                   <b class="text-lg font-black font-mono text-[var(--text)] mt-1 block">
-                    {{ Number(summary.expected_cash || 0).toFixed(2) }} ج.م
+                    {{ Number(summary.expected_cash || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </b>
                 </div>
 
                 <div class="p-3 rounded-xl bg-[var(--bar)]/50">
-                  <span class="text-xs text-[var(--muted)] block">النقدية الفعلية عند الإغلاق</span>
+                  <span class="text-xs text-[var(--muted)] block">{{ $t('pos.shiftDetail.actualCashAtClose') }}</span>
                   <b v-if="shift.closed_at" class="text-lg font-black font-mono text-[var(--text)] mt-1 block">
-                    {{ Number(summary.actual_cash || 0).toFixed(2) }} ج.م
+                    {{ Number(summary.actual_cash || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </b>
                   <span v-else class="text-xs font-bold text-[var(--muted)] mt-1 block">
-                    لم تُغلق بعد
+                    {{ $t('pos.shiftDetail.notClosedYet') }}
                   </span>
                 </div>
 
@@ -147,7 +147,7 @@
                   class="p-3 rounded-xl"
                   :class="diffClass"
                 >
-                  <span class="text-xs font-bold block">الفارق (عجز / فائض)</span>
+                  <span class="text-xs font-bold block">{{ $t('pos.shiftDetail.diffTitle') }}</span>
                   <div class="flex items-center gap-1.5 mt-1">
                     <b class="text-lg font-black font-mono">
                       {{ diffFormatted }}
@@ -157,8 +157,8 @@
                 </div>
 
                 <div v-else class="p-3 rounded-xl bg-[var(--bar)]/50 text-[var(--muted)]">
-                  <span class="text-xs block">الفارق النهائي</span>
-                  <span class="text-xs font-medium mt-1 block">يُحسب عند إغلاق الوردية وجرد الدرج</span>
+                  <span class="text-xs block">{{ $t('pos.shiftDetail.finalDiffTitle') }}</span>
+                  <span class="text-xs font-medium mt-1 block">{{ $t('pos.shiftDetail.calculatedAtClose') }}</span>
                 </div>
               </div>
             </div>
@@ -166,42 +166,42 @@
             <!-- Detailed Shift Metadata Table -->
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
               <div class="px-4 py-3 bg-[var(--bar)]/50 border-b border-[var(--border)]">
-                <h4 class="text-xs font-black text-[var(--text)]">بيانات وسجل الوردية</h4>
+                <h4 class="text-xs font-black text-[var(--text)]">{{ $t('pos.shiftDetail.metadataTitle') }}</h4>
               </div>
               <div class="divide-y divide-[var(--border)] text-xs">
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">رقم الوردية:</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.shiftNumber') }}</span>
                   <span class="col-span-2 font-mono font-bold">{{ shift.shift_number }}</span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">المستخدم الفاتح للوردية:</span>
-                  <span class="col-span-2 font-bold">{{ shift.opened_by?.name || shift.opened_by_user?.name || 'غير معروف' }}</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.openedBy') }}</span>
+                  <span class="col-span-2 font-bold">{{ shift.opened_by?.name || shift.opened_by_user?.name || $t('pos.saleDetail.unknownUser') }}</span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">تاريخ ووقت الفتح:</span>
-                  <span class="col-span-2 font-mono font-bold" dir="ltr">{{ formatDateTime(shift.opened_at) }}</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.openedAt') }}</span>
+                  <span class="col-span-2 font-mono font-bold" dir="ltr">{{ formatDateTime(shift.opened_at, locale) }}</span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">المستخدم المغلق للوردية:</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.closedBy') }}</span>
                   <span class="col-span-2 font-bold">
-                    {{ shift.closed_at ? (shift.closed_by?.name || shift.closed_by_user?.name || 'نفس الكاشير') : '—' }}
+                    {{ shift.closed_at ? (shift.closed_by?.name || shift.closed_by_user?.name || $t('pos.shiftDetail.sameCashier')) : '—' }}
                   </span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">تاريخ ووقت الإغلاق:</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.closedAt') }}</span>
                   <span class="col-span-2 font-mono font-bold" dir="ltr">
-                    {{ shift.closed_at ? formatDateTime(shift.closed_at) : 'الوردية ما زالت مفتوحة' }}
+                    {{ shift.closed_at ? formatDateTime(shift.closed_at, locale) : $t('pos.shiftDetail.stillOpen') }}
                   </span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">مبيعات الدفع الإلكتروني:</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.electronicSales') }}</span>
                   <span class="col-span-2 font-mono text-[var(--text)]">
-                    فيزا: <b>{{ Number(summary.visa_sales || 0).toFixed(2) }} ج.م</b> · تحويل بنكي: <b>{{ Number(summary.bank_transfer_sales || 0).toFixed(2) }} ج.م</b>
+                    {{ $t('pos.shiftDetail.visaLabel') }} <b>{{ Number(summary.visa_sales || 0).toFixed(2) }} {{ $t('common.currency') }}</b> · {{ $t('pos.shiftDetail.bankTransferLabel') }} <b>{{ Number(summary.bank_transfer_sales || 0).toFixed(2) }} {{ $t('common.currency') }}</b>
                   </span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
-                  <span class="text-[var(--muted)] font-semibold">ملاحظات الوردية:</span>
-                  <span class="col-span-2 text-[var(--text)]">{{ shift.notes || 'لا توجد ملاحظات مسجلة' }}</span>
+                  <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.notes') }}</span>
+                  <span class="col-span-2 text-[var(--text)]">{{ shift.notes || $t('pos.shiftDetail.noNotes') }}</span>
                 </div>
               </div>
             </div>
@@ -217,12 +217,12 @@
                 <thead>
                   <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
                     <th class="px-3.5 py-2.5 text-start">#</th>
-                    <th class="px-3.5 py-2.5 text-start">نوع الحركة</th>
-                    <th class="px-3.5 py-2.5 text-start">البيان / الوصف</th>
-                    <th class="px-3.5 py-2.5 text-start">مرجع العملية</th>
-                    <th class="px-3.5 py-2.5 text-start">المستخدم</th>
-                    <th class="px-3.5 py-2.5 text-start">التاريخ والوقت</th>
-                    <th class="px-3.5 py-2.5 text-end">المبلغ</th>
+                    <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txTypeCol') }}</th>
+                    <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txDescCol') }}</th>
+                    <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txRefCol') }}</th>
+                    <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txUserCol') }}</th>
+                    <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txDateCol') }}</th>
+                    <th class="px-3.5 py-2.5 text-end">{{ $t('pos.shiftDetail.txAmountCol') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--border)]">
@@ -241,24 +241,24 @@
                       </span>
                     </td>
                     <td class="px-3.5 py-3">
-                      <b class="text-[var(--text)] block">{{ tx.name || 'حركة نقدية' }}</b>
+                      <b class="text-[var(--text)] block">{{ tx.name || $t('pos.shiftDetail.cashMovementFallback') }}</b>
                       <span v-if="tx.description" class="text-[11px] text-[var(--muted)] block">{{ tx.description }}</span>
                     </td>
                     <td class="px-3.5 py-3 font-mono text-[11px]">
                       <span v-if="tx.sale?.invoice_number" class="text-[var(--text)] font-bold">
-                        فاتورة: {{ tx.sale.invoice_number }}
+                        {{ $t('pos.shiftDetail.invoiceRef', { number: tx.sale.invoice_number }) }}
                       </span>
                       <span v-else-if="tx.return?.return_number" class="text-[var(--text)] font-bold">
-                        مرتجع: {{ tx.return.return_number }}
+                        {{ $t('pos.shiftDetail.returnRef', { number: tx.return.return_number }) }}
                       </span>
                       <span v-else class="text-[var(--muted)]">—</span>
                     </td>
-                    <td class="px-3.5 py-3 text-[var(--muted)]">{{ tx.creator?.name || 'الكاشير' }}</td>
+                    <td class="px-3.5 py-3 text-[var(--muted)]">{{ tx.creator?.name || $t('pos.salesPage.cashier') }}</td>
                     <td class="px-3.5 py-3 font-mono text-[11px] text-[var(--muted)]" dir="ltr">
-                      {{ formatDateTime(tx.created_at) }}
+                      {{ formatDateTime(tx.created_at, locale) }}
                     </td>
                     <td class="px-3.5 py-3 text-end font-mono font-black" :class="txAmountClass(tx.type)">
-                      {{ txSign(tx.type) }}{{ Number(tx.amount || 0).toFixed(2) }} ج.م
+                      {{ txSign(tx.type) }}{{ Number(tx.amount || 0).toFixed(2) }} {{ $t('common.currency') }}
                     </td>
                   </tr>
                 </tbody>
@@ -266,7 +266,7 @@
             </div>
 
             <div v-else class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-8 text-center text-xs text-[var(--muted)]">
-              لا توجد حركات نقدية مسجلة لهذه الوردية حتى الآن.
+              {{ $t('pos.shiftDetail.noTransactions') }}
             </div>
           </div>
 
@@ -287,7 +287,7 @@
     <template #footer>
       <div class="flex items-center justify-between gap-3">
         <span class="text-xs text-[var(--muted)]">
-          مكتبة القاضي · نظام إدارة الورديات ونقاط البيع
+          {{ $t('pos.shiftDetail.footerBrand') }}
         </span>
 
         <button
@@ -295,7 +295,7 @@
           class="h-9 px-4 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:bg-[var(--bg)] transition cursor-pointer"
           @click="emit('close')"
         >
-          إغلاق
+          {{ $t('common.close') }}
         </button>
       </div>
     </template>
@@ -304,6 +304,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Clock,
   X,
@@ -313,8 +314,11 @@ import {
   Coins,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import { formatDateTime } from '../../../utils/date';
 import AppDrawer from '../../../components/ui/AppDrawer.vue';
 import PosSalesTable from './PosSalesTable.vue';
+
+const { t, te, locale } = useI18n();
 
 const props = defineProps({
   shiftId: {
@@ -336,15 +340,11 @@ const activeTab = ref('info');
 const shiftSalesTotalCount = ref(null);
 
 const tabs = computed(() => [
-  { id: 'info', label: 'بيانات وملخص الوردية', icon: FileText },
-  { id: 'transactions', label: 'الحركات النقدية (الدرج)', icon: ArrowLeftRight, badge: shift.value?.transactions?.length },
-  { id: 'sales', label: 'فواتير البيع بالوردية', icon: Receipt, badge: shiftSalesTotalCount.value ?? shift.value?.sales?.length },
+  { id: 'info', label: t('pos.shiftDetail.tabs.info'), icon: FileText },
+  { id: 'transactions', label: t('pos.shiftDetail.tabs.transactions'), icon: ArrowLeftRight, badge: shift.value?.transactions?.length },
+  { id: 'sales', label: t('pos.shiftDetail.tabs.sales'), icon: Receipt, badge: shiftSalesTotalCount.value ?? shift.value?.sales?.length },
 ]);
 
-// Difference calculations:
-// Positive difference: surplus (فائض)
-// Negative difference: shortage (عجز)
-// Zero difference: balanced (مطابق)
 const diffVal = computed(() => {
   if (!shift.value?.closed_at) return null;
   return Number(summary.value?.difference ?? shift.value?.difference ?? 0);
@@ -353,16 +353,16 @@ const diffVal = computed(() => {
 const diffLabel = computed(() => {
   const d = diffVal.value;
   if (d === null) return '';
-  if (d > 0.001) return 'فائض بالدرج';
-  if (d < -0.001) return 'عجز بالدرج';
-  return 'مطابق تماماً';
+  if (d > 0.001) return t('pos.shiftDetail.surplusLabel');
+  if (d < -0.001) return t('pos.shiftDetail.shortageLabel');
+  return t('pos.shiftDetail.balancedLabel');
 });
 
 const diffFormatted = computed(() => {
   const d = diffVal.value;
   if (d === null) return '—';
   const prefix = d > 0 ? '+' : '';
-  return `${prefix}${d.toFixed(2)} ج.م`;
+  return `${prefix}${d.toFixed(2)} ${t('common.currency')}`;
 });
 
 const diffClass = computed(() => {
@@ -374,13 +374,10 @@ const diffClass = computed(() => {
 });
 
 function txTypeLabel(type) {
-  switch (type) {
-    case 'cash_sale': return 'مبيعات نقدية';
-    case 'cash_return': return 'مرتجع نقدي';
-    case 'expense': return 'مصروف نقدي';
-    case 'withdrawal': return 'سحب عهدة';
-    default: return type;
+  if (type && te(`pos.shiftDetail.txTypes.${type}`)) {
+    return t(`pos.shiftDetail.txTypes.${type}`);
   }
+  return type;
 }
 
 function txTypeBadge(type) {
@@ -413,18 +410,6 @@ async function fetchShiftDetails() {
   } finally {
     loading.value = false;
   }
-}
-
-function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 onMounted(() => {

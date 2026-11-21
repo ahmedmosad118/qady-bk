@@ -67,7 +67,7 @@
             <div class="relative">
               <select
                 v-model="categoryFilter"
-                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-9 pr-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
+                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pe-9 ps-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
                 :aria-label="$t('products.categoryFilter')"
               >
                 <option value="all">{{ $t('products.allCategories') }}</option>
@@ -76,7 +76,7 @@
                 </option>
               </select>
               <ChevronDown
-                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
                 aria-hidden="true"
               />
             </div>
@@ -121,7 +121,7 @@
 
       <!-- Table -->
       <div v-if="loading || products.length" class="overflow-x-auto">
-        <table class="w-full min-w-[780px] table-auto text-right">
+        <table class="w-full min-w-[780px] table-auto text-start">
           <thead class="bg-[var(--bg)]">
             <tr>
               <th scope="col" class="w-12 px-4 py-3.5">

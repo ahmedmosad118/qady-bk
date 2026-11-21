@@ -1,11 +1,11 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" dir="rtl" @keydown.esc="handleClose">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" @keydown.esc="handleClose">
     <div class="w-full max-w-[500px] max-h-[95vh] flex flex-col rounded-3xl bg-[var(--card)] p-5 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 mb-2 border-b border-[var(--border)] flex-none">
         <div class="flex items-center gap-2">
           <span class="inline-block w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-          <h3 class="font-black text-lg">إيصال الفاتورة الرسمية</h3>
+          <h3 class="font-black text-lg">{{ $t('pos.modals.receipt.title') }}</h3>
         </div>
 
         <div class="flex items-center gap-2">
@@ -19,7 +19,7 @@
               ]"
               @click="paperSize = '80mm'"
             >
-              حراري 80mm
+              {{ $t('pos.modals.receipt.thermal80') }}
             </button>
             <button
               type="button"
@@ -29,7 +29,7 @@
               ]"
               @click="paperSize = '58mm'"
             >
-              حراري 58mm
+              {{ $t('pos.modals.receipt.thermal58') }}
             </button>
           </div>
 
@@ -37,7 +37,7 @@
           <button
             type="button"
             class="p-1.5 rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition cursor-pointer"
-            title="إغلاق (Esc)"
+            :title="$t('pos.modals.receipt.closeEscTooltip')"
             @click="handleClose"
           >
             <X class="w-4 h-4" />
@@ -68,12 +68,12 @@
               <rect x="88" y="96" width="24" height="70" rx="4" fill="#A3162B"/>
               <rect x="10" y="174" width="180" height="8" rx="2" fill="#16181D"/>
             </svg>
-            <h2 class="text-base font-black mt-1 text-black tracking-wide">مكتبة القاضي</h2>
-            <p class="text-[11px] text-neutral-700 font-bold">للإصدارات والمراجع القانونية</p>
-            <p class="text-[10px] text-neutral-600 mt-0.5">القاهرة · جمهورية مصر العربية</p>
+            <h2 class="text-base font-black mt-1 text-black tracking-wide">{{ $t('pos.modals.receipt.brandName') }}</h2>
+            <p class="text-[11px] text-neutral-700 font-bold">{{ $t('pos.modals.receipt.brandSubtitle') }}</p>
+            <p class="text-[10px] text-neutral-600 mt-0.5">{{ $t('pos.modals.receipt.brandLocation') }}</p>
             <div class="mt-1">
               <span class="text-[10px] font-bold inline-block bg-neutral-100 px-2 py-0.5 rounded border border-neutral-300">
-                فاتورة بيع ضريبية مبسطة
+                {{ $t('pos.modals.receipt.taxInvoiceBadge') }}
               </span>
             </div>
           </div>
@@ -81,19 +81,19 @@
           <!-- Metadata -->
           <div class="py-2 border-b border-dashed border-neutral-700 text-[11px] space-y-1">
             <div class="flex justify-between items-center">
-              <span class="text-neutral-600 font-sans">رقم الفاتورة:</span>
+              <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.invoiceNumber') }}</span>
               <b class="font-bold text-black font-mono tracking-wider">{{ sale.invoice_number }}</b>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-neutral-600 font-sans">التاريخ والوقت:</span>
+              <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.dateTime') }}</span>
               <span class="font-mono" dir="ltr">{{ formattedDate }}</span>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-neutral-600 font-sans">العميل:</span>
+              <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.customer') }}</span>
               <span class="font-bold text-black">{{ customerName }}</span>
             </div>
             <div v-if="cashierName" class="flex justify-between items-center">
-              <span class="text-neutral-600 font-sans">الكاشير:</span>
+              <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.cashier') }}</span>
               <span>{{ cashierName }}</span>
             </div>
           </div>
@@ -101,9 +101,9 @@
           <!-- Items Table -->
           <div class="py-2 border-b-2 border-dashed border-neutral-800">
             <div class="flex justify-between font-bold text-[11px] pb-1 border-b border-neutral-400">
-              <span class="w-[50%] text-start">الصنف</span>
-              <span class="w-[25%] text-center">الكمية</span>
-              <span class="w-[25%] text-end">الإجمالي</span>
+              <span class="w-[50%] text-start">{{ $t('pos.modals.receipt.colItem') }}</span>
+              <span class="w-[25%] text-center">{{ $t('pos.modals.receipt.colQty') }}</span>
+              <span class="w-[25%] text-end">{{ $t('pos.modals.receipt.colTotal') }}</span>
             </div>
 
             <div
@@ -114,17 +114,17 @@
               <div class="font-bold text-black leading-snug">{{ item.name }}</div>
               <div class="flex justify-between items-center text-neutral-600 text-[10px] mt-0.5">
                 <span class="w-[50%] text-start font-mono text-[10px]">
-                  {{ formatMoney(item.unit_price) }} ج.م
+                  {{ formatMoney(item.unit_price) }} {{ $t('common.currency') }}
                 </span>
                 <span class="w-[25%] text-center font-bold text-black font-mono">
                   × {{ item.quantity }}
                 </span>
                 <span class="w-[25%] text-end font-black text-black font-mono">
-                  {{ formatMoney(item.total) }} ج.م
+                  {{ formatMoney(item.total) }} {{ $t('common.currency') }}
                 </span>
               </div>
               <div v-if="item.discount_amount && Number(item.discount_amount) > 0" class="text-[9px] text-emerald-800 text-end">
-                (خصم صنف: -{{ formatMoney(item.discount_amount) }} ج.م)
+                {{ $t('pos.modals.receipt.itemDiscount', { amount: formatMoney(item.discount_amount) }) }}
               </div>
             </div>
           </div>
@@ -132,41 +132,41 @@
           <!-- Totals Section -->
           <div class="py-2 space-y-1.5 text-[11px]">
             <div class="flex justify-between text-neutral-700">
-              <span>المجموع الفرعي:</span>
-              <span class="font-mono">{{ formatMoney(sale.subtotal) }} ج.م</span>
+              <span>{{ $t('pos.modals.receipt.subtotal') }}</span>
+              <span class="font-mono">{{ formatMoney(sale.subtotal) }} {{ $t('common.currency') }}</span>
             </div>
 
             <div v-if="Number(sale.items_discount_total || 0) > 0" class="flex justify-between text-emerald-800 font-semibold">
-              <span>إجمالي خصومات الأصناف:</span>
-              <span class="font-mono">-{{ formatMoney(sale.items_discount_total) }} ج.م</span>
+              <span>{{ $t('pos.modals.receipt.itemsDiscounts') }}</span>
+              <span class="font-mono">-{{ formatMoney(sale.items_discount_total) }} {{ $t('common.currency') }}</span>
             </div>
 
             <div v-if="Number(sale.invoice_discount_amount || 0) > 0" class="flex justify-between text-emerald-800 font-semibold">
-              <span>خصم عام على الفاتورة:</span>
-              <span class="font-mono">-{{ formatMoney(sale.invoice_discount_amount) }} ج.م</span>
+              <span>{{ $t('pos.modals.receipt.invoiceDiscount') }}</span>
+              <span class="font-mono">-{{ formatMoney(sale.invoice_discount_amount) }} {{ $t('common.currency') }}</span>
             </div>
 
             <!-- Grand Total Highlight Box -->
             <div class="flex justify-between items-center font-black text-sm py-1.5 px-2 bg-neutral-100 rounded border border-neutral-400 text-black mt-1">
-              <span class="text-xs">صافي الإجمالي المطلوب:</span>
-              <span class="text-base font-mono font-black">{{ formatMoney(sale.grand_total) }} ج.م</span>
+              <span class="text-xs">{{ $t('pos.modals.receipt.netRequired') }}</span>
+              <span class="text-base font-mono font-black">{{ formatMoney(sale.grand_total) }} {{ $t('common.currency') }}</span>
             </div>
 
             <!-- Payment Details -->
             <div class="pt-1.5 space-y-1 border-t border-neutral-300">
               <div class="flex justify-between text-[11px]">
-                <span class="text-neutral-600">طريقة السداد:</span>
+                <span class="text-neutral-600">{{ $t('pos.modals.receipt.paymentMethod') }}</span>
                 <b class="font-bold">{{ paymentMethodName }}</b>
               </div>
 
               <div v-if="isCashPayment" class="flex justify-between text-[11px]">
-                <span class="text-neutral-600">المبلغ المدفوع:</span>
-                <span class="font-mono font-bold">{{ formatMoney(sale.paid_amount || sale.grand_total) }} ج.م</span>
+                <span class="text-neutral-600">{{ $t('pos.modals.receipt.paidAmount') }}</span>
+                <span class="font-mono font-bold">{{ formatMoney(sale.paid_amount || sale.grand_total) }} {{ $t('common.currency') }}</span>
               </div>
 
               <div v-if="isCashPayment" class="flex justify-between text-[11px]">
-                <span class="text-neutral-600">المتبقي للعميل:</span>
-                <span class="font-mono font-bold text-emerald-900">{{ formatMoney(sale.change_amount || 0) }} ج.م</span>
+                <span class="text-neutral-600">{{ $t('pos.modals.receipt.changeAmount') }}</span>
+                <span class="font-mono font-bold text-emerald-900">{{ formatMoney(sale.change_amount || 0) }} {{ $t('common.currency') }}</span>
               </div>
             </div>
           </div>
@@ -183,8 +183,8 @@
             </svg>
             <p class="text-[10px] font-bold font-mono tracking-widest text-neutral-800 mt-0.5">{{ sale.invoice_number }}</p>
 
-            <p class="text-[10px] text-neutral-700 font-bold mt-2">شكرًا لتعاملكم مع مكتبة القاضي</p>
-            <p class="text-[9px] text-neutral-500 mt-0.5">البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة الأصلية</p>
+            <p class="text-[10px] text-neutral-700 font-bold mt-2">{{ $t('pos.modals.receipt.thankYou') }}</p>
+            <p class="text-[9px] text-neutral-500 mt-0.5">{{ $t('pos.modals.receipt.returnPolicy') }}</p>
           </div>
         </div>
       </div>
@@ -198,7 +198,7 @@
           @click="printReceipt"
         >
           <Printer class="w-5 h-5" />
-          <span>طباعة الإيصال (Ctrl+P)</span>
+          <span>{{ $t('pos.modals.receipt.printBtn') }}</span>
         </button>
 
         <!-- Close Button (Reprint Mode) -->
@@ -209,7 +209,7 @@
           @click="handleClose"
         >
           <X class="w-4 h-4" />
-          <span>إغلاق (Esc)</span>
+          <span>{{ $t('pos.modals.receipt.closeEscBtn') }}</span>
         </button>
 
         <!-- New Sale Button (Checkout Mode) -->
@@ -220,7 +220,7 @@
           @click="handleClose"
         >
           <Plus class="w-4 h-4" />
-          <span>فاتورة جديدة (Esc)</span>
+          <span>{{ $t('pos.modals.receipt.newSaleEscBtn') }}</span>
         </button>
       </div>
     </div>
@@ -229,8 +229,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Printer, Plus, X } from 'lucide-vue-next';
 import { useAuthStore } from '../../../stores/auth';
+
+const { t, te, locale } = useI18n();
 
 const props = defineProps({
   sale: {
@@ -257,7 +260,7 @@ const authStore = useAuthStore();
 const paperSize = ref('80mm');
 
 const customerName = computed(() => {
-  return props.sale.customer?.name || 'عميل نقدي (Walk-in)';
+  return props.sale.customer?.name || t('pos.walkInCustomer');
 });
 
 const cashierName = computed(() => {
@@ -265,7 +268,12 @@ const cashierName = computed(() => {
 });
 
 const paymentMethodName = computed(() => {
-  return props.sale.payment_method?.name || props.sale.paymentMethod?.name || 'نقدي';
+  const pm = props.sale.payment_method || props.sale.paymentMethod;
+  if (!pm) return t('pos.paymentMethods.cash');
+  if (pm.type && te(`pos.paymentMethods.${pm.type}`)) {
+    return t(`pos.paymentMethods.${pm.type}`);
+  }
+  return pm.name || t('pos.paymentMethods.cash');
 });
 
 const isCashPayment = computed(() => {
@@ -273,12 +281,12 @@ const isCashPayment = computed(() => {
   if (type) {
     return type === 'cash';
   }
-  return paymentMethodName.value === 'نقدي';
+  return true;
 });
 
 const formattedDate = computed(() => {
   const dateStr = props.sale.sold_at || props.sale.created_at || new Date().toISOString();
-  return new Date(dateStr).toLocaleString('ar-EG', {
+  return new Date(dateStr).toLocaleString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
     dateStyle: 'short',
     timeStyle: 'short',
   });
@@ -287,7 +295,7 @@ const formattedDate = computed(() => {
 const saleItems = computed(() => {
   const items = props.sale.items || [];
   return items.map((it) => ({
-    name: it.product_snapshot?.name || it.product?.name || it.name || 'كتاب',
+    name: it.product_snapshot?.name || it.product?.name || it.name || t('pos.modals.receipt.fallbackItem'),
     quantity: Number(it.quantity || 1),
     unit_price: Number(it.unit_price || 0),
     discount_amount: Number(it.discount_amount || 0),
@@ -369,14 +377,16 @@ function printReceipt() {
   }
 
   const receiptHtml = receiptEl.innerHTML;
+  const printDir = locale.value === 'ar' ? 'rtl' : 'ltr';
+  const printLang = locale.value === 'ar' ? 'ar' : 'en';
 
   doc.open();
   doc.write(`
     <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
+    <html dir="${printDir}" lang="${printLang}">
     <head>
       <meta charset="utf-8">
-      <title>فاتورة - ${props.sale.invoice_number || 'إيصال'}</title>
+      <title>${t('pos.modals.receipt.docTitle', { number: props.sale.invoice_number || t('pos.modals.receipt.receiptFallback') })}</title>
       <style>
         @page {
           size: ${widthMm} auto;
@@ -408,8 +418,8 @@ function printReceipt() {
           margin: 0 auto;
         }
         .text-center { text-align: center; }
-        .text-start { text-align: right; }
-        .text-end { text-align: left; }
+        .text-start { text-align: start; }
+        .text-end { text-align: end; }
         .font-bold { font-weight: bold; }
         .font-black { font-weight: 900; }
         .border-b-2 { border-bottom: 2px dashed #000; }

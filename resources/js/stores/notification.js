@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import i18n from '../i18n';
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -18,20 +19,29 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    success(message, title = 'تمت العملية بنجاح') {
-      this.addToast({ type: 'success', title, message });
+    success(message, title = '') {
+      const resolvedTitle = title || i18n.global.t('common.successTitle');
+      this.addToast({ type: 'success', title: resolvedTitle, message });
     },
 
-    error(message, title = 'تنبيه خطأ') {
-      this.addToast({ type: 'error', title, message });
+    error(message, title = '') {
+      const resolvedTitle = title || i18n.global.t('common.errorAlertTitle');
+      this.addToast({ type: 'error', title: resolvedTitle, message });
     },
 
-    info(message, title = 'إشعار') {
-      this.addToast({ type: 'info', title, message });
+    info(message, title = '') {
+      const resolvedTitle = title || i18n.global.t('common.info');
+      this.addToast({ type: 'info', title: resolvedTitle, message });
     },
 
     show(message, type = 'info', title = '') {
-      const resolvedTitle = title || (type === 'success' ? 'تمت العملية بنجاح' : type === 'error' ? 'تنبيه خطأ' : 'إشعار');
+      const resolvedTitle = title || (
+        type === 'success'
+          ? i18n.global.t('common.successTitle')
+          : type === 'error'
+            ? i18n.global.t('common.errorAlertTitle')
+            : i18n.global.t('common.info')
+      );
       this.addToast({ type, title: resolvedTitle, message });
     },
 

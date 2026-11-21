@@ -123,7 +123,7 @@
               </div>
 
               <!-- User Meta Details & Badges -->
-              <div class="flex-1 text-center sm:text-right" :class="$i18n.locale === 'ar' ? 'sm:text-right' : 'sm:text-left'">
+              <div class="flex-1 text-center sm:text-start">
                 <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
                   <h3 class="text-sm font-black text-gray-900 dark:text-white">
                     {{ authStore.user?.name }}
@@ -173,12 +173,10 @@
                       type="text"
                       v-model="profileForm.name"
                       required
-                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
-                      :class="$i18n.locale === 'ar' ? 'pr-9' : 'pl-9'"
+                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-9 pe-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
                     />
                     <User
-                      class="absolute top-2.5 h-4 w-4 text-gray-400 pointer-events-none"
-                      :class="$i18n.locale === 'ar' ? 'right-3' : 'left-3'"
+                      class="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-gray-400"
                     />
                   </div>
                   <p v-if="profileErrors.name" class="mt-1 text-[11px] font-bold text-rose-500">
@@ -191,18 +189,16 @@
                   <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     {{ $t('profile.email') }} <span class="text-rose-500">*</span>
                   </label>
-                  <div class="relative">
+                  <div class="relative" dir="ltr">
                     <input
                       type="email"
                       v-model="profileForm.email"
                       required
-                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
-                      :class="$i18n.locale === 'ar' ? 'pr-9' : 'pl-9'"
+                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
                       dir="ltr"
                     />
                     <Mail
-                      class="absolute top-2.5 h-4 w-4 text-gray-400 pointer-events-none"
-                      :class="$i18n.locale === 'ar' ? 'right-3' : 'left-3'"
+                      class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400"
                     />
                   </div>
                   <p v-if="profileErrors.email" class="mt-1 text-[11px] font-bold text-rose-500">
@@ -215,18 +211,16 @@
                   <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     {{ $t('profile.phone') }}
                   </label>
-                  <div class="relative">
+                  <div class="relative" dir="ltr">
                     <input
                       type="tel"
                       v-model="profileForm.phone"
                       placeholder="010xxxxxxxx"
-                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
-                      :class="$i18n.locale === 'ar' ? 'pr-9' : 'pl-9'"
+                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
                       dir="ltr"
                     />
                     <Phone
-                      class="absolute top-2.5 h-4 w-4 text-gray-400 pointer-events-none"
-                      :class="$i18n.locale === 'ar' ? 'right-3' : 'left-3'"
+                      class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400"
                     />
                   </div>
                   <p v-if="profileErrors.phone" class="mt-1 text-[11px] font-bold text-rose-500">
@@ -281,14 +275,12 @@
                     :type="showCurrentPass ? 'text' : 'password'"
                     v-model="passwordForm.current_password"
                     required
-                    class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
-                    :class="$i18n.locale === 'ar' ? 'pl-10' : 'pr-10'"
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-3.5 pe-10 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
                   />
                   <button
                     type="button"
                     @click="showCurrentPass = !showCurrentPass"
-                    class="absolute top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                    :class="$i18n.locale === 'ar' ? 'left-3' : 'right-3'"
+                    class="absolute end-3 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                   >
                     <EyeOff v-if="showCurrentPass" class="h-4 w-4" />
                     <Eye v-else class="h-4 w-4" />
@@ -311,14 +303,12 @@
                     required
                     minlength="8"
                     :placeholder="$t('profile.passwordMinLength')"
-                    class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
-                    :class="$i18n.locale === 'ar' ? 'pl-10' : 'pr-10'"
+                    class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-3.5 pe-10 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
                   />
                   <button
                     type="button"
                     @click="showNewPass = !showNewPass"
-                    class="absolute top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                    :class="$i18n.locale === 'ar' ? 'left-3' : 'right-3'"
+                    class="absolute end-3 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                   >
                     <EyeOff v-if="showNewPass" class="h-4 w-4" />
                     <Eye v-else class="h-4 w-4" />
@@ -372,7 +362,7 @@
                 <button
                   type="button"
                   @click="themeStore.setDark(false)"
-                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-right"
+                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-start"
                   :class="!themeStore.isDark ? 'border-[#A3162B] bg-[#A3162B]/5 shadow-sm' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'"
                 >
                   <div class="flex items-center gap-3.5">
@@ -393,7 +383,7 @@
                 <button
                   type="button"
                   @click="themeStore.setDark(true)"
-                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-right"
+                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-start"
                   :class="themeStore.isDark ? 'border-[#A3162B] bg-[#A3162B]/5 shadow-sm' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'"
                 >
                   <div class="flex items-center gap-3.5">
@@ -421,12 +411,12 @@
                 <button
                   type="button"
                   @click="changeLocale('ar')"
-                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-right"
+                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-start"
                   :class="$i18n.locale === 'ar' ? 'border-[#A3162B] bg-[#A3162B]/5 shadow-sm' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'"
                 >
                   <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 font-bold text-xs">
-                      ع
+                      {{ $t('profile.arabicCode') }}
                     </div>
                     <div>
                       <span class="block text-xs font-bold text-gray-900 dark:text-white">{{ $t('profile.arabicLabel') }}</span>
@@ -439,7 +429,7 @@
                 <button
                   type="button"
                   @click="changeLocale('en')"
-                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-left"
+                  class="flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-start"
                   :class="$i18n.locale === 'en' ? 'border-[#A3162B] bg-[#A3162B]/5 shadow-sm' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'"
                 >
                   <div class="flex items-center gap-3">
@@ -447,8 +437,8 @@
                       EN
                     </div>
                     <div>
-                      <span class="block text-xs font-bold text-gray-900 dark:text-white">English</span>
-                      <span class="text-[11px] text-gray-400">Left-to-Right layout (LTR)</span>
+                      <span class="block text-xs font-bold text-gray-900 dark:text-white">{{ $t('profile.englishLabel') }}</span>
+                      <span class="text-[11px] text-gray-400">{{ $t('profile.englishDesc') }}</span>
                     </div>
                   </div>
                   <Check v-if="$i18n.locale === 'en'" class="h-4 w-4 text-[#A3162B]" />

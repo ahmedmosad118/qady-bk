@@ -1,6 +1,9 @@
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { STORAGE_KEYS } from '../config/storage.js';
+import i18n from '../i18n';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Check if the document is in Dark Mode.
@@ -64,10 +67,10 @@ export const getSwalInstance = () => {
  * @returns {Promise<boolean>} Resolves to true if confirmed, false otherwise.
  */
 export const confirmDelete = async ({
-  title = isRTL() ? 'تأكيد الحذف النهائي' : 'Confirm Permanent Deletion',
-  text = isRTL() ? 'هل أنت متأكد من رغبتك في حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.' : 'Are you sure you want to delete this record? This action cannot be undone.',
-  confirmButtonText = isRTL() ? 'نعم، احذف السجل' : 'Yes, delete it',
-  cancelButtonText = isRTL() ? 'إلغاء الأمر' : 'Cancel',
+  title = t('common.confirmDeleteTitle'),
+  text = t('common.confirmDelete'),
+  confirmButtonText = t('common.confirmDeleteBtn'),
+  cancelButtonText = t('common.cancel'),
 } = {}) => {
   const swal = getSwalInstance();
 
@@ -106,15 +109,15 @@ export const confirmAction = async (optionsOrTitle = {}, maybeText = '', maybeIc
     title = optionsOrTitle;
     text = maybeText || '';
     icon = maybeIcon || 'question';
-    confirmButtonText = isRTL() ? 'تأكيد' : 'Confirm';
-    cancelButtonText = isRTL() ? 'إلغاء' : 'Cancel';
+    confirmButtonText = t('common.confirm');
+    cancelButtonText = t('common.cancel');
   } else {
     const opts = optionsOrTitle || {};
-    title = opts.title || (isRTL() ? 'تأكيد الإجراء' : 'Confirm Action');
-    text = opts.text || (isRTL() ? 'هل تريد الاستمرار في تنفيذ هذا الإجراء؟' : 'Do you want to proceed with this action?');
+    title = opts.title || t('common.confirmActionTitle');
+    text = opts.text || t('common.confirmActionText');
     icon = opts.icon || 'question';
-    confirmButtonText = opts.confirmButtonText || (isRTL() ? 'تأكيد' : 'Confirm');
-    cancelButtonText = opts.cancelButtonText || (isRTL() ? 'إلغاء' : 'Cancel');
+    confirmButtonText = opts.confirmButtonText || t('common.confirm');
+    cancelButtonText = opts.cancelButtonText || t('common.cancel');
   }
 
   const swal = getSwalInstance();
@@ -136,7 +139,7 @@ export const confirmAction = async (optionsOrTitle = {}, maybeText = '', maybeIc
  * Success Alert Modal.
  */
 export const showSuccess = async ({
-  title = isRTL() ? 'تمت العملية بنجاح' : 'Success',
+  title = t('common.successTitle'),
   text = '',
   timer = 2000,
   showConfirmButton = false,
@@ -156,9 +159,9 @@ export const showSuccess = async ({
  * Error Alert Modal.
  */
 export const showError = async ({
-  title = isRTL() ? 'حدث خطأ' : 'Error',
-  text = isRTL() ? 'تعذر إتمام العملية، يرجى المحاولة مرة أخرى.' : 'Operation could not be completed, please try again.',
-  confirmButtonText = isRTL() ? 'حسناً' : 'OK',
+  title = t('common.errorAlertTitle'),
+  text = t('common.genericError'),
+  confirmButtonText = t('common.ok'),
 } = {}) => {
   const swal = getSwalInstance();
   return swal.fire({
@@ -174,9 +177,9 @@ export const showError = async ({
  * Warning Alert Modal.
  */
 export const showWarning = async ({
-  title = isRTL() ? 'تنبيه' : 'Warning',
+  title = t('common.warning'),
   text = '',
-  confirmButtonText = isRTL() ? 'موافق' : 'OK',
+  confirmButtonText = t('common.ok'),
 } = {}) => {
   const swal = getSwalInstance();
   return swal.fire({
@@ -192,9 +195,9 @@ export const showWarning = async ({
  * Info Alert Modal.
  */
 export const showInfo = async ({
-  title = isRTL() ? 'إشعار' : 'Information',
+  title = t('common.info'),
   text = '',
-  confirmButtonText = isRTL() ? 'حسناً' : 'OK',
+  confirmButtonText = t('common.ok'),
 } = {}) => {
   const swal = getSwalInstance();
   return swal.fire({

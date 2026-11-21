@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6" dir="rtl">
+  <div class="space-y-6">
     <!-- Page Header -->
     <PageHeader
       :title="$t('posReturns.title')"
@@ -19,7 +19,7 @@
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
         >
           <Store class="h-[18px] w-[18px]" />
-          <span>شاشة الكاشير (POS)</span>
+          <span>{{ $t('posReturns.cashierScreen') }}</span>
         </router-link>
       </template>
     </PageHeader>
@@ -36,22 +36,22 @@
         <div class="space-y-4">
           <!-- Payment Method -->
           <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">طريقة الاسترداد</label>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('posReturns.refundMethod') }}</label>
             <select
               v-model="filters.payment_method_id"
               class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
               @change="fetchReturns(1)"
             >
-              <option value="">كل طرق الاسترداد</option>
+              <option value="">{{ $t('posReturns.allRefundMethods') }}</option>
               <option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">
-                {{ pm.name }}
+                {{ paymentMethodLabel(pm) }}
               </option>
             </select>
           </div>
 
           <!-- Date From -->
           <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">من تاريخ</label>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('common.dateFrom') }}</label>
             <input
               v-model="filters.date_from"
               type="date"
@@ -62,7 +62,7 @@
 
           <!-- Date To -->
           <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">إلى تاريخ</label>
+            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('common.dateTo') }}</label>
             <input
               v-model="filters.date_to"
               type="date"
@@ -75,19 +75,19 @@
 
       <!-- Responsive Table -->
       <div class="overflow-x-auto">
-        <table class="w-full text-right border-collapse">
+        <table class="w-full text-start border-collapse">
           <thead>
             <tr class="border-b border-[var(--border)] bg-[var(--bg)]/50 text-xs font-bold text-[var(--muted)] uppercase tracking-wider">
-              <th class="px-4 py-3.5 whitespace-nowrap">{{ $t('posReturns.returnNumber') }}</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">{{ $t('posReturns.returnedAt') }}</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">{{ $t('posReturns.originalInvoice') }}</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">العميل</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">الكاشير</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">طريقة الاسترداد</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">الوردية</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnNumber') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnedAt') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.originalInvoice') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.customer') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.cashier') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.refundMethod') }}</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.shift') }}</th>
               <th class="px-4 py-3.5 whitespace-nowrap text-center">{{ $t('posReturns.returnedItemsCount') }}</th>
-              <th class="px-4 py-3.5 whitespace-nowrap">{{ $t('posReturns.totalReturned') }}</th>
-              <th class="px-4 py-3.5 whitespace-nowrap text-center">الإجراءات</th>
+              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.totalReturned') }}</th>
+              <th class="px-4 py-3.5 whitespace-nowrap text-center">{{ $t('posReturns.actions') }}</th>
             </tr>
           </thead>
 
@@ -97,7 +97,7 @@
               <td colspan="10" class="px-4 py-16 text-center">
                 <div class="inline-flex flex-col items-center gap-3 text-[var(--muted)]">
                   <Loader2 class="w-8 h-8 animate-spin text-[var(--crimson)]" />
-                  <span class="text-sm font-medium">جاري تحميل فواتير المرتجعات...</span>
+                  <span class="text-sm font-medium">{{ $t('posReturns.loadingReturns') }}</span>
                 </div>
               </td>
             </tr>
@@ -124,17 +124,18 @@
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
                   type="button"
-                  class="font-mono text-sm font-extrabold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+                  class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-amber-700 dark:hover:text-amber-400 hover:underline inline-flex items-center gap-1.5 cursor-pointer"
+                  dir="ltr"
                   @click.stop="openReturnDetails(ret.id)"
                 >
-                  <RotateCcw class="w-3.5 h-3.5 shrink-0" />
+                  <RotateCcw class="w-3.5 h-3.5 shrink-0 text-amber-600" />
                   <span>{{ ret.return_number }}</span>
                 </button>
               </td>
 
               <!-- Date & Time -->
               <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)] font-medium">
-                {{ formatDateTime(ret.returned_at) }}
+                <span dir="ltr" class="font-mono">{{ formatDateTime(ret.returned_at, locale) }}</span>
               </td>
 
               <!-- Original Invoice -->
@@ -142,10 +143,11 @@
                 <button
                   v-if="ret.sale"
                   type="button"
-                  class="font-mono text-xs font-extrabold text-[var(--crimson)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  class="font-mono text-xs font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  dir="ltr"
                   @click.stop="openSaleDetails(ret.sale.id)"
                 >
-                  <Receipt class="w-3 h-3 shrink-0" />
+                  <Receipt class="w-3 h-3 shrink-0 text-[var(--muted)]" />
                   <span>{{ ret.sale.invoice_number }}</span>
                 </button>
                 <span v-else class="text-xs text-[var(--muted)]">—</span>
@@ -159,12 +161,12 @@
                   </div>
                   <div>
                     <div class="font-bold text-[var(--text)] text-xs">{{ ret.sale.customer.name }}</div>
-                    <div class="text-[11px] text-[var(--muted)] font-mono">{{ ret.sale.customer.phone }}</div>
+                    <div v-if="ret.sale.customer.phone" class="text-[11px] text-[var(--muted)] font-mono" dir="ltr">{{ ret.sale.customer.phone }}</div>
                   </div>
                 </div>
                 <span v-else class="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
                   <span class="w-1.5 h-1.5 rounded-full bg-[var(--muted)]/50"></span>
-                  عميل نقدي عابر
+                  {{ $t('posReturns.walkInCustomer') }}
                 </span>
               </td>
 
@@ -177,7 +179,7 @@
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--bg)] border border-[var(--border)] text-[var(--text)]">
                   <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                  {{ ret.payment_method?.name || '—' }}
+                  {{ paymentMethodLabel(ret.payment_method) }}
                 </span>
               </td>
 
@@ -187,6 +189,7 @@
                   v-if="ret.shift"
                   type="button"
                   class="font-mono text-xs font-bold text-[var(--text)] bg-[var(--bg)] px-2 py-1 rounded-lg border border-[var(--border)] hover:border-[var(--crimson)] hover:text-[var(--crimson)] transition cursor-pointer"
+                  dir="ltr"
                   @click.stop="openShiftDetails(ret.shift.id)"
                 >
                   {{ ret.shift.shift_number }}
@@ -203,7 +206,7 @@
 
               <!-- Total Returned -->
               <td class="px-4 py-3.5 whitespace-nowrap font-mono font-extrabold text-amber-700 dark:text-amber-400">
-                {{ Number(ret.total_returned || 0).toFixed(2) }} <span class="text-[11px] font-normal text-[var(--muted)]">ج.م</span>
+                {{ Number(ret.total_returned || 0).toFixed(2) }} <span class="text-[11px] font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
               </td>
 
               <!-- Actions -->
@@ -212,7 +215,7 @@
                   <button
                     type="button"
                     class="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--crimson)] hover:border-[var(--crimson)]/40 hover:bg-[var(--crimson-soft)] transition flex items-center justify-center cursor-pointer"
-                    title="عرض تفاصيل المرتجع"
+                    :title="$t('posReturns.openReturnDetails')"
                     @click="openReturnDetails(ret.id)"
                   >
                     <Eye class="w-4 h-4" />
@@ -230,9 +233,7 @@
         class="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] bg-[var(--bg)]/30 px-4 py-3"
       >
         <div class="text-xs text-[var(--muted)] font-medium">
-          عرض <span class="font-bold text-[var(--text)]">{{ returns.length }}</span> من إجمالي
-          <span class="font-bold text-[var(--text)]">{{ meta.total }}</span> مرتجع
-          (صفحة {{ meta.current_page }} من {{ meta.last_page }})
+          {{ $t('posReturns.showingRange', { shown: returns.length, total: meta.total, page: meta.current_page, lastPage: meta.last_page }) }}
         </div>
 
         <div class="flex items-center gap-1.5">
@@ -242,8 +243,9 @@
             :disabled="meta.current_page <= 1"
             @click="fetchReturns(meta.current_page - 1)"
           >
-            <ChevronRight class="w-4 h-4" />
-            <span>السابق</span>
+            <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
+            <ChevronLeft v-else class="w-4 h-4" />
+            <span>{{ $t('common.previous') }}</span>
           </button>
           <button
             type="button"
@@ -251,8 +253,9 @@
             :disabled="meta.current_page >= meta.last_page"
             @click="fetchReturns(meta.current_page + 1)"
           >
-            <span>التالي</span>
-            <ChevronLeft class="w-4 h-4" />
+            <span>{{ $t('common.next') }}</span>
+            <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
+            <ChevronRight v-else class="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -299,6 +302,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   RotateCcw,
   Receipt,
@@ -311,12 +315,23 @@ import {
   PackageCheck,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
+import { formatDateTime } from '../../../utils/date';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../../components/ui/PageHeader.vue';
 import PosReturnDetailModal from './PosReturnDetailModal.vue';
 import PosSaleDetailModal from './PosSaleDetailModal.vue';
 import PosShiftDetailModal from './PosShiftDetailModal.vue';
 import InventoryDocumentDetailModal from '../../inventory/InventoryDocumentDetailModal.vue';
+
+const { t, te, locale } = useI18n();
+
+function paymentMethodLabel(pm) {
+  if (!pm) return '—';
+  if (pm.type && te(`pos.paymentMethods.${pm.type}`)) {
+    return t(`pos.paymentMethods.${pm.type}`);
+  }
+  return pm.name || '—';
+}
 
 const returns = ref([]);
 const loading = ref(true);
@@ -428,18 +443,6 @@ async function handleOpenInventoryDocumentById(docId) {
   } catch (err) {
     console.error('Failed to open inventory document:', err);
   }
-}
-
-function formatDateTime(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return d.toLocaleString('ar-EG', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 onMounted(() => {

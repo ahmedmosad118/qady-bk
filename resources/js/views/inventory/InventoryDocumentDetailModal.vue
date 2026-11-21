@@ -101,7 +101,7 @@
               class="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5 text-xs font-semibold text-purple-700 dark:text-purple-300"
             >
               <CheckCheck class="h-3.5 w-3.5" />
-              <span>مرحّل نهائيًا</span>
+              <span>{{ $t('inventory.detail.postedFinal') }}</span>
             </span>
 
             <span
@@ -109,7 +109,7 @@
               class="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
             >
               <RotateCcw class="h-3.5 w-3.5" />
-              <span>مستند معكوس</span>
+              <span>{{ $t('inventory.detail.reversedDoc') }}</span>
             </span>
 
             <span
@@ -117,7 +117,7 @@
               class="inline-flex items-center gap-1 rounded-md bg-zinc-500/10 px-2 py-0.5 text-xs font-semibold text-zinc-500"
             >
               <Ban class="h-3.5 w-3.5" />
-              <span>مستند ملغي</span>
+              <span>{{ $t('inventory.detail.cancelledDoc') }}</span>
             </span>
           </div>
 
@@ -328,19 +328,19 @@
         <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
             <Building2 class="h-4 w-4 text-[var(--gold)]" />
-            <span>مسار المخازن</span>
+            <span>{{ $t('inventory.detail.warehousePath') }}</span>
           </div>
           <div class="mt-1 flex items-center gap-2 text-xs font-bold text-[var(--text)]">
             <span class="rounded-lg bg-[var(--bg)] px-2 py-1">
               {{ document?.source_warehouse?.name || '—' }}
             </span>
-            <span class="text-[var(--muted)]">➔</span>
+            <span class="inline-block text-[var(--muted)] rtl:rotate-180">➔</span>
             <span class="rounded-lg bg-[var(--bg)] px-2 py-1">
-              {{ document?.destination_warehouse?.name || 'خارجي / لا يوجد' }}
+              {{ document?.destination_warehouse?.name || $t('inventory.detail.externalOrNone') }}
             </span>
           </div>
           <p class="mt-1 text-[11px] text-[var(--muted)]">
-            {{ document?.destination_warehouse ? 'تحويل بين مخزنين' : 'حركة مخزنية موحدة' }}
+            {{ document?.destination_warehouse ? $t('inventory.detail.interWarehouseTransfer') : $t('inventory.detail.singleWarehouseMovement') }}
           </p>
         </div>
 
@@ -348,16 +348,16 @@
         <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
             <FileText class="h-4 w-4 text-[var(--muted)]" />
-            <span>ملخص الكميات</span>
+            <span>{{ $t('inventory.detail.quantitiesSummary') }}</span>
           </div>
           <div class="mt-1 flex items-baseline gap-2">
             <span class="text-xl font-black text-[var(--text)]">
               {{ totalQuantity.toLocaleString() }}
             </span>
-            <span class="text-xs font-semibold text-[var(--muted)]">وحدة مطلوبة</span>
+            <span class="text-xs font-semibold text-[var(--muted)]">{{ $t('inventory.detail.unitsRequired') }}</span>
           </div>
           <p class="mt-0.5 text-xs text-[var(--muted)]">
-            {{ document?.items?.length || 0 }} {{ $t('inventory.fields.items') }} في المستند
+            {{ $t('inventory.detail.itemsInDoc', { count: document?.items?.length || 0, unit: $t('inventory.fields.items') }) }}
           </p>
         </div>
       </div>
@@ -462,12 +462,12 @@
           </div>
 
           <div class="text-xs font-bold text-[var(--muted)]">
-            إجمالي الكميات: <span class="font-extrabold text-[var(--text)]">{{ totalQuantity.toLocaleString() }}</span>
+            {{ $t('inventory.detail.totalQuantities') }} <span class="font-extrabold text-[var(--text)]">{{ totalQuantity.toLocaleString() }}</span>
           </div>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-right text-sm">
+          <table class="w-full text-start text-sm">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
               <tr>
                 <th class="w-12 px-4 py-3 text-center">#</th>
@@ -507,14 +507,14 @@
               </tr>
               <tr v-if="!document?.items || document.items.length === 0">
                 <td colspan="5" class="py-8 text-center text-xs text-[var(--muted)]">
-                  لا توجد أصناف في هذا المستند
+                  {{ $t('inventory.detail.noItems') }}
                 </td>
               </tr>
             </tbody>
             <tfoot v-if="document?.items && document.items.length > 0" class="border-t border-[var(--border)] bg-[var(--bg)]/70 text-xs font-bold">
               <tr>
                 <td colspan="3" class="px-4 py-3 text-[var(--muted)] text-end">
-                  الإجمالي الكلي للكميات:
+                  {{ $t('inventory.detail.grandTotalQuantities') }}
                 </td>
                 <td class="px-4 py-3 text-center font-black text-sm text-[var(--text)]">
                   {{ totalQuantity.toLocaleString() }}
@@ -685,6 +685,7 @@ import {
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import { formatDateTime as formatAppDateTime } from '../../utils/date';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -693,7 +694,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'updated', 'edit', 'open-pos-sale', 'open-pos-return']);
 const router = useRouter();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const actionLoading = ref(false);
 const activeAction = ref('');
@@ -748,10 +749,10 @@ const linkedReference = computed(() => {
     },
     stocktake: {
       type: 'stocktake',
-      label: 'مرتبط بجرد مخزني:',
+      label: t('inventory.sources.stocktakeDetailLabel'),
       number: doc.referenceable?.stocktake_number || `#${refId}`,
-      hint: 'تسوية جردية ناتجة عن اعتماد عملية الجرد المخزني',
-      actionLabel: 'فتح مستند الجرد',
+      hint: t('inventory.sources.stocktakeDetailHint'),
+      actionLabel: t('inventory.sources.stocktakeDetailAction'),
       action: () => goToStocktake(refId),
     },
   };
@@ -800,13 +801,13 @@ function goToStocktake(stocktakeId) {
 function typeLabel(type) {
   if (!type) return '—';
   const labels = {
-    goods_receipt: 'إذن استلام مخزني',
-    goods_delivery: 'إذن تسليم مخزني',
-    warehouse_transfer: 'إذن تحويل مخزني',
-    stock_adjustment: 'إذن تسوية جردية',
-    inventory_return: 'إذن مرتجع مخزني',
-    stock_write_off: 'إذن إهلاك',
-    opening_balance: 'رصيد افتتاحي',
+    goods_receipt: t('inventory.types.goods_receipt'),
+    goods_delivery: t('inventory.types.goods_delivery'),
+    warehouse_transfer: t('inventory.types.warehouse_transfer'),
+    stock_adjustment: t('inventory.types.stock_adjustment'),
+    inventory_return: t('inventory.types.inventory_return'),
+    stock_write_off: t('inventory.types.stock_write_off'),
+    opening_balance: t('inventory.types.opening_balance'),
   };
   return labels[type] || type;
 }
@@ -814,13 +815,13 @@ function typeLabel(type) {
 function statusLabel(status) {
   if (!status) return '—';
   const labels = {
-    draft: 'مسودة',
-    pending_approval: 'قيد الاعتماد',
-    approved: 'معتمد',
-    posted: 'مرحّل',
-    rejected: 'مرفوض',
-    cancelled: 'ملغي',
-    reversed: 'معكوس',
+    draft: t('inventory.statuses.draft'),
+    pending_approval: t('inventory.statuses.pending_approval'),
+    approved: t('inventory.statuses.approved'),
+    posted: t('inventory.statuses.posted'),
+    rejected: t('inventory.statuses.rejected'),
+    cancelled: t('inventory.statuses.cancelled'),
+    reversed: t('inventory.statuses.reversed'),
   };
   return labels[status] || status;
 }
@@ -849,10 +850,10 @@ function statusBadgeClass(status) {
 function directionLabel(dir) {
   if (!dir) return '—';
   const labels = {
-    increase: 'تسوية بالزيادة',
-    decrease: 'تسوية بالعجز',
-    inbound: 'مرتجع وارد',
-    outbound: 'مرتجع صادر',
+    increase: t('inventory.directions.increaseBadge'),
+    decrease: t('inventory.directions.decreaseBadge'),
+    inbound: t('inventory.directions.inboundBadge'),
+    outbound: t('inventory.directions.outboundBadge'),
   };
   return labels[dir] || dir;
 }
@@ -863,8 +864,7 @@ function formatDate(dateStr) {
 }
 
 function formatDateTime(dtStr) {
-  if (!dtStr) return '—';
-  return new Date(dtStr).toLocaleString('ar-EG');
+  return formatAppDateTime(dtStr, locale.value) || '—';
 }
 
 function openReasonPrompt(type) {
@@ -893,7 +893,7 @@ async function performAction(action, payload = {}) {
     const res = await api.post(`/inventory-documents/${props.document.id}/${action}`, payload);
     emit('updated', res.data?.data);
   } catch (err) {
-    actionError.value = err?.response?.data?.message || err?.response?.data?.errors?.status?.[0] || 'تعذر تنفيذ الإجراء';
+    actionError.value = err?.response?.data?.message || err?.response?.data?.errors?.status?.[0] || t('inventory.detail.actionFailed');
   } finally {
     actionLoading.value = false;
     activeAction.value = '';

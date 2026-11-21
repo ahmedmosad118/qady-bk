@@ -66,7 +66,7 @@
             class="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[var(--crimson)] hover:underline"
           >
             {{ $t('dashboard.viewAll') }}
-            <ArrowLeft class="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft class="h-4 w-4" :class="{ 'rotate-180': locale !== 'ar' }" aria-hidden="true" />
           </router-link>
         </header>
 
@@ -111,7 +111,7 @@
             class="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[var(--crimson)] hover:underline"
           >
             {{ $t('dashboard.viewAll') }}
-            <ArrowLeft class="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft class="h-4 w-4" :class="{ 'rotate-180': locale !== 'ar' }" aria-hidden="true" />
           </router-link>
         </header>
 
@@ -225,39 +225,39 @@ const stats = computed(() => [
   },
 ]);
 
-const lowStockBooks = [
+const lowStockBooks = computed(() => [
   {
-    title: 'الوسيط في شرح القانون المدني',
-    author: 'عبد الرزاق السنهوري — الجزء الأول',
+    title: t('dashboard.sampleLowStock.book1Title'),
+    author: t('dashboard.sampleLowStock.book1Author'),
     stock: 1,
     total: 6,
   },
   {
-    title: 'قانون العقوبات معلقًا عليه',
-    author: 'دار النهضة العربية — الطبعة الأخيرة',
+    title: t('dashboard.sampleLowStock.book2Title'),
+    author: t('dashboard.sampleLowStock.book2Author'),
     stock: 2,
     total: 9,
   },
   {
-    title: 'شرح قانون المرافعات',
-    author: 'المستشار عادل عبد الحميد',
+    title: t('dashboard.sampleLowStock.book3Title'),
+    author: t('dashboard.sampleLowStock.book3Author'),
     stock: 3,
     total: 12,
   },
   {
-    title: 'ملخص الإجراءات الجنائية',
-    author: 'د. أحمد فتحي سرور',
+    title: t('dashboard.sampleLowStock.book4Title'),
+    author: t('dashboard.sampleLowStock.book4Author'),
     stock: 4,
     total: 15,
   },
-];
+]);
 
-const invoices = [
-  { number: '#1048', customer: 'مكتب النور للمحاماة', amount: '2,150', status: 'paid' },
-  { number: '#1047', customer: 'أ. محمد عبد الله', amount: '640', status: 'partial' },
-  { number: '#1046', customer: 'كلية الحقوق — جامعة القاهرة', amount: '1,320', status: 'paid' },
-  { number: '#1045', customer: 'د. هبة سمير', amount: '3,900', status: 'overdue' },
-];
+const invoices = computed(() => [
+  { number: '#1048', customer: t('dashboard.sampleCustomers.c1'), amount: '2,150', status: 'paid' },
+  { number: '#1047', customer: t('dashboard.sampleCustomers.c2'), amount: '640', status: 'partial' },
+  { number: '#1046', customer: t('dashboard.sampleCustomers.c3'), amount: '1,320', status: 'paid' },
+  { number: '#1045', customer: t('dashboard.sampleCustomers.c4'), amount: '3,900', status: 'overdue' },
+]);
 
 const invoiceTone = {
   paid: 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success)]',

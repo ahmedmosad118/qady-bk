@@ -69,7 +69,7 @@
             class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
           >
             <CheckCircle2 class="h-3.5 w-3.5" />
-            <span>تم التحويل لفاتورة</span>
+            <span>{{ $t('purchaseOrders.convertedBadge') }}</span>
           </span>
 
           <span
@@ -77,7 +77,7 @@
             class="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-300"
           >
             <XCircle class="h-3.5 w-3.5" />
-            <span>أمر شراء ملغي</span>
+            <span>{{ $t('purchaseOrders.cancelledBadge') }}</span>
           </span>
         </div>
 
@@ -90,7 +90,7 @@
             @click="goToPurchaseInvoice(linkedInvoice.id)"
           >
             <Receipt class="h-3.5 w-3.5 text-[var(--muted)]" />
-            <span>فتح الفاتورة ({{ linkedInvoice.invoice_number }})</span>
+            <span>{{ $t('purchaseOrders.openInvoiceWithNumber', { number: linkedInvoice.invoice_number }) }}</span>
             <ExternalLink class="h-3 w-3 text-[var(--muted)]" />
           </button>
 
@@ -158,7 +158,7 @@
             {{ order.supplier?.mobile || order.supplier?.phone }}
           </p>
           <p v-if="order.supplier?.tax_number" class="mt-0.5 text-xs text-[var(--muted)]">
-            الرقم الضريبي: {{ order.supplier.tax_number }}
+            {{ $t('purchaseOrders.taxNumberLabel', { num: order.supplier.tax_number }) }}
           </p>
         </div>
 
@@ -166,7 +166,7 @@
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
             <Calendar class="h-4 w-4 text-[var(--muted)]" />
-            <span>التواريخ</span>
+            <span>{{ $t('purchaseOrders.datesTitle') }}</span>
           </div>
           <div class="mt-2 space-y-1">
             <div class="flex items-center justify-between text-xs">
@@ -184,7 +184,7 @@
         <div class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
             <UserCheck class="h-4 w-4 text-[var(--muted)]" />
-            <span>المسؤول والاعتماد</span>
+            <span>{{ $t('purchaseOrders.auditTitle') }}</span>
           </div>
           <div class="mt-2 space-y-1">
             <div class="flex items-center justify-between text-xs">
@@ -215,7 +215,7 @@
         </div>
 
         <div class="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xs">
-          <table class="w-full text-right text-xs">
+          <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
                 <th class="py-3 px-4">#</th>
@@ -223,7 +223,7 @@
                 <th class="py-3 px-4 text-center">{{ $t('purchaseOrders.quantity') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseOrders.unitPrice') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseOrders.discount') }}</th>
-                <th class="py-3 px-4 text-left">{{ $t('purchaseOrders.lineTotal') }}</th>
+                <th class="py-3 px-4 text-end">{{ $t('purchaseOrders.lineTotal') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[var(--border)]">
@@ -244,7 +244,7 @@
                 <td class="py-3 px-4 text-center font-bold text-[var(--text)]">
                   {{ formatQty(item.quantity) }}
                   <span class="text-[10px] font-normal text-[var(--muted)]">
-                    {{ item.product_snapshot?.unit_name || 'قطعة' }}
+                    {{ item.product_snapshot?.unit_name || $t('purchaseOrders.unitDefault') }}
                   </span>
                 </td>
                 <td class="py-3 px-4 text-center font-mono">
@@ -259,8 +259,8 @@
                   </span>
                   <span v-else class="text-[var(--muted)]">—</span>
                 </td>
-                <td class="py-3 px-4 text-left font-bold font-mono text-[var(--text)]">
-                  {{ formatMoney(item.line_total) }} ج.م
+                <td class="py-3 px-4 text-end font-bold font-mono text-[var(--text)]">
+                  {{ formatMoney(item.line_total) }} {{ $t('common.currency') }}
                 </td>
               </tr>
             </tbody>
@@ -285,7 +285,7 @@
         <div class="w-full sm:w-88 space-y-2.5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs">
           <div class="flex items-center justify-between text-xs">
             <span class="font-bold text-[var(--muted)]">{{ $t('purchaseOrders.subtotal') }}:</span>
-            <span class="font-bold font-mono text-[var(--text)]">{{ formatMoney(order.subtotal) }} ج.م</span>
+            <span class="font-bold font-mono text-[var(--text)]">{{ formatMoney(order.subtotal) }} {{ $t('common.currency') }}</span>
           </div>
 
           <div
@@ -293,7 +293,7 @@
             class="flex items-center justify-between text-xs text-[var(--muted)]"
           >
             <span class="font-bold">{{ $t('purchaseOrders.itemDiscounts') }}:</span>
-            <span class="font-bold font-mono">- {{ formatMoney(totalItemDiscounts) }} ج.م</span>
+            <span class="font-bold font-mono">- {{ formatMoney(totalItemDiscounts) }} {{ $t('common.currency') }}</span>
           </div>
 
           <div
@@ -304,7 +304,7 @@
               {{ $t('purchaseOrders.orderDiscount') }}
               <span v-if="order.discount_type === 'percentage'" class="text-[11px] font-normal">({{ Number(order.discount_value) }}%)</span>:
             </span>
-            <span class="font-bold font-mono">- {{ formatMoney(order.discount_amount) }} ج.م</span>
+            <span class="font-bold font-mono">- {{ formatMoney(order.discount_amount) }} {{ $t('common.currency') }}</span>
           </div>
 
           <div class="border-t border-[var(--border)] my-1"></div>
@@ -313,7 +313,7 @@
             <span class="text-base font-extrabold text-[var(--text)]">{{ $t('purchaseOrders.total') }}</span>
             <div class="flex items-baseline gap-1">
               <span class="text-2xl font-black font-mono text-[var(--text)]">{{ formatMoney(order.total) }}</span>
-              <span class="text-xs font-bold text-[var(--muted)]">ج.م</span>
+              <span class="text-xs font-bold text-[var(--muted)]">{{ $t('common.currency') }}</span>
             </div>
           </div>
 
@@ -322,8 +322,8 @@
             v-if="totalOrderSavings > 0"
             class="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/30"
           >
-            <span>إجمالي التوفير</span>
-            <span class="font-mono">{{ formatMoney(totalOrderSavings) }} ج.م</span>
+            <span>{{ $t('purchaseOrders.totalSavings') }}</span>
+            <span class="font-mono">{{ formatMoney(totalOrderSavings) }} {{ $t('common.currency') }}</span>
           </div>
         </div>
       </div>
@@ -336,6 +336,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import { formatDateTime as formatAppDateTime } from '../../utils/date';
 import {
   ShoppingBag,
   Truck,
@@ -358,7 +359,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'edit', 'confirm', 'cancel']);
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const router = useRouter();
 
 const linkedInvoice = computed(() => {
@@ -411,14 +412,12 @@ function formatQty(qty) {
 }
 
 function formatDateOnly(val) {
-  if (!val) return 'غير محدد';
+  if (!val) return t('purchaseOrders.unspecified');
   return String(val).substring(0, 10);
 }
 
 function formatDateTime(isoStr) {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatAppDateTime(isoStr, locale.value) || '—';
 }
 
 function printOrder() {

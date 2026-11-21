@@ -6,16 +6,16 @@
     <!-- Brand panel (desktop) -->
     <section
       class="relative hidden w-1/2 flex-col overflow-hidden bg-[#16181D] lg:flex"
-      aria-label="مكتبة القاضي"
+      :aria-label="brandName"
     >
       <!-- Ambient decoration -->
       <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div class="absolute -top-32 -right-24 h-[30rem] w-[30rem] rounded-full bg-[#A3162B]/25 blur-[130px]"></div>
-        <div class="absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-[#B8923A]/10 blur-[130px]"></div>
+        <div class="absolute -top-32 -end-24 h-[30rem] w-[30rem] rounded-full bg-[#A3162B]/25 blur-[130px]"></div>
+        <div class="absolute -bottom-40 -start-24 h-[26rem] w-[26rem] rounded-full bg-[#B8923A]/10 blur-[130px]"></div>
         <img
           :src="symbolUrl"
           alt=""
-          class="absolute -bottom-16 left-1/2 w-[84%] max-w-[540px] -translate-x-1/2 opacity-[0.055] brightness-0 invert"
+          class="absolute -bottom-16 start-1/2 w-[84%] max-w-[540px] -translate-x-1/2 rtl:translate-x-1/2 opacity-[0.055] brightness-0 invert"
         />
       </div>
 
@@ -23,7 +23,7 @@
       <div class="relative z-10 flex flex-1 items-center justify-center px-10 py-12">
         <img
           :src="stackedLogoUrl"
-          alt="مكتبة القاضي — للإصدارات القانونية"
+          :alt="$t('common.brandLogoAlt')"
           class="h-auto w-[300px] max-w-[78%] xl:w-[340px]"
         />
       </div>
@@ -31,7 +31,7 @@
       <!-- Footer -->
       <div class="relative z-10 flex items-center justify-between gap-4 border-t border-white/10 px-10 py-5 xl:px-14">
         <p class="text-sm text-white/45">
-          &copy; {{ year }} {{ brand.name }}. {{ $t('auth.allRightsReserved') }}
+          &copy; {{ year }} {{ brandName }}. {{ $t('auth.allRightsReserved') }}
         </p>
         <span class="shrink-0 text-sm font-semibold text-[var(--gold)]">{{ $t('common.isolatedDb') }}</span>
       </div>
@@ -48,7 +48,7 @@
           @click="toggleLang"
         >
           <Globe class="h-4 w-4 text-[var(--crimson)]" aria-hidden="true" />
-          <span>{{ $i18n.locale === 'ar' ? 'English' : 'العربية' }}</span>
+          <span>{{ $i18n.locale === 'ar' ? $t('header.english') : $t('header.arabic') }}</span>
         </button>
 
         <button
@@ -71,7 +71,7 @@
       </div>
 
       <footer class="px-5 pb-6 text-center text-sm text-[var(--muted)] sm:px-8">
-        &copy; {{ year }} {{ brand.name }}. {{ $t('auth.allRightsReserved') }}
+        &copy; {{ year }} {{ brandName }}. {{ $t('auth.allRightsReserved') }}
       </footer>
     </section>
   </div>
@@ -88,6 +88,7 @@ import { useThemeStore } from '../stores/theme';
 const { locale } = useI18n();
 const themeStore = useThemeStore();
 const year = computed(() => new Date().getFullYear());
+const brandName = computed(() => (locale.value === 'ar' ? brand.name : brand.nameEn));
 
 const basePath = (window.APP_BASE_PATH || '/').replace(/\/+$/, '');
 const symbolUrl = `${basePath}/brand/symbol.svg`;

@@ -12,7 +12,7 @@
           alt=""
           class="h-9 w-9 rounded-full object-cover ring-2 ring-[var(--crimson)]/20 transition-all group-hover:ring-[var(--crimson)]/50"
         />
-        <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#2F9E63] ring-2 ring-white dark:ring-[var(--card)]"></span>
+        <span class="absolute -bottom-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-[#2F9E63] ring-2 ring-white dark:ring-[var(--card)]"></span>
       </div>
       <ChevronDown class="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-transform duration-200" :class="{ 'rotate-180': isOpen }" />
     </button>
@@ -20,10 +20,9 @@
     <!-- Dropdown Menu -->
     <div
       v-if="isOpen"
-      class="absolute mt-3 w-64 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-gray-800 dark:bg-gray-900 z-50 animate-in fade-in zoom-in-95 duration-150"
-      :class="$i18n.locale === 'ar' ? 'left-0' : 'right-0'"
+      class="absolute end-0 mt-3 w-64 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-gray-800 dark:bg-gray-900 z-50 animate-in fade-in zoom-in-95 duration-150"
     >
-      <div class="px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1" :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'">
+      <div class="px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1 text-start">
         <p class="text-sm font-bold text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
         <p class="truncate font-mono text-sm text-gray-500 dark:text-gray-400">{{ authStore.user?.email }}</p>
         <div class="mt-1.5 flex flex-wrap gap-1">
@@ -41,8 +40,7 @@
       <router-link
         to="/profile"
         @click="isOpen = false"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
-        :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors text-start"
       >
         <User class="h-4 w-4 text-[#A3162B]" />
         <span>{{ $t('header.profile') }}</span>
@@ -51,7 +49,7 @@
       <router-link
         to="/settings"
         @click="isOpen = false"
-        class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800 transition-colors text-start"
       >
         <Settings class="h-4 w-4 text-slate-400" />
         <span>{{ $t('header.settings') }}</span>
@@ -61,8 +59,7 @@
 
       <button
         @click="handleLogout"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
-        :class="$i18n.locale === 'ar' ? 'text-right' : 'text-left'"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors text-start"
       >
         <LogOut class="h-4 w-4 text-rose-500" />
         <span>{{ $t('header.logout') }}</span>
