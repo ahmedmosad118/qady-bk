@@ -889,12 +889,47 @@ class PosSaleTest extends TestCase
 
     public function test_can_paginate_pos_products(): void
     {
-        $resp = $this->getJson('/api/pos/products?per_page=1&page=1');
-        $resp->assertOk();
-        $this->assertCount(1, $resp->json('data'));
-        $this->assertEquals(1, $resp->json('meta.current_page'));
-        $this->assertEquals(1, $resp->json('meta.per_page'));
-        $this->assertGreaterThanOrEqual(2, $resp->json('meta.total'));
+        // Create additional products so default 32-per-page pagination spans 2 pages
+        $extra = Product::factory()->count(33)->create(['selling_price' => 100.00]);
+        foreach ($extra as $product) {
+            WarehouseStock::query()->create([
+                'warehouse_id' => $this->warehouse->id,
+                'product_id' => $product->id,
+                'quantity' => '5.000',
+            ]);
+        }
+
+        // Default per_page must be 32
+        $page1 = $this->getJson('/api/pos/products');
+        $page1->assertOk();
+        $this->assertCount(32, $page1->json('data'));
+        $this->assertEquals(1, $page1->json('meta.current_page'));
+        $this->assertEquals(32, $page1->json('meta.per_page'));
+        $this->assertEquals(2, $page1->json('meta.last_page'));
+        $this->assertEquals(35, $page1->json('meta.total'));
+        $this->assertEquals(1, $page1->json('meta.from'));
+        $this->assertEquals(32, $page1->json('meta.to'));
+
+        // Page 2 returns the remaining 3 products with zero overlap against Page 1
+        $page2 = $this->getJson('/api/pos/products?page=2');
+        $page2->assertOk();
+        $this->assertCount(3, $page2->json('data'));
+        $this->assertEquals(2, $page2->json('meta.current_page'));
+        $this->assertEquals(32, $page2->json('meta.per_page'));
+        $this->assertEquals(33, $page2->json('meta.from'));
+        $this->assertEquals(35, $page2->json('meta.to'));
+
+        $page1Ids = collect($page1->json('data'))->pluck('id')->all();
+        $page2Ids = collect($page2->json('data'))->pluck('id')->all();
+        $this->assertSame([], array_intersect($page1Ids, $page2Ids));
+
+        // Explicit custom per_page remains supported
+        $custom = $this->getJson('/api/pos/products?per_page=1&page=1');
+        $custom->assertOk();
+        $this->assertCount(1, $custom->json('data'));
+        $this->assertEquals(1, $custom->json('meta.current_page'));
+        $this->assertEquals(1, $custom->json('meta.per_page'));
+        $this->assertEquals(35, $custom->json('meta.total'));
     }
 
     public function test_can_lookup_sale_by_invoice_number(): void
@@ -911,6 +946,60 @@ class PosSaleTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('data.id', $sale->id);
         $response->assertJsonPath('data.invoice_number', $sale->invoice_number);
+    }
+
+    public function test_can_search_sales_by_partial_invoice_number_and_arabic_digits(): void
+    {
+        $customer = Contact::factory()->create([
+            'name' => 'أحمد للمرتجعات',
+            'phone' => null,
+            'mobile' => '01088887777',
+            'is_customer' => true,
+        ]);
+
+        $sale1 = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'customer_id' => $customer->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product1->id, 'quantity' => 1],
+            ],
+        ], $this->user);
+
+        $sale2 = $this->saleService->createSale([
+            'shift_id' => $this->shift->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'items' => [
+                ['product_id' => $this->product2->id, 'quantity' => 1],
+            ],
+        ], $this->user);
+
+        // Partial invoice suffix (e.g. '001') matches sale1
+        $suffix1 = substr($sale1->invoice_number, -3);
+        $partialResp = $this->getJson('/api/pos/sales?search=' . urlencode($suffix1));
+        $partialResp->assertOk();
+        $this->assertContains($sale1->id, collect($partialResp->json('data'))->pluck('id')->all());
+
+        // Common partial segment (e.g. '000') returns all matching sales
+        $commonResp = $this->getJson('/api/pos/sales?search=000');
+        $commonResp->assertOk();
+        $ids = collect($commonResp->json('data'))->pluck('id')->all();
+        $this->assertContains($sale1->id, $ids);
+        $this->assertContains($sale2->id, $ids);
+
+        // Arabic-Indic digits match invoice number
+        $arabicSuffix = strtr($suffix1, [
+            '0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤',
+            '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩',
+        ]);
+        $arabicResp = $this->getJson('/api/pos/sales?search=' . urlencode($arabicSuffix));
+        $arabicResp->assertOk();
+        $this->assertContains($sale1->id, collect($arabicResp->json('data'))->pluck('id')->all());
+
+        // Customer mobile number search also matches
+        $mobileResp = $this->getJson('/api/pos/sales?search=01088887777');
+        $mobileResp->assertOk();
+        $this->assertSame([$sale1->id], collect($mobileResp->json('data'))->pluck('id')->all());
     }
 
     public function test_idempotency_and_concurrent_duplicate_client_uuid_handling(): void

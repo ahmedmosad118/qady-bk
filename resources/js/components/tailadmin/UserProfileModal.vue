@@ -504,7 +504,7 @@ const localPreviewUrl = ref(null);
 // Generate localized SVG avatar fallback with emerald color
 const generateSvgFallback = (name) => {
   const initial = (name || 'U').trim().charAt(0);
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="36" fill="%2316181D"/><rect x="4" y="4" width="120" height="120" rx="32" fill="none" stroke="%23A3162B" stroke-width="3" stroke-opacity="0.5"/><text x="50%" y="54%" font-family="Cairo, Outfit, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="36" fill="%2316181D"/><rect x="4" y="4" width="120" height="120" rx="32" fill="none" stroke="%23A3162B" stroke-width="3" stroke-opacity="0.5"/><text x="50%" y="54%" font-family="Almarai, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
 };
 
 const currentAvatarUrl = computed(() => {

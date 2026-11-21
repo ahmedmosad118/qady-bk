@@ -387,6 +387,7 @@ function printReceipt() {
     <head>
       <meta charset="utf-8">
       <title>${t('pos.modals.receipt.docTitle', { number: props.sale.invoice_number || t('pos.modals.receipt.receiptFallback') })}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet">
       <style>
         @page {
           size: ${widthMm} auto;
@@ -408,7 +409,7 @@ function printReceipt() {
           padding: 0;
         }
         body {
-          font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          font-family: 'Almarai', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           font-size: ${fontSize};
           line-height: 1.35;
           color: #000000;

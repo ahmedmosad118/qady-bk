@@ -66,6 +66,7 @@ class ContactTest extends TestCase
             'type' => 'company',
             'name' => 'مؤسسة العدالة للمحاماة والاستشارات القانونية',
             'company_contact_person' => 'المستشار محمد نبيل',
+            'mobile' => '01020000001',
             'tax_number' => '123-456-789',
             'tax_registration_type' => 'قيمة مضافة',
             'commercial_register' => '987654',
@@ -92,6 +93,7 @@ class ContactTest extends TestCase
         $response = $this->postJson('/api/contacts', [
             'type' => 'company',
             'name' => 'دار المعارف للطباعة والنشر والتوزيع',
+            'mobile' => '01020000002',
             'is_customer' => true,
             'is_supplier' => true,
         ]);
@@ -114,6 +116,7 @@ class ContactTest extends TestCase
         $response = $this->postJson('/api/contacts', [
             'type' => 'individual',
             'name' => 'محمد سمير',
+            'mobile' => '01020000003',
             'is_customer' => false,
             'is_supplier' => false,
         ]);
@@ -129,6 +132,7 @@ class ContactTest extends TestCase
         $response = $this->postJson('/api/contacts', [
             'type' => 'individual',
             'name' => 'عميل نقدي بدون بيانات إضافية',
+            'mobile' => '01020000004',
             'is_customer' => true,
         ]);
 
@@ -137,7 +141,7 @@ class ContactTest extends TestCase
         $this->assertDatabaseHas('contacts', [
             'name' => 'عميل نقدي بدون بيانات إضافية',
             'phone' => null,
-            'mobile' => null,
+            'mobile' => '01020000004',
             'email' => null,
             'tax_number' => null,
             'commercial_register' => null,
@@ -277,6 +281,7 @@ class ContactTest extends TestCase
         $created = $this->postJson('/api/contacts', [
             'type' => 'individual',
             'name' => 'سارة علي',
+            'mobile' => '01020000010',
             'company_contact_person' => 'مسؤول غير مطلوب',
             'tax_number' => '999-888-777',
             'tax_registration_type' => 'قيمة مضافة',
@@ -299,6 +304,7 @@ class ContactTest extends TestCase
         $updated = $this->putJson("/api/contacts/{$company->id}", [
             'type' => 'individual',
             'name' => $company->name,
+            'mobile' => $company->mobile,
             'company_contact_person' => $company->company_contact_person,
             'tax_number' => $company->tax_number,
             'tax_registration_type' => $company->tax_registration_type,
@@ -313,13 +319,14 @@ class ContactTest extends TestCase
         $this->assertNull($updated['commercial_register']);
     }
 
-    public function test_individual_supplier_preserves_tax_and_contact_person_fields(): void
+    public function test_individual_supplier_clears_company_contact_and_tax_fields_while_company_supplier_preserves_them(): void
     {
         $this->actingUser();
 
-        $created = $this->postJson('/api/contacts', [
+        $individualSupplier = $this->postJson('/api/contacts', [
             'type' => 'individual',
             'name' => 'مؤلف مستقل',
+            'mobile' => '01020000011',
             'company_contact_person' => 'وكيل المؤلف',
             'tax_number' => '555-444-333',
             'tax_registration_type' => 'بطاقة ضريبية',
@@ -328,9 +335,199 @@ class ContactTest extends TestCase
             'is_supplier' => true,
         ])->assertCreated()->json('data');
 
-        $this->assertSame('وكيل المؤلف', $created['company_contact_person']);
-        $this->assertSame('555-444-333', $created['tax_number']);
-        $this->assertSame('بطاقة ضريبية', $created['tax_registration_type']);
-        $this->assertSame('778899', $created['commercial_register']);
+        $this->assertNull($individualSupplier['company_contact_person']);
+        $this->assertNull($individualSupplier['tax_number']);
+        $this->assertNull($individualSupplier['tax_registration_type']);
+        $this->assertNull($individualSupplier['commercial_register']);
+
+        $companySupplier = $this->postJson('/api/contacts', [
+            'type' => 'company',
+            'name' => 'دار نشر قانونية',
+            'mobile' => '01020000012',
+            'company_contact_person' => 'مدير التوزيع',
+            'tax_number' => '555-444-333',
+            'tax_registration_type' => 'قيمة مضافة',
+            'commercial_register' => '778899',
+            'is_customer' => false,
+            'is_supplier' => true,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('مدير التوزيع', $companySupplier['company_contact_person']);
+        $this->assertSame('555-444-333', $companySupplier['tax_number']);
+        $this->assertSame('قيمة مضافة', $companySupplier['tax_registration_type']);
+        $this->assertSame('778899', $companySupplier['commercial_register']);
+    }
+
+    public function test_mobile_is_required_and_unique_across_active_contacts(): void
+    {
+        $this->actingUser();
+
+        // Missing or whitespace mobile is rejected (422)
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل بدون محمول',
+            'is_customer' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['mobile']);
+
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل محمول فارغ',
+            'mobile' => '   ',
+            'is_customer' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['mobile']);
+
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل أول',
+            'mobile' => '01122223333',
+            'is_customer' => true,
+        ])->assertCreated();
+
+        // Exact duplicate on mobile
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل مكرر محمول',
+            'mobile' => '01122223333',
+            'is_customer' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['mobile']);
+
+        // Duplicate using Arabic-Indic numerals & surrounding whitespace
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل بأرقام عربية',
+            'mobile' => '  ٠١١٢٢٢٢٣٣٣٣  ',
+            'is_customer' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['mobile']);
+    }
+
+    public function test_allows_updating_contact_with_its_own_mobile_and_rejects_other_contacts_mobile(): void
+    {
+        $this->actingUser();
+
+        $first = Contact::factory()->create([
+            'phone' => null,
+            'mobile' => '01111112222',
+            'is_customer' => true,
+        ]);
+
+        Contact::factory()->create([
+            'phone' => null,
+            'mobile' => '01199998888',
+            'is_customer' => true,
+        ]);
+
+        // Keeping own mobile succeeds
+        $this->putJson("/api/contacts/{$first->id}", [
+            'type' => 'individual',
+            'name' => 'الاسم المحدث',
+            'mobile' => '01111112222',
+            'is_customer' => true,
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'الاسم المحدث');
+
+        // Using another contact's mobile fails
+        $this->putJson("/api/contacts/{$first->id}", [
+            'type' => 'individual',
+            'name' => $first->name,
+            'mobile' => '01199998888',
+            'is_customer' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['mobile']);
+    }
+
+    public function test_allows_reusing_mobile_number_of_soft_deleted_contact(): void
+    {
+        $this->actingUser();
+
+        $deleted = Contact::factory()->create([
+            'phone' => null,
+            'mobile' => '01055556666',
+            'is_customer' => true,
+        ]);
+        $deleted->delete();
+
+        $this->postJson('/api/contacts', [
+            'type' => 'individual',
+            'name' => 'عميل جديد بنفس الرقم',
+            'mobile' => '01055556666',
+            'is_customer' => true,
+        ])->assertCreated()
+            ->assertJsonPath('data.mobile', '01055556666');
+    }
+
+    public function test_can_search_paginated_customers_by_phone_and_mobile_including_arabic_digits(): void
+    {
+        $this->actingUser();
+
+        Contact::factory()->count(11)->create([
+            'is_customer' => true,
+            'is_active' => true,
+        ]);
+
+        $targetByPhone = Contact::factory()->create([
+            'name' => 'عميل برقم أرضي',
+            'phone' => '01277778888',
+            'mobile' => null,
+            'is_customer' => true,
+            'is_active' => true,
+        ]);
+
+        $targetByMobile = Contact::factory()->create([
+            'name' => 'عميل برقم محمول',
+            'phone' => null,
+            'mobile' => '01544445555',
+            'is_customer' => true,
+            'is_active' => true,
+        ]);
+
+        // Inactive customer and supplier-only contact should be excluded from POS customer query
+        Contact::factory()->create([
+            'name' => 'عميل غير نشط',
+            'phone' => '01277770000',
+            'is_customer' => true,
+            'is_active' => false,
+        ]);
+
+        Contact::factory()->supplier()->create([
+            'name' => 'مورد فقط',
+            'phone' => '01277779999',
+            'is_active' => true,
+        ]);
+
+        // Backend pagination page 1 & page 2 (13 active customers total)
+        $this->getJson('/api/contacts?is_customer=1&is_active=1&per_page=10&page=1')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.per_page', 10)
+            ->assertJsonPath('meta.total', 13);
+
+        $this->getJson('/api/contacts?is_customer=1&is_active=1&per_page=10&page=2')
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('meta.current_page', 2);
+
+        // Search by phone
+        $this->getJson('/api/contacts?is_customer=1&is_active=1&search=01277778888')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $targetByPhone->id);
+
+        // Search by mobile
+        $this->getJson('/api/contacts?is_customer=1&is_active=1&search=01544445555')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $targetByMobile->id);
+
+        // Search by Arabic-Indic digits
+        $this->getJson('/api/contacts?is_customer=1&is_active=1&search='.urlencode('٠١٢٧٧٧٧٨٨٨٨'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $targetByPhone->id);
     }
 }

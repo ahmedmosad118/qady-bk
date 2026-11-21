@@ -10,8 +10,8 @@
 @source '../**/*.vue';
 
 @theme {
-    --font-sans: 'Cairo', 'Outfit', ui-sans-serif, system-ui, sans-serif;
-    --font-display: 'Cairo', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Almarai', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Almarai', ui-sans-serif, system-ui, sans-serif;
 
     /* Redesign tokens (exposed as utilities: bg-card, text-ink, border-line…) */
     --color-crimson: var(--crimson);

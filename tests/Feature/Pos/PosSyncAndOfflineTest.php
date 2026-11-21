@@ -75,6 +75,14 @@ class PosSyncAndOfflineTest extends TestCase
         $this->assertNotEmpty($response->json('data.products'));
         $this->assertNotEmpty($response->json('data.payment_methods'));
         $this->assertNotEmpty($response->json('data.open_shifts'));
+
+        // Online POS shell can skip full product dump and rely on paginated /api/pos/products
+        $lightweight = $this->getJson('/api/pos/sync/bootstrap?include_products=0');
+        $lightweight->assertOk();
+        $lightweight->assertJsonPath('success', true);
+        $this->assertSame([], $lightweight->json('data.products'));
+        $this->assertNotEmpty($lightweight->json('data.payment_methods'));
+        $this->assertNotEmpty($lightweight->json('data.open_shifts'));
     }
 
     public function test_offline_sync_creates_sale_idempotently(): void

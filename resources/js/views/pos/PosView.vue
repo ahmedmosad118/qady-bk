@@ -23,7 +23,7 @@
       <PosCart
         class="min-h-0"
         @open-pay="handleOpenPay"
-        @open-add-customer="showCustomerModal = true"
+        @open-add-customer="openAddCustomerModal"
       />
     </div>
 
@@ -99,7 +99,9 @@
     <AddCustomerModal
       v-if="showCustomerModal"
       :loading="submittingCustomer"
-      @close="showCustomerModal = false"
+      :errors="customerFormErrors"
+      @close="closeCustomerModal"
+      @clear-error="clearCustomerFieldError"
       @save="handleSaveCustomer"
     />
   </div>
@@ -151,6 +153,7 @@ const loadingClosingSummary = ref(false);
 const submittingCloseShift = ref(false);
 const submittingExpense = ref(false);
 const submittingCustomer = ref(false);
+const customerFormErrors = ref({});
 
 function handleOpenPay() {
   if (!posStore.isOpenShift) {
@@ -267,12 +270,33 @@ async function handleConfirmExpense({ type, amount, name, description }) {
   }
 }
 
-async function handleSaveCustomer({ name, phone, type }) {
+function openAddCustomerModal() {
+  customerFormErrors.value = {};
+  showCustomerModal.value = true;
+}
+
+function closeCustomerModal() {
+  showCustomerModal.value = false;
+  customerFormErrors.value = {};
+}
+
+function clearCustomerFieldError(field) {
+  if (customerFormErrors.value && field in customerFormErrors.value) {
+    const next = { ...customerFormErrors.value };
+    delete next[field];
+    customerFormErrors.value = next;
+  }
+}
+
+async function handleSaveCustomer({ name, mobile, type }) {
   submittingCustomer.value = true;
+  customerFormErrors.value = {};
   try {
-    const res = await posStore.createCustomer({ name, phone, type });
+    const res = await posStore.createCustomer({ name, mobile, type });
     if (res.success) {
-      showCustomerModal.value = false;
+      closeCustomerModal();
+    } else if (res.errors && typeof res.errors === 'object') {
+      customerFormErrors.value = res.errors;
     }
   } finally {
     submittingCustomer.value = false;
@@ -312,7 +336,7 @@ function onGlobalKeyDown(e) {
     else if (showCloseShiftModal.value) showCloseShiftModal.value = false;
     else if (showExpenseModal.value) showExpenseModal.value = false;
     else if (showReturnsModal.value) showReturnsModal.value = false;
-    else if (showCustomerModal.value) showCustomerModal.value = false;
+    else if (showCustomerModal.value) closeCustomerModal();
     else if (showOfflineQueueModal.value) showOfflineQueueModal.value = false;
   }
 }

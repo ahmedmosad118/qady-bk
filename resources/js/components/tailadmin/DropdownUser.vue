@@ -2,7 +2,7 @@
   <div class="relative" ref="dropdownRef">
     <button
       @click="isOpen = !isOpen"
-      class="flex items-center gap-1.5 p-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer group"
+      class="flex items-center gap-1.5 p-0.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer group"
       :title="authStore.user?.name || $t('header.user')"
     >
       <div class="relative">
@@ -10,9 +10,9 @@
           :src="currentAvatarUrl"
           @error="handleAvatarError"
           alt=""
-          class="h-9 w-9 rounded-full object-cover ring-2 ring-[var(--crimson)]/20 transition-all group-hover:ring-[var(--crimson)]/50"
+          class="h-8 w-8 rounded-full object-cover ring-2 ring-[var(--crimson)]/20 transition-all group-hover:ring-[var(--crimson)]/50"
         />
-        <span class="absolute -bottom-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-[#2F9E63] ring-2 ring-white dark:ring-[var(--card)]"></span>
+        <span class="absolute -bottom-0.5 -end-0.5 h-2 w-2 rounded-full bg-[#2F9E63] ring-2 ring-white dark:ring-[var(--card)]"></span>
       </div>
       <ChevronDown class="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-transform duration-200" :class="{ 'rotate-180': isOpen }" />
     </button>
@@ -20,7 +20,7 @@
     <!-- Dropdown Menu -->
     <div
       v-if="isOpen"
-      class="absolute end-0 mt-3 w-64 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-gray-800 dark:bg-gray-900 z-50 animate-in fade-in zoom-in-95 duration-150"
+      class="absolute end-0 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-gray-800 dark:bg-gray-900 z-50 animate-in fade-in zoom-in-95 duration-150"
     >
       <div class="px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 mb-1 text-start">
         <p class="text-sm font-bold text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
@@ -92,7 +92,7 @@ const profileModalTab = ref('info');
 
 const generateSvgFallback = (name) => {
   const initial = Array.from((name || 'U').trim())[0] || 'U';
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="64" fill="%23F7E6E9"/><text x="50%" y="54%" font-family="Cairo, Outfit, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"><rect width="128" height="128" rx="64" fill="%23F7E6E9"/><text x="50%" y="54%" font-family="Almarai, sans-serif" font-weight="900" font-size="54" fill="%23A3162B" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
 };
 
 const currentAvatarUrl = computed(() => {

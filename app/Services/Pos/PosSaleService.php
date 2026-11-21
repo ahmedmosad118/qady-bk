@@ -192,7 +192,7 @@ class PosSaleService
         string $query = '',
         ?int $warehouseId = null,
         ?int $categoryId = null,
-        int $perPage = 24
+        int $perPage = PosProductCatalogService::DEFAULT_PER_PAGE
     ): LengthAwarePaginator {
         return $this->catalogService->paginateProducts($query, $categoryId, $perPage);
     }

@@ -8,6 +8,7 @@ const t = (key, params) => i18n.global.t(key, params);
 
 const HELD_SALES_KEY = 'qady_pos_held_sales';
 const OFFLINE_QUEUE_KEY = 'qady_pos_offline_queue';
+const POS_PRODUCTS_PER_PAGE = 32;
 
 export const usePosStore = defineStore('pos', {
   state: () => ({
@@ -27,8 +28,10 @@ export const usePosStore = defineStore('pos', {
     productsMeta: {
       currentPage: 1,
       lastPage: 1,
-      perPage: 24,
+      perPage: POS_PRODUCTS_PER_PAGE,
       total: 0,
+      from: 0,
+      to: 0,
     },
     _productsSeq: 0,
     
@@ -139,6 +142,11 @@ export const usePosStore = defineStore('pos', {
     heldCount: (state) => state.heldSales.length,
 
     filteredProducts: (state) => {
+      // Online: backend /api/pos/products is authoritative for search, category (incl. children), and 32-per-page pagination.
+      if (state.isOnline) {
+        return state.products;
+      }
+
       const q = state.searchQuery.trim().toLowerCase();
       const catId = state.selectedCategoryId;
 
@@ -286,26 +294,11 @@ export const usePosStore = defineStore('pos', {
       this.initLocalState();
 
       try {
-        // 1. Fetch bootstrap catalog & open shifts
-        const bootResp = await api.get('/pos/sync/bootstrap');
-        const data = bootResp.data.data;
-
-        this.products = (data.products || []).map((p) => {
-          const qty = Number(p.stock_quantity ?? p.current_stock ?? 0);
-          return {
-            ...p,
-            stock_quantity: qty,
-            current_stock: qty,
-            selling_price: Number(p.selling_price || 0),
-          };
+        // 1. Fetch lightweight session bootstrap (warehouse, payment methods, open shifts) without dumping all products
+        const bootResp = await api.get('/pos/sync/bootstrap', {
+          params: { include_products: 0 },
         });
-
-        this.productsMeta = {
-          currentPage: 1,
-          lastPage: 1,
-          perPage: 24,
-          total: this.products.length,
-        };
+        const data = bootResp.data.data;
 
         this.paymentMethods = data.payment_methods || [];
         this.currentWarehouse = data.warehouse || null;
@@ -327,13 +320,15 @@ export const usePosStore = defineStore('pos', {
           this.activeShift = null;
         }
 
-        // 2. Fetch categories
+        // 2. Fetch categories & first paginated page of products (32 per page) in parallel
         this.fetchCategories();
+        await this.reloadProducts({
+          query: this.searchQuery,
+          categoryId: this.selectedCategoryId,
+          page: 1,
+        });
 
-        // 3. Fetch customers
-        this.fetchCustomers();
-
-        // 4. Try syncing any pending offline sales if online
+        // 3. Try syncing any pending offline sales if online
         if (this.isOnline && this.offlineQueue.length > 0 && !this.syncingQueue) {
           this.syncOfflineQueue();
         }
@@ -380,36 +375,29 @@ export const usePosStore = defineStore('pos', {
       }
     },
 
-    async reloadProducts(queryOrOptions = '', categoryId = null, page = 1, append = false) {
+    async reloadProducts(queryOrOptions = '', categoryId = null, page = 1) {
       let query = '';
       let catId = null;
       let targetPage = 1;
-      let isAppend = false;
 
       if (typeof queryOrOptions === 'object' && queryOrOptions !== null) {
         query = queryOrOptions.query !== undefined ? queryOrOptions.query : this.searchQuery;
         catId = queryOrOptions.categoryId !== undefined ? queryOrOptions.categoryId : this.selectedCategoryId;
-        targetPage = queryOrOptions.page ?? 1;
-        isAppend = !!queryOrOptions.append;
+        targetPage = Math.max(1, Number(queryOrOptions.page ?? 1));
       } else {
         query = queryOrOptions;
         catId = categoryId;
-        targetPage = page;
-        isAppend = append;
+        targetPage = Math.max(1, Number(page || 1));
       }
 
-      if (targetPage === 1) {
-        this.loadingProducts = true;
-      } else {
-        this.loadingMoreProducts = true;
-      }
+      this.loadingProducts = true;
 
       const seq = ++this._productsSeq;
 
       try {
         const params = {
           page: targetPage,
-          per_page: 24,
+          per_page: POS_PRODUCTS_PER_PAGE,
         };
         const trimmedQuery = String(query || '').trim();
         if (trimmedQuery) params.search = trimmedQuery;
@@ -420,12 +408,11 @@ export const usePosStore = defineStore('pos', {
         if (seq !== this._productsSeq) return;
 
         const list = resp.data.data || [];
-        const meta = resp.data.meta || {
-          current_page: targetPage,
-          last_page: 1,
-          per_page: 24,
-          total: list.length,
-        };
+        const meta = resp.data.meta || {};
+        const perPage = Number(meta.per_page || POS_PRODUCTS_PER_PAGE);
+        const currentPage = Number(meta.current_page || targetPage);
+        const total = Number(meta.total ?? list.length);
+        const lastPage = Math.max(1, Number(meta.last_page || Math.ceil(total / perPage) || 1));
 
         const formatted = list.map((p) => {
           const whStock = p.warehouse_stocks && p.warehouse_stocks.length > 0
@@ -439,23 +426,18 @@ export const usePosStore = defineStore('pos', {
           };
         });
 
-        if (isAppend && targetPage > 1) {
-          const existingIds = new Set(this.products.map((p) => p.id));
-          for (const item of formatted) {
-            if (!existingIds.has(item.id)) {
-              this.products.push(item);
-              existingIds.add(item.id);
-            }
-          }
-        } else {
-          this.products = formatted;
-        }
+        this.products = formatted;
+
+        const computedFrom = formatted.length > 0 ? (currentPage - 1) * perPage + 1 : 0;
+        const computedTo = formatted.length > 0 ? computedFrom + formatted.length - 1 : 0;
 
         this.productsMeta = {
-          currentPage: Number(meta.current_page || targetPage),
-          lastPage: Number(meta.last_page || 1),
-          perPage: Number(meta.per_page || 24),
-          total: Number(meta.total || this.products.length),
+          currentPage,
+          lastPage,
+          perPage,
+          total,
+          from: Number(meta.from ?? computedFrom),
+          to: Number(meta.to ?? computedTo),
         };
       } catch (err) {
         console.error('Failed to reload POS products:', err);
@@ -467,15 +449,14 @@ export const usePosStore = defineStore('pos', {
       }
     },
 
-    async loadNextPageProducts() {
-      if (this.loadingProducts || this.loadingMoreProducts) return;
-      if (this.productsMeta.currentPage >= this.productsMeta.lastPage) return;
+    async goToProductsPage(page) {
+      const target = Math.min(this.productsMeta.lastPage || 1, Math.max(1, Number(page || 1)));
+      if (target === this.productsMeta.currentPage && this.products.length > 0) return;
 
       await this.reloadProducts({
         query: this.searchQuery,
         categoryId: this.selectedCategoryId,
-        page: this.productsMeta.currentPage + 1,
-        append: true,
+        page: target,
       });
     },
 
@@ -513,11 +494,6 @@ export const usePosStore = defineStore('pos', {
             stock_quantity: whStock,
             selling_price: Number(product.selling_price || 0),
           };
-
-          // Cache in local list if not present
-          if (!this.products.some((p) => p.id === formatted.id)) {
-            this.products.unshift(formatted);
-          }
 
           this.addToCart(formatted);
           return formatted;
@@ -786,7 +762,8 @@ export const usePosStore = defineStore('pos', {
       const discrepancies = [];
 
       for (const [pId, rawItem] of Object.entries(held.items)) {
-        const prod = this.products.find((p) => p.id === Number(pId));
+        const prod = this.products.find((p) => p.id === Number(pId))
+          || (this.productsMeta.lastPage > 1 ? rawItem.product : null);
         if (!prod) {
           discrepancies.push({
             type: 'missing_product',
@@ -852,7 +829,8 @@ export const usePosStore = defineStore('pos', {
       // Restore cart with original held data intact
       const restoredItems = {};
       for (const [pId, rawItem] of Object.entries(held.items)) {
-        const prod = this.products.find((p) => p.id === Number(pId));
+        const prod = this.products.find((p) => p.id === Number(pId))
+          || (this.productsMeta.lastPage > 1 ? rawItem.product : null);
         restoredItems[pId] = {
           ...rawItem,
           product: prod || { id: Number(pId), name: rawItem.name, stock_quantity: 0 },
@@ -1236,6 +1214,48 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
+     * Search POS invoices with partial matching and server-side pagination.
+     */
+    async searchInvoices({ search = '', page = 1, perPage = 8 } = {}) {
+      const term = String(search || '').trim();
+      try {
+        const params = { page, per_page: perPage };
+        if (term) params.search = term;
+
+        const resp = await api.get('/pos/sales', { params });
+        const rows = Array.isArray(resp.data?.data) ? resp.data.data : [];
+        const meta = resp.data?.meta || {
+          current_page: page,
+          last_page: 1,
+          per_page: perPage,
+          total: rows.length,
+        };
+
+        return { data: rows, meta };
+      } catch (err) {
+        console.error('Failed to search invoices:', err);
+        return {
+          data: [],
+          meta: { current_page: 1, last_page: 1, per_page: perPage, total: 0 },
+        };
+      }
+    },
+
+    /**
+     * Load full sale invoice details by ID (items, payment method, customer, returns).
+     */
+    async getSaleDetails(saleId) {
+      if (!saleId) return null;
+      try {
+        const resp = await api.get(`/pos/sales/${saleId}`);
+        return resp.data?.data || null;
+      } catch (err) {
+        console.error('Failed to fetch sale details:', err);
+        return null;
+      }
+    },
+
+    /**
      * Lookup an existing invoice by invoice number for returns.
      */
     async lookupInvoice(invoiceNumber) {
@@ -1305,25 +1325,25 @@ export const usePosStore = defineStore('pos', {
     /**
      * Quick create customer.
      */
-    async createCustomer({ name, phone = '', type = 'individual' }) {
+    async createCustomer({ name, mobile = '', type = 'individual' }) {
       const notify = useNotificationStore();
       try {
         const resp = await api.post('/contacts', {
           name: name.trim(),
-          phone: phone.trim() || null,
+          mobile: mobile.trim(),
           type: type || 'individual',
           is_customer: true,
         });
 
         const created = resp.data.data;
-        this.customers.unshift(created);
         this.setCustomer(created);
         notify.success(t('pos.store.customerCreatedSuccess', { name: created.name }));
         return { success: true, customer: created };
       } catch (err) {
+        const errors = err.response?.data?.errors || {};
         const msg = err.response?.data?.message || t('pos.store.customerCreateFailed');
         notify.error(msg);
-        return { success: false, message: msg };
+        return { success: false, message: msg, errors };
       }
     },
   },

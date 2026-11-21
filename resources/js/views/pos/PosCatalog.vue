@@ -57,11 +57,10 @@
       </button>
     </div>
 
-    <!-- Products Grid with Infinite Scroll on Down Scroll -->
+    <!-- Products Grid (32 items per page, server-side paginated) -->
     <div
       ref="scrollContainerRef"
       class="flex-1 overflow-y-auto pe-1"
-      @scroll="handleScroll"
     >
       <!-- Initial / Search Loading State -->
       <div v-if="posStore.loadingProducts && posStore.products.length === 0" class="py-20 text-center text-[var(--muted)]">
@@ -71,14 +70,15 @@
 
       <div
         v-else-if="posStore.filteredProducts.length > 0"
-        class="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-3.5 pb-4 items-start"
+        class="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-3.5 pb-4 items-start transition-opacity duration-150"
+        :class="{ 'opacity-55 pointer-events-none': posStore.loadingProducts }"
       >
         <button
           v-for="prod in posStore.filteredProducts"
           :key="prod.id"
           type="button"
           :disabled="!posStore.isOpenShift || Number(prod.stock_quantity || 0) < 1"
-          class="group rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-start transition flex flex-col gap-2 hover:border-[var(--crimson)] hover:-translate-y-0.5 hover:shadow-md disabled:opacity-45 disabled:cursor-not-allowed disabled:transform-none select-none"
+          class="group rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-start transition flex flex-col gap-2 hover:border-[var(--crimson)] hover:-translate-y-0.5 hover:shadow-md disabled:opacity-45 disabled:cursor-not-allowed disabled:transform-none select-none cursor-pointer"
           @click="posStore.addToCart(prod)"
         >
           <!-- Elegant Book Cover Mockup matching reference design -->
@@ -118,15 +118,6 @@
             </span>
           </div>
         </button>
-
-        <!-- Loading More on Scroll Indicator -->
-        <div
-          v-if="posStore.loadingMoreProducts"
-          class="col-span-full py-4 flex items-center justify-center gap-2 text-xs font-bold text-[var(--muted)]"
-        >
-          <Loader2 class="w-4 h-4 animate-spin text-[var(--crimson)]" />
-          <span>{{ $t('pos.loadingMoreBooks') }}</span>
-        </div>
       </div>
 
       <!-- Empty State -->
@@ -136,17 +127,107 @@
         <p class="text-xs">{{ $t('pos.noMatchingBooksHint') }}</p>
       </div>
     </div>
+
+    <!-- Pagination Bar (32 per page) -->
+    <div
+      v-if="posStore.productsMeta.total > 0"
+      class="flex-none mt-2.5 pt-2.5 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-2 text-xs"
+    >
+      <div class="flex items-center gap-2 font-semibold text-[var(--muted)]">
+        <Loader2 v-if="posStore.loadingProducts" class="w-3.5 h-3.5 animate-spin text-[var(--crimson)]" aria-hidden="true" />
+        <span>
+          {{ $t('pos.catalogPaginationSummary', {
+            from: posStore.productsMeta.from,
+            to: posStore.productsMeta.to,
+            total: posStore.productsMeta.total,
+            page: posStore.productsMeta.currentPage,
+            lastPage: posStore.productsMeta.lastPage,
+          }) }}
+        </span>
+      </div>
+
+      <div v-if="posStore.productsMeta.lastPage > 1" class="flex items-center gap-1">
+        <button
+          type="button"
+          :disabled="posStore.loadingProducts || posStore.productsMeta.currentPage <= 1"
+          class="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 font-bold text-[var(--text)] transition hover:border-[var(--crimson)]/50 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          @click="changePage(posStore.productsMeta.currentPage - 1)"
+        >
+          <component :is="prevIcon" class="h-3.5 w-3.5" aria-hidden="true" />
+          <span>{{ $t('common.previous') }}</span>
+        </button>
+
+        <template v-for="(item, idx) in paginationItems" :key="`p-${idx}-${item}`">
+          <span
+            v-if="item === '...'"
+            class="px-1.5 text-[var(--muted)] select-none"
+          >…</span>
+          <button
+            v-else
+            type="button"
+            :disabled="posStore.loadingProducts"
+            :class="[
+              'inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 font-mono font-bold transition cursor-pointer disabled:cursor-not-allowed',
+              item === posStore.productsMeta.currentPage
+                ? 'border-[var(--crimson)] bg-[var(--crimson)] text-white shadow-xs'
+                : 'border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:border-[var(--crimson)]/50'
+            ]"
+            @click="changePage(item)"
+          >
+            {{ item }}
+          </button>
+        </template>
+
+        <button
+          type="button"
+          :disabled="posStore.loadingProducts || posStore.productsMeta.currentPage >= posStore.productsMeta.lastPage"
+          class="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 font-bold text-[var(--text)] transition hover:border-[var(--crimson)]/50 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          @click="changePage(posStore.productsMeta.currentPage + 1)"
+        >
+          <span>{{ $t('common.next') }}</span>
+          <component :is="nextIcon" class="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { Barcode, X, BookOpen, Loader2 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Barcode, X, BookOpen, Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
 
+const { locale } = useI18n();
 const posStore = usePosStore();
 const searchInputRef = ref(null);
 const scrollContainerRef = ref(null);
+
+const isRtl = computed(() => locale.value === 'ar');
+const prevIcon = computed(() => (isRtl.value ? ChevronRight : ChevronLeft));
+const nextIcon = computed(() => (isRtl.value ? ChevronLeft : ChevronRight));
+
+const paginationItems = computed(() => {
+  const current = posStore.productsMeta.currentPage || 1;
+  const last = posStore.productsMeta.lastPage || 1;
+
+  if (last <= 7) {
+    return Array.from({ length: last }, (_, i) => i + 1);
+  }
+
+  const pages = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(last - 1, current + 1);
+
+  if (start > 2) pages.push('...');
+  for (let p = start; p <= end; p++) {
+    pages.push(p);
+  }
+  if (end < last - 1) pages.push('...');
+  pages.push(last);
+
+  return pages;
+});
 
 // Curated Al-Qadi book mockup palette
 const bookColors = [
@@ -165,66 +246,56 @@ function getCoverBackground(product) {
   return `linear-gradient(to left, rgba(0,0,0,0.3) 0 6%, transparent 6%), ${col}`;
 }
 
+function scrollToTop() {
+  if (scrollContainerRef.value) {
+    scrollContainerRef.value.scrollTop = 0;
+  }
+}
+
 let searchDebounceTimer = null;
 function onSearchInput() {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
-    if (scrollContainerRef.value) {
-      scrollContainerRef.value.scrollTop = 0;
-    }
+    scrollToTop();
     if (posStore.isOnline) {
       posStore.reloadProducts({
         query: posStore.searchQuery,
         categoryId: posStore.selectedCategoryId,
         page: 1,
-        append: false,
       });
     }
   }, 300);
 }
 
 function clearSearch() {
+  clearTimeout(searchDebounceTimer);
   posStore.searchQuery = '';
-  if (scrollContainerRef.value) {
-    scrollContainerRef.value.scrollTop = 0;
-  }
+  scrollToTop();
   if (posStore.isOnline) {
     posStore.reloadProducts({
       query: '',
       categoryId: posStore.selectedCategoryId,
       page: 1,
-      append: false,
     });
   }
 }
 
 function onSelectCategory(catId) {
   posStore.selectedCategoryId = catId;
-  if (scrollContainerRef.value) {
-    scrollContainerRef.value.scrollTop = 0;
-  }
+  scrollToTop();
   if (posStore.isOnline) {
     posStore.reloadProducts({
       query: posStore.searchQuery,
       categoryId: catId,
       page: 1,
-      append: false,
     });
   }
 }
 
-function handleScroll(e) {
-  const el = e.target;
-  if (!el) return;
-
-  // If user scrolled near the bottom (within 160px)
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) {
-    if (posStore.isOnline && !posStore.loadingMoreProducts && !posStore.loadingProducts) {
-      if (posStore.productsMeta.currentPage < posStore.productsMeta.lastPage) {
-        posStore.loadNextPageProducts();
-      }
-    }
-  }
+async function changePage(targetPage) {
+  if (!posStore.isOnline) return;
+  scrollToTop();
+  await posStore.goToProductsPage(targetPage);
 }
 
 async function handleBarcodeOrEnter() {
@@ -239,8 +310,8 @@ async function handleBarcodeOrEnter() {
     return;
   }
 
-  // 2. If filtered list has exactly 1 match on Enter, add it directly
-  if (posStore.filteredProducts.length === 1) {
+  // 2. If current filtered list has exactly 1 match on Enter, add it directly
+  if (posStore.filteredProducts.length === 1 && posStore.productsMeta.total === 1) {
     posStore.addToCart(posStore.filteredProducts[0]);
     clearSearch();
     return;
@@ -256,18 +327,6 @@ async function handleBarcodeOrEnter() {
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
-
-onMounted(() => {
-  // If online, reload page 1 to ensure paginated metadata is up-to-date
-  if (posStore.isOnline) {
-    posStore.reloadProducts({
-      query: posStore.searchQuery,
-      categoryId: posStore.selectedCategoryId,
-      page: 1,
-      append: false,
-    });
-  }
-});
 
 defineExpose({
   focusSearch: () => {

@@ -24,7 +24,7 @@ class ContactService
      */
     public function createContact(array $data): Contact
     {
-        $data = $this->normalizeIndividualCustomerData($data);
+        $data = $this->normalizeIndividualContactData($data);
 
         return DB::transaction(function () use ($data): Contact {
             $contact = new Contact();
@@ -55,7 +55,7 @@ class ContactService
      */
     public function updateContact(Contact $contact, array $data): Contact
     {
-        $data = $this->normalizeIndividualCustomerData($data, $contact);
+        $data = $this->normalizeIndividualContactData($data, $contact);
 
         return DB::transaction(function () use ($contact, $data) {
             $contact->update($data);
@@ -65,25 +65,17 @@ class ContactService
     }
 
     /**
-     * Clear company-only and tax/register fields when a contact is an individual customer only.
+     * Clear company-only and tax/register fields whenever a contact is an individual (customer or supplier).
      *
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    private function normalizeIndividualCustomerData(array $data, ?Contact $existing = null): array
+    private function normalizeIndividualContactData(array $data, ?Contact $existing = null): array
     {
         $rawType = $data['type'] ?? $existing?->type ?? ContactType::INDIVIDUAL->value;
         $type = $rawType instanceof ContactType ? $rawType->value : (string) $rawType;
 
-        $isCustomer = array_key_exists('is_customer', $data)
-            ? (bool) $data['is_customer']
-            : (bool) ($existing?->is_customer ?? false);
-
-        $isSupplier = array_key_exists('is_supplier', $data)
-            ? (bool) $data['is_supplier']
-            : (bool) ($existing?->is_supplier ?? false);
-
-        if ($type === ContactType::INDIVIDUAL->value && $isCustomer && !$isSupplier) {
+        if ($type === ContactType::INDIVIDUAL->value) {
             $data['company_contact_person'] = null;
             $data['tax_number'] = null;
             $data['tax_registration_type'] = null;

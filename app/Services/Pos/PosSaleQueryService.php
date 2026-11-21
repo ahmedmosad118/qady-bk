@@ -22,10 +22,17 @@ class PosSaleQueryService
     public function paginateSales(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         $search = trim((string) ($filters['search'] ?? ''));
+        $normalizedSearch = strtr($search, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        ]);
+        $limit = min(100, max(1, $perPage));
 
         return PosSale::query()
             ->with([
-                'customer:id,name,phone',
+                'customer:id,name,phone,mobile',
                 'creator:id,name',
                 'paymentMethod:id,name,type',
                 'shift:id,shift_number',
@@ -33,17 +40,27 @@ class PosSaleQueryService
             ])
             ->withCount(['items', 'returns'])
             ->withSum('returns as returns_total_amount', 'total_returned')
-            ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $sub) use ($search): void {
+            ->when($search !== '', fn (Builder $q) => $q->where(function (Builder $sub) use ($search, $normalizedSearch): void {
                 $sub->where('invoice_number', 'like', "%{$search}%")
-                    ->orWhereHas('customer', fn (Builder $c) => $c->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"))
+                    ->orWhereHas('customer', fn (Builder $c) => $c
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('mobile', 'like', "%{$search}%"))
                     ->orWhereHas('creator', fn (Builder $u) => $u->where('name', 'like', "%{$search}%"));
+
+                if ($normalizedSearch !== $search) {
+                    $sub->orWhere('invoice_number', 'like', "%{$normalizedSearch}%")
+                        ->orWhereHas('customer', fn (Builder $c) => $c
+                            ->where('phone', 'like', "%{$normalizedSearch}%")
+                            ->orWhere('mobile', 'like', "%{$normalizedSearch}%"));
+                }
             }))
             ->when($filters['shift_id'] ?? null, fn (Builder $q, $id) => $q->where('shift_id', $id))
             ->when($filters['payment_method_id'] ?? null, fn (Builder $q, $id) => $q->where('payment_method_id', $id))
             ->when($filters['date_from'] ?? null, fn (Builder $q, $from) => $q->whereDate('sold_at', '>=', $from))
             ->when($filters['date_to'] ?? null, fn (Builder $q, $to) => $q->whereDate('sold_at', '<=', $to))
             ->orderByDesc('id')
-            ->paginate($perPage);
+            ->paginate($limit);
     }
 
     public function getSaleByInvoiceNumber(string $invoiceNumber): PosSale

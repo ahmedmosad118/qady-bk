@@ -19,9 +19,13 @@ class PosSyncController extends Controller
     /**
      * Bootstrap data for local offline client (products, current stock, prices, payment methods).
      */
-    public function bootstrap(): JsonResponse
+    public function bootstrap(Request $request): JsonResponse
     {
-        $data = $this->syncService->getBootstrapData();
+        $includeProducts = $request->has('include_products')
+            ? $request->boolean('include_products')
+            : true;
+
+        $data = $this->syncService->getBootstrapData($includeProducts);
 
         return response()->json([
             'success' => true,

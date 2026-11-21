@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class PosProductCatalogService
 {
+    public const DEFAULT_PER_PAGE = 32;
+
     public function __construct(
         protected PosDefaultWarehouseResolver $warehouseResolver,
     ) {}
@@ -22,8 +24,11 @@ class PosProductCatalogService
     /**
      * Paginate products by name/barcode, optionally within a category and its direct children.
      */
-    public function paginateProducts(string $search = '', ?int $categoryId = null, int $perPage = 24): LengthAwarePaginator
-    {
+    public function paginateProducts(
+        string $search = '',
+        ?int $categoryId = null,
+        int $perPage = self::DEFAULT_PER_PAGE
+    ): LengthAwarePaginator {
         $query = $this->baseQuery();
 
         if ($categoryId !== null) {
@@ -42,7 +47,9 @@ class PosProductCatalogService
             });
         }
 
-        return $query->orderBy('name')->paginate($perPage);
+        $limit = min(100, max(1, $perPage));
+
+        return $query->orderBy('name')->orderBy('id')->paginate($limit);
     }
 
     /**

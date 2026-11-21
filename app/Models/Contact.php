@@ -109,11 +109,19 @@ class Contact extends Model
      */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
-        if (blank($term)) {
+        $term = trim((string) $term);
+        if ($term === '') {
             return $query;
         }
 
-        return $query->where(function (Builder $q) use ($term) {
+        $normalizedDigits = strtr($term, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        ]);
+
+        return $query->where(function (Builder $q) use ($term, $normalizedDigits) {
             $q->where('name', 'like', "%{$term}%")
                 ->orWhere('phone', 'like', "%{$term}%")
                 ->orWhere('mobile', 'like', "%{$term}%")
@@ -121,6 +129,11 @@ class Contact extends Model
                 ->orWhere('tax_number', 'like', "%{$term}%")
                 ->orWhere('commercial_register', 'like', "%{$term}%")
                 ->orWhere('company_contact_person', 'like', "%{$term}%");
+
+            if ($normalizedDigits !== $term) {
+                $q->orWhere('phone', 'like', "%{$normalizedDigits}%")
+                    ->orWhere('mobile', 'like', "%{$normalizedDigits}%");
+            }
         });
     }
 

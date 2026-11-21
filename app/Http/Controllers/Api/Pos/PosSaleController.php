@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\Pos;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pos\StorePosSaleRequest;
 use App\Models\PosSale;
+use App\Services\Pos\PosProductCatalogService;
 use App\Services\Pos\PosSaleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,7 +49,7 @@ class PosSaleController extends Controller
             (string) $request->input('search', ''),
             null,
             $request->integer('category_id') ?: null,
-            min(100, max(1, $request->integer('per_page', 24)))
+            min(100, max(1, $request->integer('per_page', PosProductCatalogService::DEFAULT_PER_PAGE)))
         );
 
         return response()->json([
@@ -59,6 +60,8 @@ class PosSaleController extends Controller
                 'last_page' => $paginated->lastPage(),
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
+                'from' => $paginated->firstItem() ?? 0,
+                'to' => $paginated->lastItem() ?? 0,
             ],
         ]);
     }

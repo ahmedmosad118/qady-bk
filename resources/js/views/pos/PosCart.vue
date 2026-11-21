@@ -23,24 +23,22 @@
 
       <!-- Customer Row -->
       <div class="flex items-center gap-2">
-        <select
-          v-model="selectedCustomerId"
-          class="flex-1 h-9 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold px-2.5 outline-none focus:border-[var(--crimson)]"
-          @change="onCustomerChange"
-        >
-          <option :value="null">{{ $t('pos.walkInCustomer') }}</option>
-          <option
-            v-for="c in posStore.customers"
-            :key="c.id"
-            :value="c.id"
-          >
-            {{ c.name }}
-          </option>
-        </select>
+        <div class="flex-1 min-w-0">
+          <SearchableSelect
+            :model-value="posStore.cart.customer?.id ?? null"
+            :fetch-options="fetchCustomerOptions"
+            :selected-option-data="selectedCustomerOption"
+            :paginate="10"
+            :clearable="true"
+            :placeholder="$t('pos.walkInCustomer')"
+            :search-placeholder="$t('pos.searchCustomerPlaceholder')"
+            @change="onCustomerChange"
+          />
+        </div>
 
         <button
           type="button"
-          class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1 flex-none"
+          class="h-10 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)] text-xs font-bold hover:border-[var(--crimson)] transition flex items-center gap-1 flex-none cursor-pointer"
           :title="$t('pos.addCustomerTooltip')"
           @click="$emit('open-add-customer')"
         >
@@ -249,9 +247,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ShoppingBag, ShoppingCart, Trash2, UserPlus } from 'lucide-vue-next';
+import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { createContactFetcher } from '../../utils/selectFetchers';
 import { usePosStore } from '../../stores/pos';
 import { useAuthStore } from '../../stores/auth';
 
@@ -261,7 +261,12 @@ const { t } = useI18n();
 const posStore = usePosStore();
 const authStore = useAuthStore();
 
-const selectedCustomerId = ref(null);
+const fetchCustomerOptions = createContactFetcher({ isCustomer: true, activeOnly: true });
+
+const selectedCustomerOption = computed(() => {
+  const cust = posStore.cart.customer;
+  return cust ? { value: cust.id, label: cust.name, raw: cust } : null;
+});
 
 const canOverridePrice = computed(() => authStore.hasPermission('pos.override_price'));
 const canApplyInvoiceDiscount = computed(() => authStore.hasPermission('pos.apply_invoice_discount'));
@@ -277,10 +282,9 @@ const discountHint = computed(() => {
   return t('pos.discountFixedHint', { amount: formatMoney(d), pct });
 });
 
-function onCustomerChange() {
-  if (selectedCustomerId.value) {
-    const cust = posStore.customers.find((c) => c.id === selectedCustomerId.value);
-    posStore.setCustomer(cust || null);
+function onCustomerChange(val, option) {
+  if (val !== null && val !== undefined && val !== '') {
+    posStore.setCustomer(option?.raw || { id: val, name: option?.label || '' });
   } else {
     posStore.setCustomer(null);
   }
@@ -289,7 +293,6 @@ function onCustomerChange() {
 function confirmClearCart() {
   if (confirm(t('pos.confirmClearCart'))) {
     posStore.clearCart();
-    selectedCustomerId.value = null;
   }
 }
 

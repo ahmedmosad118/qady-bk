@@ -216,8 +216,8 @@
               </td>
 
               <td class="hidden px-4 py-3.5 lg:table-cell">
-                <span v-if="contact.phone || contact.mobile" class="font-mono text-sm text-[var(--muted)]" dir="ltr">
-                  {{ contact.phone || contact.mobile }}
+                <span v-if="contact.mobile || contact.phone" class="font-mono text-sm text-[var(--muted)]" dir="ltr">
+                  {{ contact.mobile || contact.phone }}
                 </span>
                 <span v-else class="text-sm text-[var(--muted)]">—</span>
               </td>
@@ -449,20 +449,12 @@ const emptyStateDesc = computed(() => {
   return t('contacts.emptyDesc');
 });
 
-const isIndividualCustomer = computed(() => {
-  const type = formData.value?.type || 'individual';
-  if (type !== 'individual') return false;
-
-  if (activeRole.value === 'customer') return true;
-  if (activeRole.value === 'supplier') return false;
-
-  return !!formData.value?.is_customer && !formData.value?.is_supplier;
-});
+const isIndividual = computed(() => (formData.value?.type || 'individual') === 'individual');
 
 // Dynamic Schema: in dedicated customer or supplier screen, we OMIT the confusing boolean toggles!
 const activeSchema = computed(() => {
   const isDedicated = activeRole.value === 'customer' || activeRole.value === 'supplier';
-  const hideCompanyFields = isIndividualCustomer.value;
+  const hideCompanyFields = isIndividual.value;
 
   const fields = [
     {
@@ -485,23 +477,19 @@ const activeSchema = computed(() => {
     },
   ];
 
-  if (!hideCompanyFields) {
-    fields.push({
-      name: 'company_contact_person',
-      label: activeRole.value === 'supplier' ? 'contacts.fields.supplierContactPerson' : 'contacts.fields.companyContactPerson',
-      type: 'text',
-      col: 6,
-    });
-  }
-
   fields.push(
-    { name: 'email', label: 'contacts.fields.email', type: 'email', col: hideCompanyFields ? 12 : 6 },
-    { name: 'phone', label: 'contacts.fields.phone', type: 'tel', col: 6 },
-    { name: 'mobile', label: 'contacts.fields.mobile', type: 'tel', col: 6 }
+    { name: 'email', label: 'contacts.fields.email', type: 'email', col: 6 },
+    { name: 'mobile', label: 'contacts.fields.mobile', type: 'tel', required: true, col: 6 }
   );
 
   if (!hideCompanyFields) {
     fields.push(
+      {
+        name: 'company_contact_person',
+        label: activeRole.value === 'supplier' ? 'contacts.fields.supplierContactPerson' : 'contacts.fields.companyContactPerson',
+        type: 'text',
+        col: 6,
+      },
       { name: 'tax_number', label: 'contacts.fields.taxNumber', type: 'text', col: 6 },
       { name: 'tax_registration_type', label: 'contacts.fields.taxRegistrationType', type: 'text', col: 6 },
       { name: 'commercial_register', label: 'contacts.fields.commercialRegister', type: 'text', col: 6 }
@@ -709,8 +697,7 @@ const createDefaults = () => ({
   type: 'individual',
   name: '',
   company_contact_person: null,
-  phone: null,
-  mobile: null,
+  mobile: '',
   email: null,
   tax_number: null,
   tax_registration_type: null,
@@ -737,8 +724,7 @@ const openEdit = (contact) => {
     type: contact.type ?? 'individual',
     name: contact.name ?? '',
     company_contact_person: contact.company_contact_person ?? null,
-    phone: contact.phone ?? null,
-    mobile: contact.mobile ?? null,
+    mobile: contact.mobile ?? contact.phone ?? '',
     email: contact.email ?? null,
     tax_number: contact.tax_number ?? null,
     tax_registration_type: contact.tax_registration_type ?? null,
@@ -771,7 +757,7 @@ const saveRecord = async () => {
     }
 
     const payload = { ...formData.value };
-    if (payload.type === 'individual' && payload.is_customer && !payload.is_supplier) {
+    if (payload.type === 'individual') {
       payload.company_contact_person = null;
       payload.tax_number = null;
       payload.tax_registration_type = null;

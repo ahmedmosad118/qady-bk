@@ -295,33 +295,35 @@ class PosSyncService
      *
      * @return array<string, mixed>
      */
-    public function getBootstrapData(): array
+    public function getBootstrapData(bool $includeProducts = true): array
     {
         $warehouse = $this->warehouseResolver->resolve();
         $whId = $warehouse->id;
 
-        $products = Product::query()
-            ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
-                $q->where('warehouse_id', $whId);
-            }])
-            ->get()
-            ->map(function (Product $p) use ($whId): array {
-                $stock = $p->warehouseStocks->firstWhere('warehouse_id', $whId);
-                $availableStr = Decimal::fromNumeric($stock?->quantity ?? 0, Decimal::QUANTITY_SCALE);
-                $available = (float) $availableStr;
+        $products = $includeProducts
+            ? Product::query()
+                ->with(['category:id,name', 'warehouseStocks' => function ($q) use ($whId): void {
+                    $q->where('warehouse_id', $whId);
+                }])
+                ->get()
+                ->map(function (Product $p) use ($whId): array {
+                    $stock = $p->warehouseStocks->firstWhere('warehouse_id', $whId);
+                    $availableStr = Decimal::fromNumeric($stock?->quantity ?? 0, Decimal::QUANTITY_SCALE);
+                    $available = (float) $availableStr;
 
-                return [
-                    'id' => $p->id,
-                    'category_id' => $p->category_id,
-                    'name' => $p->name,
-                    'barcode' => $p->barcode,
-                    'selling_price' => (string) $p->selling_price,
-                    'purchase_price' => (string) $p->purchase_price,
-                    'category' => $p->category?->name,
-                    'current_stock' => $available,
-                    'stock_quantity' => $available,
-                ];
-            });
+                    return [
+                        'id' => $p->id,
+                        'category_id' => $p->category_id,
+                        'name' => $p->name,
+                        'barcode' => $p->barcode,
+                        'selling_price' => (string) $p->selling_price,
+                        'purchase_price' => (string) $p->purchase_price,
+                        'category' => $p->category?->name,
+                        'current_stock' => $available,
+                        'stock_quantity' => $available,
+                    ];
+                })
+            : [];
 
         $paymentMethods = PaymentMethod::query()
             ->get(['id', 'name', 'type']);

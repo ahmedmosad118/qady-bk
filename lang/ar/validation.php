@@ -108,7 +108,7 @@ return [
     'starts_with' => 'يجب أن يبدأ :attribute بأحد القيم التالية: :values.',
     'string' => 'يجب أن يكون :attribute نصاً.',
     'timezone' => 'يجب أن يكون :attribute منطقة زمنية صحيحة.',
-    'unique' => ':attribute مستخدم ومسجل مسبقاً في المنظومة.',
+    'unique' => ':attribute مستخدم ومسجل مسبقاً في النظام.',
     'uploaded' => 'فشل رفع ملف :attribute.',
     'url' => 'صيغة رابط :attribute غير صحيحة.',
     'uuid' => 'يجب أن يكون :attribute معرّف UUID صالحاً.',
@@ -142,5 +142,7 @@ return [
         'scheduled_date' => 'تاريخ الموعد',
         'visit_date' => 'تاريخ الزيارة الفعلي',
         'general_assessment' => 'التقييم الفني العام',
+        'mobile' => 'المحمول',
+
     ],
 ];

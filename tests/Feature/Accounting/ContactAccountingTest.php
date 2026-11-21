@@ -43,6 +43,7 @@ class ContactAccountingTest extends TestCase
         $customerRes = $this->postJson('/api/contacts', [
             'type' => 'individual',
             'name' => 'عميل فقط',
+            'mobile' => '01010000001',
             'is_customer' => true,
             'is_supplier' => false,
         ])->assertCreated();
@@ -67,6 +68,7 @@ class ContactAccountingTest extends TestCase
         $supplierRes = $this->postJson('/api/contacts', [
             'type' => 'company',
             'name' => 'دار الفكر للنشر',
+            'mobile' => '01010000002',
             'is_customer' => false,
             'is_supplier' => true,
         ])->assertCreated();

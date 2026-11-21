@@ -14,7 +14,7 @@
     <meta name="theme-color" content="#16181D">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet">
 
     <script>
         window.APP_BASE_URL = "{{ url('/') }}";
@@ -32,7 +32,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="h-full bg-[var(--bg)] text-[var(--text)] antialiased font-['Cairo',sans-serif]">
+<body class="h-full bg-[var(--bg)] text-[var(--text)] antialiased font-sans">
     <div id="app" class="h-full"></div>
 </body>
 </html>

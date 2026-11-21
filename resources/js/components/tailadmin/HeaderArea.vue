@@ -1,11 +1,11 @@
 <template>
   <header class="sticky top-0 z-40 flex w-full border-b border-[var(--border)] bg-[var(--card)] transition-colors">
-    <div class="flex grow items-center justify-between px-4 py-3 sm:px-6 md:px-8">
+    <div class="flex grow items-center justify-between px-3 py-1.5 sm:px-4 md:px-6">
       <!-- Mobile sidebar toggle -->
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:hidden"
+          class="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] lg:hidden"
           :aria-label="$t('common.dashboard')"
           :title="$t('common.dashboard')"
           @click="$emit('toggle-sidebar')"
@@ -19,13 +19,13 @@
         <!-- Global search (dashboard) -->
         <div v-if="isDashboard" class="relative hidden w-64 lg:block xl:w-80">
           <Search
-            class="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+            class="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
             aria-hidden="true"
           />
           <input
             v-model="globalSearch"
             type="search"
-            class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] ps-10 pe-4 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/75 focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson)]/15"
+            class="h-8 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] ps-9 pe-4 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)]/75 focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson)]/15"
             :placeholder="$t('dashboard.searchPlaceholder')"
             :aria-label="$t('dashboard.searchPlaceholder')"
             @keyup.enter="submitSearch"
@@ -36,7 +36,7 @@
         <div ref="langMenuRef" class="relative">
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/35"
+            class="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/35"
             :aria-label="$t('header.language')"
             :title="$t('header.language')"
             aria-haspopup="menu"
@@ -50,7 +50,7 @@
 
           <div
             v-if="langOpen"
-            class="absolute end-0 z-50 mt-2 w-36 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-xl"
+            class="absolute end-0 z-50 mt-1.5 w-36 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-xl"
             role="menu"
           >
             <button
@@ -79,7 +79,7 @@
         <!-- Dark mode toggle -->
         <button
           type="button"
-          class="rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-[var(--text)] transition-colors hover:border-[var(--crimson)]/35"
+          class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] transition-colors hover:border-[var(--crimson)]/35"
           :aria-label="themeStore.isDark ? $t('header.lightMode') : $t('header.darkMode')"
           :title="themeStore.isDark ? $t('header.lightMode') : $t('header.darkMode')"
           @click="themeStore.toggleTheme"
