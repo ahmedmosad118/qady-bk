@@ -589,13 +589,8 @@ async function loadDocuments() {
 
 async function loadLookups() {
   try {
-    const [whRes, prodRes] = await Promise.all([
-      api.get('/warehouses', { params: { active_only: 1 } }),
-      api.get('/products', { params: { is_active: 1, per_page: 500 } }),
-    ]);
-
+    const whRes = await api.get('/warehouses', { params: { active_only: 1 } });
     warehouses.value = whRes.data?.data || [];
-    products.value = prodRes.data?.data || [];
   } catch (e) {
     // Non-fatal lookup load
   }
@@ -606,8 +601,19 @@ function openCreateModal() {
   formModalOpen.value = true;
 }
 
-function openEditModal(doc) {
-  editingDocument.value = doc;
+async function openEditModal(doc) {
+  if (Array.isArray(doc?.items)) {
+    editingDocument.value = doc;
+    formModalOpen.value = true;
+    return;
+  }
+
+  try {
+    const res = await api.get(`/inventory-documents/${doc.id}`);
+    editingDocument.value = res.data?.data || doc;
+  } catch (e) {
+    editingDocument.value = doc;
+  }
   formModalOpen.value = true;
 }
 

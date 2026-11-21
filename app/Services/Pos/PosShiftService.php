@@ -28,8 +28,6 @@ class PosShiftService
     public function openShift(User $user, float|int|string $openingBalance = '0.00', ?string $notes = null): PosShift
     {
         return DB::transaction(function () use ($user, $openingBalance, $notes): PosShift {
-            $shiftNumber = $this->numberService->generateShiftNumber();
-
             $opening = Decimal::max(
                 '0.00',
                 Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE),
@@ -38,7 +36,6 @@ class PosShiftService
 
             /** @var PosShift $shift */
             $shift = PosShift::query()->create([
-                'shift_number' => $shiftNumber,
                 'opening_balance' => $opening,
                 'expected_cash' => $opening,
                 'actual_cash' => null,

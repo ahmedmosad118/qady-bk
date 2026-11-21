@@ -163,9 +163,18 @@
               />
             </button>
 
+            <!-- Initial / Search Remote Loading State -->
+            <div
+              v-if="remoteLoading"
+              class="flex flex-col items-center justify-center gap-2 px-3 py-6 text-center"
+            >
+              <Loader2 class="h-5 w-5 animate-spin text-[var(--crimson)]" aria-hidden="true" />
+              <p class="text-xs font-medium text-[var(--muted)]">{{ loadingMoreLabel }}</p>
+            </div>
+
             <!-- Empty State -->
             <div
-              v-if="filteredOptions.length === 0"
+              v-else-if="visibleOptions.length === 0"
               class="flex flex-col items-center justify-center gap-1.5 px-3 py-6 text-center"
             >
               <SearchX class="h-5 w-5 text-[var(--muted)]/60" aria-hidden="true" />
@@ -266,6 +275,18 @@ const props = defineProps({
     type: Number,
     default: 220,
   },
+  fetchOptions: {
+    type: Function,
+    default: null,
+  },
+  selectedOptionData: {
+    type: Object,
+    default: null,
+  },
+  excludeValues: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits(['update:modelValue', 'change', 'action']);
@@ -291,6 +312,17 @@ const dropdownCoords = ref({ top: '0px', bottom: 'auto', left: '0px', width: '24
 const maxListHeight = ref(240);
 
 let intersectionObserver = null;
+let activeRequestId = 0;
+let searchDebounceTimer = null;
+
+const isRemote = computed(() => typeof props.fetchOptions === 'function');
+const remoteOptions = ref([]);
+const remotePage = ref(0);
+const remoteHasMore = ref(false);
+const remoteTotal = ref(0);
+const remoteLoading = ref(false);
+const remoteLoadingMore = ref(false);
+const cachedSelected = ref(null);
 
 const isEmptyValue = (val) => val === null || val === undefined || val === '';
 
@@ -333,7 +365,25 @@ const selectedOption = computed(() => {
   if (isEmptyValue(props.modelValue)) {
     return null;
   }
-  return normalizedOptions.value.find((opt) => String(opt.value) === String(props.modelValue)) || null;
+  const target = String(props.modelValue);
+  const fromProps = normalizedOptions.value.find((opt) => String(opt.value) === target);
+  if (fromProps) return fromProps;
+
+  const fromRemote = remoteOptions.value.find((opt) => String(opt.value) === target);
+  if (fromRemote) return fromRemote;
+
+  if (cachedSelected.value && String(cachedSelected.value.value) === target) {
+    return cachedSelected.value;
+  }
+
+  if (props.selectedOptionData) {
+    const normalized = normalizeOpt(props.selectedOptionData);
+    if (String(normalized.value) === target) {
+      return normalized;
+    }
+  }
+
+  return null;
 });
 
 const isSelected = (val) => {
@@ -342,10 +392,13 @@ const isSelected = (val) => {
 };
 
 const shouldShowSearch = computed(() => {
-  return normalizedOptions.value.length > 5 || props.showSearchAlways;
+  return isRemote.value || normalizedOptions.value.length > 5 || props.showSearchAlways;
 });
 
 const filteredOptions = computed(() => {
+  if (isRemote.value) {
+    return remoteOptions.value;
+  }
   const q = normalizeSearchText(searchQuery.value);
   if (!q) {
     return normalizedOptions.value;
@@ -358,25 +411,58 @@ const filteredOptions = computed(() => {
   });
 });
 
-// Scroll Pagination chunk size: honors numeric :paginate, otherwise 15 (if paginate=true) or 20
+// Scroll Pagination chunk size: 10 in remote mode (or numeric :paginate), otherwise 15/20
 const scrollChunkSize = computed(() => {
   if (typeof props.paginate === 'number' && props.paginate > 0) {
     return props.paginate;
+  }
+  if (isRemote.value) {
+    return 10;
   }
   return props.paginate ? 15 : 20;
 });
 
 const visibleLimit = ref(scrollChunkSize.value);
 
+const excludedSet = computed(() => {
+  if (!Array.isArray(props.excludeValues) || props.excludeValues.length === 0) {
+    return new Set();
+  }
+  const current = isEmptyValue(props.modelValue) ? null : String(props.modelValue);
+  const set = new Set();
+  for (const val of props.excludeValues) {
+    if (!isEmptyValue(val)) {
+      const str = String(val);
+      if (str !== current) {
+        set.add(str);
+      }
+    }
+  }
+  return set;
+});
+
 const visibleOptions = computed(() => {
-  return filteredOptions.value.slice(0, visibleLimit.value);
+  const base = isRemote.value
+    ? remoteOptions.value
+    : filteredOptions.value.slice(0, visibleLimit.value);
+
+  if (excludedSet.value.size === 0) {
+    return base;
+  }
+  return base.filter((opt) => !excludedSet.value.has(String(opt.value)));
 });
 
 const hasMore = computed(() => {
+  if (isRemote.value) {
+    return remoteHasMore.value;
+  }
   return visibleLimit.value < filteredOptions.value.length;
 });
 
 const showScrollFooter = computed(() => {
+  if (isRemote.value) {
+    return !remoteLoading.value && (remoteTotal.value > 0 || visibleOptions.value.length > 0);
+  }
   return filteredOptions.value.length > scrollChunkSize.value;
 });
 
@@ -384,18 +470,96 @@ const clearTitle = computed(() => t('common.clear'));
 const loadingMoreLabel = computed(() => t('common.loadingMore'));
 const scrollHintLabel = computed(() => t('common.scrollForMore'));
 const countSummaryLabel = computed(() => {
+  const total = isRemote.value
+    ? Math.max(remoteTotal.value, visibleOptions.value.length)
+    : filteredOptions.value.length;
   return t('common.showingCountOf', {
     visible: visibleOptions.value.length,
-    total: filteredOptions.value.length,
+    total,
   });
 });
 
+const fetchRemotePage = async (pageToFetch = 1, reset = false) => {
+  if (!isRemote.value) return;
+  const reqId = ++activeRequestId;
+  if (reset) {
+    remoteLoading.value = true;
+    remoteLoadingMore.value = false;
+  } else {
+    remoteLoadingMore.value = true;
+  }
+
+  try {
+    const res = await props.fetchOptions({
+      search: searchQuery.value.trim(),
+      page: pageToFetch,
+      perPage: scrollChunkSize.value,
+    });
+
+    if (reqId !== activeRequestId) return;
+
+    const incoming = Array.isArray(res?.options) ? res.options.map(normalizeOpt) : [];
+    if (reset) {
+      remoteOptions.value = incoming;
+    } else {
+      const seen = new Set(remoteOptions.value.map((o) => String(o.value)));
+      const merged = [...remoteOptions.value];
+      for (const item of incoming) {
+        if (!seen.has(String(item.value))) {
+          seen.add(String(item.value));
+          merged.push(item);
+        }
+      }
+      remoteOptions.value = merged;
+    }
+
+    remotePage.value = Number(res?.currentPage || pageToFetch);
+    remoteHasMore.value = Boolean(res?.hasMore);
+    remoteTotal.value = Number.isFinite(Number(res?.total)) ? Number(res.total) : remoteOptions.value.length;
+  } catch (e) {
+    if (reqId === activeRequestId && reset) {
+      remoteOptions.value = [];
+      remoteHasMore.value = false;
+      remoteTotal.value = 0;
+    }
+  } finally {
+    if (reqId === activeRequestId) {
+      remoteLoading.value = false;
+      remoteLoadingMore.value = false;
+      nextTick(() => {
+        if (isOpen.value) {
+          updatePosition();
+        }
+      });
+    }
+  }
+};
+
+watch(
+  () => props.modelValue,
+  (val) => {
+    if (isEmptyValue(val)) {
+      cachedSelected.value = null;
+    }
+  }
+);
+
 watch(searchQuery, () => {
-  visibleLimit.value = scrollChunkSize.value;
   highlightedIndex.value = -1;
   if (listRef.value) {
     listRef.value.scrollTop = 0;
   }
+
+  if (isRemote.value) {
+    if (!isOpen.value) return;
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      fetchRemotePage(1, true);
+    }, 250);
+    return;
+  }
+
+  visibleLimit.value = scrollChunkSize.value;
 });
 
 watch(
@@ -409,6 +573,11 @@ watch(
 
 const loadMore = () => {
   if (!hasMore.value) return;
+  if (isRemote.value) {
+    if (remoteLoading.value || remoteLoadingMore.value) return;
+    fetchRemotePage(remotePage.value + 1, false);
+    return;
+  }
   visibleLimit.value = Math.min(
     filteredOptions.value.length,
     visibleLimit.value + scrollChunkSize.value
@@ -530,6 +699,14 @@ const openDropdown = async () => {
   highlightedIndex.value = -1;
   isOpen.value = true;
 
+  if (isRemote.value) {
+    remoteOptions.value = [];
+    remotePage.value = 0;
+    remoteHasMore.value = false;
+    remoteTotal.value = 0;
+    fetchRemotePage(1, true);
+  }
+
   await nextTick();
   updatePosition();
   attachPositionListeners();
@@ -541,6 +718,7 @@ const openDropdown = async () => {
 
 const closeDropdown = () => {
   if (!isOpen.value) return;
+  clearTimeout(searchDebounceTimer);
   isOpen.value = false;
   searchQuery.value = '';
   highlightedIndex.value = -1;
@@ -558,8 +736,16 @@ const toggleDropdown = () => {
 };
 
 const selectOption = (val) => {
+  const matched =
+    visibleOptions.value.find((o) => String(o.value) === String(val)) ||
+    remoteOptions.value.find((o) => String(o.value) === String(val)) ||
+    normalizedOptions.value.find((o) => String(o.value) === String(val)) ||
+    null;
+  if (matched) {
+    cachedSelected.value = matched;
+  }
   emit('update:modelValue', val);
-  emit('change', val);
+  emit('change', val, matched);
   closeDropdown();
 };
 

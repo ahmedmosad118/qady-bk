@@ -32,7 +32,8 @@
             <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('warehouses.title') }}</label>
             <SearchableSelect
               v-model="filters.warehouse_id"
-              :options="warehouseOptions"
+              :fetch-options="fetchWarehouseOptions"
+              :paginate="10"
               :placeholder="$t('warehouseStocks.allWarehouses')"
               :search-placeholder="$t('warehouseStocks.searchWarehouses')"
               allow-empty
@@ -398,6 +399,7 @@ import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import { formatDateOnly } from '../../utils/date';
+import { createWarehouseFetcher } from '../../utils/selectFetchers';
 
 const { t, locale } = useI18n();
 
@@ -433,6 +435,11 @@ const activeFiltersCount = computed(() => {
 });
 
 const hasActiveFilters = computed(() => Boolean(filters.search) || activeFiltersCount.value > 0);
+
+const fetchWarehouseOptions = createWarehouseFetcher({
+  activeOnly: true,
+  formatLabel: (w) => `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.mainBadge') : ''}`,
+});
 
 const warehouseOptions = computed(() => {
   return warehouses.value.map((w) => ({

@@ -48,10 +48,12 @@
               </label>
               <SearchableSelect
                 v-model="form.supplier_id"
-                :options="supplierOptions"
+                :fetch-options="fetchSupplierOptions"
+                :selected-option-data="selectedSupplierOption"
                 :paginate="10"
                 :placeholder="$t('purchaseOrders.selectSupplier')"
                 :clearable="false"
+                @change="(_, opt) => { if (opt) selectedSupplierOption = opt; }"
               />
               <p v-if="errors.supplier_id" class="mt-1 text-xs text-[var(--crimson)]">
                 {{ errors.supplier_id[0] }}
@@ -130,12 +132,13 @@
                     <td class="px-2 py-2.5 min-w-0">
                       <SearchableSelect
                         v-model="item.product_id"
-                        :options="productOptions"
+                        :fetch-options="fetchProductOptions"
+                        :selected-option-data="item.product_option"
                         :paginate="10"
                         placement="top"
                         :placeholder="$t('purchaseOrders.selectProduct')"
                         :clearable="false"
-                        @update:model-value="onProductSelected(item)"
+                        @change="(_, opt) => { if (opt) item.product_option = opt; onProductSelected(item); }"
                       />
                       <p v-if="errors[`items.${idx}.product_id`]" class="mt-1 text-[11px] text-[var(--crimson)] truncate">
                         {{ errors[`items.${idx}.product_id`][0] }}
@@ -430,6 +433,7 @@ import { reactive, ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '../../services/api';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { createProductFetcher, createContactFetcher } from '../../utils/selectFetchers';
 import { X, Plus, Trash2, AlertCircle, RotateCcw, UploadCloud, FileText } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -481,27 +485,14 @@ const form = reactive({
   ],
 });
 
-// Map suppliers to options
-const supplierOptions = computed(() => {
-  return props.suppliers.map((s) => ({
-    value: s.id,
-    label: s.name,
-  }));
-});
-
-// Map products to options
-const productOptions = computed(() => {
-  return props.products.map((p) => ({
-    value: p.id,
-    label: p.name,
-    barcode: p.barcode,
-  }));
-});
+const selectedSupplierOption = ref(null);
+const fetchSupplierOptions = createContactFetcher({ isSupplier: true });
+const fetchProductOptions = createProductFetcher({ activeOnly: true });
 
 // Handle product selection to prefill purchase_price
 function onProductSelected(item) {
   if (!item.product_id) return;
-  const prod = props.products.find((p) => p.id === item.product_id);
+  const prod = item.product_option?.raw || props.products.find((p) => p.id === item.product_id);
   if (prod && (!item.unit_price || item.unit_price === 0)) {
     item.unit_price = Number(prod.purchase_price) || 0;
   }
@@ -613,6 +604,9 @@ function initForm() {
 
   if (props.order && props.order.id) {
     form.supplier_id = props.order.supplier_id;
+    selectedSupplierOption.value = props.order.supplier
+      ? { value: props.order.supplier_id, label: props.order.supplier.name }
+      : null;
     form.order_date = props.order.order_date ? String(props.order.order_date).substring(0, 10) : new Date().toISOString().substring(0, 10);
     form.expected_delivery_date = props.order.expected_delivery_date ? String(props.order.expected_delivery_date).substring(0, 10) : null;
     form.notes = props.order.notes || '';
@@ -622,16 +616,18 @@ function initForm() {
     if (props.order.items && props.order.items.length > 0) {
       form.items = props.order.items.map((i) => ({
         product_id: i.product_id,
+        product_option: i.product ? { value: i.product_id, label: i.product.name, barcode: i.product.barcode } : null,
         quantity: Number(i.quantity) || 1,
         unit_price: Number(i.unit_price) || 0,
         discount_type: i.discount_type || 'percentage',
         discount_value: Number(i.discount_value) || 0,
       }));
     } else {
-      form.items = [{ product_id: null, quantity: 1, unit_price: 0, discount_type: 'percentage', discount_value: 0 }];
+      form.items = [{ product_id: null, product_option: null, quantity: 1, unit_price: 0, discount_type: 'percentage', discount_value: 0 }];
     }
   } else {
     form.supplier_id = null;
+    selectedSupplierOption.value = null;
     form.order_date = new Date().toISOString().substring(0, 10);
     form.expected_delivery_date = null;
     form.notes = '';

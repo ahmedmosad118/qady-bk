@@ -119,7 +119,7 @@ class PurchaseInvoiceTest extends TestCase
         $this->assertNotEmpty($invoiceNumber);
 
         $invoiceId = (int) $response->json('data.id');
-        $this->assertSame(sprintf('BILL/%s/%06d', now()->format('Y'), $invoiceId), $invoiceNumber);
+        $this->assertSame(sprintf('PIN-%s-%05d', now()->format('Y'), $invoiceId), $invoiceNumber);
         /** @var PurchaseInvoice $invoice */
         $invoice = PurchaseInvoice::query()->findOrFail($invoiceId);
 
@@ -442,9 +442,10 @@ class PurchaseInvoiceTest extends TestCase
         $first = $this->postJson('/api/purchase-invoices', $payload())->assertCreated();
         $second = $this->postJson('/api/purchase-invoices', $payload())->assertCreated();
 
-        // Year comes from the invoice date, sequence is the row id, zero-padded to 6 digits.
-        $this->assertSame(sprintf('BILL/2025/%06d', $first->json('data.id')), $first->json('data.invoice_number'));
-        $this->assertSame(sprintf('BILL/2025/%06d', $second->json('data.id')), $second->json('data.invoice_number'));
+        // Unified format: PIN-<current_year>-<5-digit padded row id>
+        $year = now()->format('Y');
+        $this->assertSame(sprintf('PIN-%s-%05d', $year, $first->json('data.id')), $first->json('data.invoice_number'));
+        $this->assertSame(sprintf('PIN-%s-%05d', $year, $second->json('data.id')), $second->json('data.invoice_number'));
         $this->assertNotSame($first->json('data.invoice_number'), $second->json('data.invoice_number'));
 
         // The linked goods receipt note carries the final number, not the placeholder.
@@ -455,7 +456,7 @@ class PurchaseInvoiceTest extends TestCase
 
         // Invoice numbers are system-generated only: a client-supplied number is ignored (on create and update).
         $third = $this->postJson('/api/purchase-invoices', $payload(['invoice_number' => 'SUP-INV-1']))->assertCreated();
-        $this->assertSame(sprintf('BILL/2025/%06d', $third->json('data.id')), $third->json('data.invoice_number'));
+        $this->assertSame(sprintf('PIN-%s-%05d', $year, $third->json('data.id')), $third->json('data.invoice_number'));
 
         $this->putJson('/api/purchase-invoices/' . $third->json('data.id'), $payload(['invoice_number' => 'SUP-INV-2']))
             ->assertOk()

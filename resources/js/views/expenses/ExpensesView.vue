@@ -60,7 +60,8 @@
             <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('expenses.category') }}</label>
             <SearchableSelect
               v-model="filters.expense_category_id"
-              :options="categoryOptions"
+              :fetch-options="fetchExpenseCategoryOptions"
+              :paginate="10"
               :placeholder="$t('common.all')"
               :clearable="true"
               @update:modelValue="fetchExpenses(1)"
@@ -72,7 +73,7 @@
             <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('expenses.contact') }}</label>
             <SearchableSelect
               v-model="filters.contact_id"
-              :options="contactOptions"
+              :fetch-options="fetchContactOptions"
               :placeholder="$t('common.all')"
               :clearable="true"
               :paginate="10"
@@ -392,6 +393,7 @@ import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { createExpenseCategoryFetcher, createContactFetcher } from '../../utils/selectFetchers';
 import ExpenseFormModal from './ExpenseFormModal.vue';
 import ExpenseDetailModal from './ExpenseDetailModal.vue';
 import api from '../../services/api';
@@ -503,18 +505,8 @@ async function fetchExpenses(page = 1) {
   }
 }
 
-async function fetchLookups() {
-  try {
-    const [catRes, contactRes] = await Promise.all([
-      api.get('/expense-categories', { params: { all: 1 } }),
-      api.get('/contacts', { params: { per_page: 100 } }),
-    ]);
-    categories.value = catRes.data?.data ?? [];
-    contacts.value = contactRes.data?.data ?? [];
-  } catch (err) {
-    showError({ text: err?.response?.data?.message || t('common.error') });
-  }
-}
+const fetchExpenseCategoryOptions = createExpenseCategoryFetcher();
+const fetchContactOptions = createContactFetcher({ activeOnly: false });
 
 function toggleSort(column) {
   if (filters.sort_by === column) {
@@ -655,7 +647,6 @@ function closeAttachmentPreview() {
 }
 
 onMounted(() => {
-  fetchLookups();
   fetchExpenses(1);
 });
 

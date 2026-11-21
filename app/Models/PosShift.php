@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'shift_number',
@@ -112,5 +113,22 @@ class PosShift extends Model
     public function returns(): HasMany
     {
         return $this->hasMany(PosReturn::class, 'shift_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (PosShift $shift): void {
+            if (empty($shift->shift_number)) {
+                $shift->shift_number = 'TMP-' . Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (PosShift $shift): void {
+            if (empty($shift->shift_number) || str_starts_with((string) $shift->shift_number, 'TMP-')) {
+                $shift->forceFill([
+                    'shift_number' => sprintf('SHF-%s-%05d', now()->format('Y'), $shift->id),
+                ])->saveQuietly();
+            }
+        });
     }
 }

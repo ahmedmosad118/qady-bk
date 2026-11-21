@@ -24,6 +24,27 @@ class ProductCategoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        if ($request->filled('per_page')) {
+            $paginated = ProductCategory::query()
+                ->when($request->filled('search'), function ($q) use ($request): void {
+                    $search = (string) $request->input('search');
+                    $q->where('name', 'like', "%{$search}%");
+                })
+                ->orderBy('name', 'asc')
+                ->paginate($request->integer('per_page', 10), ['id', 'name', 'parent_id']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $paginated->items(),
+                'meta' => [
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                    'per_page' => $paginated->perPage(),
+                    'total' => $paginated->total(),
+                ],
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $this->categoryService->getTree(),

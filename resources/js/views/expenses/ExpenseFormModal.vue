@@ -60,7 +60,9 @@
             </label>
             <SearchableSelect
               v-model="form.expense_category_id"
-              :options="categoryOptions"
+              :fetch-options="fetchExpenseCategoryOptions"
+              :selected-option-data="selectedCategoryOption"
+              :paginate="10"
               :placeholder="$t('expenses.selectCategory')"
               :disabled="isLocked"
             />
@@ -77,7 +79,8 @@
             </label>
             <SearchableSelect
               v-model="form.contact_id"
-              :options="contactOptions"
+              :fetch-options="fetchContactOptions"
+              :selected-option-data="selectedContactOption"
               :placeholder="$t('expenses.selectContact')"
               :clearable="true"
               :paginate="10"
@@ -384,6 +387,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { createExpenseCategoryFetcher, createContactFetcher } from '../../utils/selectFetchers';
 import api from '../../services/api';
 import { showError, showSuccess } from '../../services/alert';
 
@@ -429,19 +433,18 @@ const form = reactive({
 const isEdit = computed(() => Boolean(props.expense?.id));
 const isLocked = computed(() => isEdit.value && props.expense?.status !== 'draft');
 
-const categoryOptions = computed(() =>
-  props.categories.map((cat) => ({
-    value: cat.id,
-    label: cat.name,
-  }))
-);
+const fetchExpenseCategoryOptions = createExpenseCategoryFetcher();
+const fetchContactOptions = createContactFetcher({ activeOnly: false });
 
-const contactOptions = computed(() =>
-  props.contacts.map((c) => ({
-    value: c.id,
-    label: c.name,
-  }))
-);
+const selectedCategoryOption = computed(() => {
+  const cat = props.expense?.category || props.categories.find((c) => c.id === form.expense_category_id);
+  return cat ? { value: cat.id, label: cat.name } : null;
+});
+
+const selectedContactOption = computed(() => {
+  const c = props.expense?.contact || props.contacts.find((item) => item.id === form.contact_id);
+  return c ? { value: c.id, label: c.name } : null;
+});
 
 const computedTotal = computed(() =>
   form.items.reduce((sum, item) => {

@@ -17,13 +17,39 @@ class WarehouseController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $warehouses = Warehouse::query()
+        $query = Warehouse::query()
             ->when($request->boolean('active_only', true), function ($q): void {
                 $q->active();
             })
+            ->when($request->filled('search'), function ($q) use ($request): void {
+                $search = (string) $request->input('search');
+                $q->where(function ($sub) use ($search): void {
+                    $sub->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%");
+                });
+            })
             ->orderBy('is_default', 'desc')
-            ->orderBy('name', 'asc')
-            ->get(['id', 'code', 'name', 'address', 'is_default', 'is_active']);
+            ->orderBy('name', 'asc');
+
+        if ($request->filled('per_page')) {
+            $paginated = $query->paginate(
+                $request->integer('per_page', 10),
+                ['id', 'code', 'name', 'address', 'is_default', 'is_active']
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $paginated->items(),
+                'meta' => [
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                    'per_page' => $paginated->perPage(),
+                    'total' => $paginated->total(),
+                ],
+            ]);
+        }
+
+        $warehouses = $query->get(['id', 'code', 'name', 'address', 'is_default', 'is_active']);
 
         return response()->json([
             'success' => true,

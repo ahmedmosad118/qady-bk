@@ -140,7 +140,7 @@ const posStore = usePosStore();
 const authStore = useAuthStore();
 
 const activeTab = ref(posStore.availableOpenShifts.length > 0 ? 'select' : 'new');
-const openingBalance = ref(500);
+const openingBalance = ref(0);
 const notes = ref('');
 
 function selectShift(shiftId) {

@@ -36,6 +36,8 @@
           <SearchableSelect
             v-model="form.warehouse_id"
             :options="warehouseOptions"
+            :fetch-options="fetchWarehouseOptions"
+            :paginate="10"
             :placeholder="$t('stocktaking.warehousePlaceholder')"
             :search-placeholder="$t('stocktaking.warehouseSearchPlaceholder')"
             :clearable="false"
@@ -153,11 +155,13 @@
               <div class="flex-1">
                 <SearchableSelect
                   v-model="productToAdd"
-                  :options="unselectedProductOptions"
+                  :fetch-options="fetchProductOptions"
+                  :exclude-values="form.product_ids"
                   :paginate="10"
                   :placeholder="$t('stocktaking.selectProductPlaceholder')"
                   :search-placeholder="$t('stocktaking.searchProductPlaceholder')"
                   :clearable="false"
+                  @change="onManualProductSelected"
                 />
               </div>
               <button
@@ -277,6 +281,7 @@ import {
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import api from '../../services/api';
+import { createProductFetcher, createWarehouseFetcher } from '../../utils/selectFetchers';
 
 const { t } = useI18n();
 
@@ -299,25 +304,27 @@ const barcodeFeedback = ref(null);
 const barcodeInputRef = ref(null);
 const isSearchingBarcode = ref(false);
 
-// Local fallback products cache
+// Cache of selected/scanned products so selectedProducts displays names & barcodes without loading 500+ upfront
 const localProducts = ref([]);
-const loadingProducts = ref(false);
 
-const allProducts = computed(() => {
-  if (localProducts.value.length > 0) return localProducts.value;
-  return props.products || [];
+const fetchProductOptions = createProductFetcher({ activeOnly: true });
+const fetchWarehouseOptions = createWarehouseFetcher({
+  activeOnly: true,
+  formatLabel: (w) => `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.defaultBadge') : ''}`,
 });
 
-async function loadProductsIfNeeded() {
-  if (allProducts.value.length > 0) return;
-  loadingProducts.value = true;
-  try {
-    const res = await api.get('/products', { params: { per_page: 500, is_active: 1 } });
-    localProducts.value = res.data?.data || [];
-  } catch (e) {
-    console.error('Failed to load products in modal:', e);
-  } finally {
-    loadingProducts.value = false;
+const allProducts = computed(() => {
+  const byId = new Map();
+  for (const p of props.products || []) byId.set(p.id, p);
+  for (const p of localProducts.value) byId.set(p.id, p);
+  return Array.from(byId.values());
+});
+
+function onManualProductSelected(val, opt) {
+  if (opt?.raw && !localProducts.value.some((p) => p.id === opt.raw.id)) {
+    localProducts.value.push(opt.raw);
+  } else if (opt && val && !localProducts.value.some((p) => p.id === val)) {
+    localProducts.value.push({ id: val, name: opt.label, barcode: opt.barcode || '' });
   }
 }
 
@@ -451,7 +458,6 @@ watch(
       form.product_ids = [];
       form.notes = '';
       syncDefaultWarehouse();
-      loadProductsIfNeeded();
     }
   },
   { immediate: true }

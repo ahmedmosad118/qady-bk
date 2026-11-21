@@ -55,10 +55,6 @@
           <span class="text-[var(--muted)]">{{ $t('pos.modals.closeShift.openingBalance') }}</span>
           <b class="font-bold text-[var(--text)] text-sm">{{ formatMoney(summary?.opening_balance) }} {{ $t('common.currency') }}</b>
         </div>
-        <div class="flex justify-between py-3 border-y-2 border-[var(--border)] bg-[var(--bar)] px-3 rounded-xl text-sm font-black">
-          <span>{{ $t('pos.modals.closeShift.expectedCash') }}</span>
-          <span class="text-[var(--crimson)]">{{ formatMoney(expectedCash) }} {{ $t('common.currency') }}</span>
-        </div>
       </div>
 
       <!-- Actual Cash Input -->
@@ -68,15 +64,10 @@
           v-model.number="actualCash"
           type="number"
           step="any"
+          min="0"
           required
           class="w-full h-12 text-center text-2xl font-black rounded-xl border-2 border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)]"
         />
-      </div>
-
-      <!-- Realtime Difference -->
-      <div class="flex items-center justify-between p-3 rounded-xl border mb-4 font-black text-sm" :class="diffClass">
-        <span>{{ $t('pos.modals.closeShift.cashDiffLabel') }}</span>
-        <span>{{ diffText }}</span>
       </div>
 
       <!-- Closing Notes -->
@@ -115,11 +106,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { ref } from 'vue';
 import { X } from 'lucide-vue-next';
-
-const { t } = useI18n();
 
 const props = defineProps({
   summary: {
@@ -141,28 +129,6 @@ const emit = defineEmits(['close', 'confirm']);
 const actualCash = ref(0);
 const notes = ref('');
 
-const expectedCash = computed(() => {
-  return Number(props.summary?.expected_cash || 0);
-});
-
-const difference = computed(() => {
-  return Math.round((Number(actualCash.value || 0) - expectedCash.value) * 100) / 100;
-});
-
-const diffClass = computed(() => {
-  const d = difference.value;
-  if (d === 0) return 'bg-emerald-50 text-emerald-800 border-emerald-200';
-  if (d > 0) return 'bg-blue-50 text-blue-800 border-blue-200';
-  return 'bg-red-50 text-red-800 border-red-200';
-});
-
-const diffText = computed(() => {
-  const d = difference.value;
-  if (d === 0) return t('pos.modals.closeShift.diffBalanced');
-  if (d > 0) return t('pos.modals.closeShift.diffSurplus', { amount: formatMoney(d) });
-  return t('pos.modals.closeShift.diffShortage', { amount: formatMoney(d) });
-});
-
 function formatMoney(amount) {
   return Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -173,10 +139,4 @@ function submitClose() {
     notes: notes.value,
   });
 }
-
-onMounted(() => {
-  if (props.summary?.expected_cash) {
-    actualCash.value = Number(props.summary.expected_cash);
-  }
-});
 </script>

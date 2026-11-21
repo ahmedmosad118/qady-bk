@@ -45,7 +45,8 @@
             <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('stocktaking.fields.warehouse') }}</label>
             <SearchableSelect
               v-model="filters.warehouse_id"
-              :options="warehouseFilterOptions"
+              :fetch-options="fetchWarehouseOptions"
+              :paginate="10"
               :placeholder="$t('stocktaking.allWarehouses')"
               :search-placeholder="$t('stocktaking.searchWarehouse')"
               :clearable="true"
@@ -231,6 +232,7 @@ import PageHeader from '../../components/ui/PageHeader.vue';
 import StocktakeFormModal from './StocktakeFormModal.vue';
 import StocktakeDetailModal from './StocktakeDetailModal.vue';
 import api from '../../services/api';
+import { createWarehouseFetcher } from '../../utils/selectFetchers';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -348,14 +350,12 @@ async function loadStocktakes() {
   }
 }
 
+const fetchWarehouseOptions = createWarehouseFetcher({ activeOnly: true });
+
 async function loadInitialData() {
   try {
-    const [whRes, prodRes] = await Promise.all([
-      api.get('/warehouses'),
-      api.get('/products', { params: { per_page: 1000, is_active: 1 } }),
-    ]);
+    const whRes = await api.get('/warehouses');
     warehouses.value = whRes.data.data || [];
-    products.value = prodRes.data.data || [];
   } catch (e) {
     // handled gracefully
   }

@@ -330,7 +330,6 @@ class PosSaleService
         ?string $clientUuid
     ): PosSale {
         return PosSale::query()->create([
-            'invoice_number'          => $this->numberService->generateInvoiceNumber(),
             'shift_id'                => $shift->id,
             'customer_id'             => $customer?->id,
             'payment_method_id'       => $paymentMethod->id,

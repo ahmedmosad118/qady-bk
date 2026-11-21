@@ -1149,13 +1149,21 @@ export const usePosStore = defineStore('pos', {
       }
 
       try {
-        const resp = await api.post(`/pos/shifts/${this.activeShift.id}/close`, {
+        const closingId = this.activeShift.id;
+        const resp = await api.post(`/pos/shifts/${closingId}/close`, {
           actual_cash: Number(actualCash || 0),
           notes: notes.trim() || null,
         });
 
+        if (resp.data?.success === false) {
+          const msg = resp.data?.message || t('pos.store.shiftCloseFailed');
+          notify.error(msg);
+          return { success: false, message: msg };
+        }
+
         const summary = resp.data.data;
         this.activeShift = null;
+        this.availableOpenShifts = (this.availableOpenShifts || []).filter((s) => s.id !== closingId);
         notify.success(t('pos.store.shiftClosedSuccess'));
         return { success: true, summary };
       } catch (err) {

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -114,6 +115,20 @@ class PosSale extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (PosSale $sale): void {
+            if (empty($sale->invoice_number)) {
+                $sale->invoice_number = 'TMP-' . Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (PosSale $sale): void {
+            if (empty($sale->invoice_number) || str_starts_with((string) $sale->invoice_number, 'TMP-')) {
+                $sale->forceFill([
+                    'invoice_number' => sprintf('INV-%s-%05d', now()->format('Y'), $sale->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::updating(function (): void {
             throw new LogicException('POS sales are finalized and immutable. Corrections must be handled via returns.');
         });

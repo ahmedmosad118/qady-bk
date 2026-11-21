@@ -282,11 +282,9 @@ class PosReturnService
 
                 // 5. Create POS Return record
                 $now = Carbon::now();
-                $returnNumber = $this->numberService->generateReturnNumber();
 
                 /** @var PosReturn $posReturn */
                 $posReturn = PosReturn::query()->create([
-                    'return_number' => $returnNumber,
                     'pos_sale_id' => $sale->id,
                     'shift_id' => $shift->id,
                     'payment_method_id' => $sale->payment_method_id, // Must match original payment method!

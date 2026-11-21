@@ -75,7 +75,8 @@
               </label>
               <SearchableSelect
                 v-model="form.purchase_order_id"
-                :options="purchaseOrderOptions"
+                :fetch-options="fetchPurchaseOrderOptions"
+                :selected-option-data="selectedPurchaseOrderOption"
                 :paginate="10"
                 :placeholder="$t('purchaseInvoices.selectPurchaseOrderPlaceholder')"
                 :clearable="true"
@@ -96,11 +97,13 @@
               </label>
               <SearchableSelect
                 v-model="form.supplier_id"
-                :options="supplierOptions"
+                :fetch-options="fetchSupplierOptions"
+                :selected-option-data="selectedSupplierOption"
                 :paginate="10"
                 :placeholder="$t('purchaseInvoices.selectSupplier')"
                 :clearable="false"
                 :disabled="sourceMode === 'purchase_order' && !!form.purchase_order_id"
+                @change="(_, opt) => { if (opt) selectedSupplierOption = opt; }"
               />
               <p v-if="errors.supplier_id" class="mt-1 text-xs text-[var(--crimson)]">
                 {{ errors.supplier_id[0] }}
@@ -186,12 +189,13 @@
                     <td class="px-2 py-2.5 min-w-0">
                       <SearchableSelect
                         v-model="item.product_id"
-                        :options="productOptions"
+                        :fetch-options="fetchProductOptions"
+                        :selected-option-data="item.product_option"
                         :paginate="10"
                         placement="top"
                         :placeholder="$t('purchaseInvoices.selectProduct')"
                         :clearable="false"
-                        @update:model-value="onProductSelected(idx)"
+                        @change="(_, opt) => onProductSelected(idx, opt)"
                       />
                       <p v-if="errors[`items.${idx}.product_id`]" class="mt-1 text-[11px] text-[var(--crimson)] truncate">
                         {{ errors[`items.${idx}.product_id`][0] }}
@@ -495,6 +499,7 @@ import { reactive, ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '../../services/api';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import { createPaginatedFetcher, createProductFetcher, createContactFetcher } from '../../utils/selectFetchers';
 import { X, Plus, Trash2, AlertCircle } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -532,26 +537,19 @@ const form = reactive({
   expenses: [],
 });
 
-const supplierOptions = computed(() =>
-  props.suppliers.map((s) => ({
-    value: s.id,
-    label: s.name,
-  }))
-);
+const selectedSupplierOption = ref(null);
+const selectedPurchaseOrderOption = ref(null);
 
-const productOptions = computed(() =>
-  props.products.map((p) => ({
-    value: p.id,
-    label: p.name,
-    barcode: p.barcode,
-  }))
-);
-
-const purchaseOrderOptions = computed(() =>
-  props.purchaseOrders.map((po) => ({
+const fetchSupplierOptions = createContactFetcher({ isSupplier: true });
+const fetchProductOptions = createProductFetcher({ activeOnly: true });
+const fetchPurchaseOrderOptions = createPaginatedFetcher(
+  '/purchase-orders',
+  () => ({ status: 'converted' }),
+  (po) => ({
     value: po.id,
     label: `${po.order_number} (${po.supplier?.name || '—'})`,
-  }))
+    raw: po,
+  })
 );
 
 function setSourceMode(mode) {
@@ -576,6 +574,9 @@ async function onPurchaseOrderSelected(poId) {
     if (!po) return;
 
     form.supplier_id = po.supplier_id;
+    selectedSupplierOption.value = po.supplier
+      ? { value: po.supplier_id, label: po.supplier.name }
+      : null;
     form.discount_type = po.discount_type || 'percentage';
     form.discount_value = Number(po.discount_value) || 0;
     if (po.notes && !form.notes) {
@@ -585,6 +586,7 @@ async function onPurchaseOrderSelected(poId) {
     if (Array.isArray(po.items) && po.items.length > 0) {
       form.items = po.items.map((i) => ({
         product_id: i.product_id,
+        product_option: i.product ? { value: i.product_id, label: i.product.name, barcode: i.product.barcode } : null,
         quantity: Number(i.quantity) || 1,
         unit_price: Number(i.unit_price) || 0,
         discount_type: i.discount_type || 'percentage',
@@ -596,9 +598,12 @@ async function onPurchaseOrderSelected(poId) {
   }
 }
 
-function onProductSelected(rowIndex) {
+function onProductSelected(rowIndex, opt) {
   mergeNotice.value = '';
   const current = form.items[rowIndex];
+  if (opt && current) {
+    current.product_option = opt;
+  }
   if (!current?.product_id) return;
 
   const existingIndex = form.items.findIndex(
@@ -725,7 +730,13 @@ function initForm() {
   if (props.invoice && props.invoice.id) {
     sourceMode.value = props.invoice.purchase_order_id ? 'purchase_order' : 'direct';
     form.purchase_order_id = props.invoice.purchase_order_id || null;
+    selectedPurchaseOrderOption.value = props.invoice.purchase_order
+      ? { value: props.invoice.purchase_order_id, label: `${props.invoice.purchase_order.order_number} (${props.invoice.supplier?.name || '—'})` }
+      : null;
     form.supplier_id = props.invoice.supplier_id;
+    selectedSupplierOption.value = props.invoice.supplier
+      ? { value: props.invoice.supplier_id, label: props.invoice.supplier.name }
+      : null;
     form.invoice_date = props.invoice.invoice_date ? String(props.invoice.invoice_date).substring(0, 10) : todayStr();
     form.due_date = props.invoice.due_date ? String(props.invoice.due_date).substring(0, 10) : form.invoice_date;
     form.notes = props.invoice.notes || '';
@@ -736,12 +747,13 @@ function initForm() {
     form.items = props.invoice.items?.length
       ? props.invoice.items.map((i) => ({
           product_id: i.product_id,
+          product_option: i.product ? { value: i.product_id, label: i.product.name, barcode: i.product.barcode } : null,
           quantity: Number(i.quantity) || 1,
           unit_price: Number(i.unit_price) || 0,
           discount_type: i.discount_type || 'percentage',
           discount_value: Number(i.discount_value) || 0,
         }))
-      : [{ product_id: null, quantity: 1, unit_price: 0, discount_type: 'percentage', discount_value: 0 }];
+      : [{ product_id: null, product_option: null, quantity: 1, unit_price: 0, discount_type: 'percentage', discount_value: 0 }];
 
     form.expenses = Array.isArray(props.invoice.expenses)
       ? props.invoice.expenses.map((e) => ({
@@ -753,7 +765,9 @@ function initForm() {
   } else {
     sourceMode.value = 'direct';
     form.purchase_order_id = null;
+    selectedPurchaseOrderOption.value = null;
     form.supplier_id = null;
+    selectedSupplierOption.value = null;
     const today = todayStr();
     form.invoice_date = today;
     form.due_date = today;

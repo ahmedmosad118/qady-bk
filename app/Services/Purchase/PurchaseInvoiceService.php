@@ -102,7 +102,6 @@ class PurchaseInvoiceService
 
             /** @var PurchaseInvoice $invoice */
             $invoice = PurchaseInvoice::query()->create([
-                'invoice_number'            => $this->numberService->placeholder(),
                 'supplier_id'               => $supplier->id,
                 'purchase_order_id'         => $purchaseOrderId,
                 'invoice_date'              => $invoiceDate->toDateString(),
@@ -117,8 +116,6 @@ class PurchaseInvoiceService
                 'status'                    => PurchaseInvoiceStatus::DRAFT,
                 'created_by'                => $user->id,
             ]);
-
-            $this->numberService->assignInvoiceNumber($invoice);
 
             $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
             $this->lineWriter->insertInvoiceExpenses($invoice, $calc['expenses']);

@@ -141,6 +141,8 @@
               <SearchableSelect
                 v-model="form.source_warehouse_id"
                 :options="warehouseOptions"
+                :fetch-options="fetchWarehouseOptions"
+                :paginate="10"
                 :placeholder="$t('inventory.sourceWarehousePlaceholder')"
                 :search-placeholder="$t('inventory.searchWarehouses')"
                 :clearable="false"
@@ -156,6 +158,8 @@
               <SearchableSelect
                 v-model="form.destination_warehouse_id"
                 :options="warehouseOptions"
+                :fetch-options="fetchWarehouseOptions"
+                :paginate="10"
                 :placeholder="$t('inventory.destWarehousePlaceholder')"
                 :search-placeholder="$t('inventory.searchWarehouses')"
                 :clearable="false"
@@ -228,14 +232,17 @@
                   <tr v-for="(item, idx) in form.items" :key="idx" class="align-top">
                     <td class="px-3 py-2.5 pt-4 text-center text-xs font-bold text-[var(--muted)]">{{ idx + 1 }}</td>
                     <td class="px-3 py-2.5">
-                      <!-- SearchableSelect for Line Item Products with 10 pagination -->
+                      <!-- SearchableSelect for Line Item Products with AJAX 10-by-10 pagination -->
                       <SearchableSelect
                         v-model="item.product_id"
-                        :options="availableProductOptions(item.product_id)"
+                        :fetch-options="fetchProductOptions"
+                        :selected-option-data="item.product_option"
+                        :exclude-values="selectedOtherProductIds(idx)"
                         :paginate="10"
                         :placeholder="$t('inventory.searchProductPlaceholder')"
                         :search-placeholder="$t('inventory.searchProductHint')"
                         :clearable="false"
+                        @change="(_, opt) => { if (opt) item.product_option = opt; }"
                       />
                       <p v-if="errors[`items.${idx}.product_id`]" class="mt-1 text-[11px] text-[var(--crimson)]">
                         {{ errors[`items.${idx}.product_id`][0] }}
@@ -317,6 +324,7 @@ import {
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import api from '../../services/api';
+import { createProductFetcher, createWarehouseFetcher } from '../../utils/selectFetchers';
 
 const { t } = useI18n();
 
@@ -481,30 +489,29 @@ function onDirectionChanged() {
   }
 }
 
+const fetchProductOptions = createProductFetcher({ activeOnly: true });
+const fetchWarehouseOptions = createWarehouseFetcher({
+  activeOnly: true,
+  formatLabel: (w) => `${w.name} (${w.code})${w.is_default ? ' ' + t('warehouses.defaultBadge') : ''}`,
+});
+
 function addItemRow() {
-  form.items.push({ product_id: null, quantity: 1, notes: '' });
+  form.items.push({ product_id: null, product_option: null, quantity: 1, notes: '' });
 }
 
 function removeItemRow(index) {
   if (form.items.length > 1) {
     form.items.splice(index, 1);
   } else {
-    form.items[0] = { product_id: null, quantity: 1, notes: '' };
+    form.items[0] = { product_id: null, product_option: null, quantity: 1, notes: '' };
   }
 }
 
-function availableProductOptions(currentProductId) {
-  const selectedOtherIds = form.items
+function selectedOtherProductIds(currentIndex) {
+  return form.items
+    .filter((_, idx) => idx !== currentIndex)
     .map(i => i.product_id)
-    .filter(id => id && id !== currentProductId);
-
-  return props.products
-    .filter(p => !selectedOtherIds.includes(p.id))
-    .map(p => ({
-      value: p.id,
-      label: p.name,
-      barcode: p.barcode,
-    }));
+    .filter(Boolean);
 }
 
 // Watch when modal opens or document changes
@@ -527,10 +534,11 @@ watch(
         form.items = props.document.items && props.document.items.length > 0
           ? props.document.items.map(item => ({
               product_id: item.product_id,
+              product_option: item.product ? { value: item.product_id, label: item.product.name, barcode: item.product.barcode } : null,
               quantity: Number(item.quantity),
               notes: item.notes || '',
             }))
-          : [{ product_id: null, quantity: 1, notes: '' }];
+          : [{ product_id: null, product_option: null, quantity: 1, notes: '' }];
       } else {
         // Reset to initial new document
         form.document_type = normalizedFixedType.value || 'goods_receipt';
@@ -539,7 +547,7 @@ watch(
         form.return_direction = 'inbound';
         form.write_off_reason = '';
         form.notes = '';
-        form.items = [{ product_id: null, quantity: 1, notes: '' }];
+        form.items = [{ product_id: null, product_option: null, quantity: 1, notes: '' }];
         onTypeChanged();
       }
     }

@@ -111,11 +111,20 @@ export const useAuthStore = defineStore('auth', {
         // Only log out if backend explicitly rejected the token (401 Unauthorized).
         // Temporary server hiccups (500), DB disconnects, or network drops should NOT kick the user out.
         if (err.response?.status === 401) {
-          this.logout();
+          this.clearAuth();
         } else {
           console.warn('Failed to refresh user profile from server:', err);
         }
       }
+    },
+
+    clearAuth() {
+      this.user = null;
+      this.token = null;
+      this.permissions = [];
+      this.roles = [];
+
+      clearSession();
     },
 
     async logout() {
@@ -124,12 +133,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (err) {
         // Ignore
       } finally {
-        this.user = null;
-        this.token = null;
-        this.permissions = [];
-        this.roles = [];
-
-        clearSession();
+        this.clearAuth();
       }
     },
 

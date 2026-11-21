@@ -245,9 +245,51 @@ body {
         color: #000000 !important;
     }
 
-    /* Hide background POS screen during browser print */
-    body > #app {
+    /* Hide background screen ONLY when thermal receipt or AppDrawer is open */
+    body:has(#thermal-receipt-printable) > #app {
         visibility: hidden !important;
+    }
+
+    body:has([data-app-drawer]) > #app {
+        display: none !important;
+    }
+
+    /* AppDrawer full-page print layout (Inventory Docs, Purchase Invoices/Orders, etc.) */
+    [data-app-drawer] {
+        position: static !important;
+        inset: auto !important;
+        overflow: visible !important;
+        height: auto !important;
+        width: 100% !important;
+    }
+
+    [data-app-drawer-backdrop] {
+        display: none !important;
+    }
+
+    [data-app-drawer-wrapper] {
+        position: static !important;
+        inset: auto !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    [data-app-drawer-panel] {
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    [data-app-drawer-body] {
+        overflow: visible !important;
+        height: auto !important;
     }
 
     #thermal-receipt-printable,

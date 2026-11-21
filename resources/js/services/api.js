@@ -51,17 +51,33 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+let onUnauthorized = null;
+
+/**
+ * Register a callback invoked when an authenticated API request receives 401.
+ */
+export const setUnauthorizedHandler = (handler) => {
+  onUnauthorized = handler;
+};
+
 // Response Interceptor: Handle Global Auth Expiry
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Only handle global session expiry on 401 when calling protected routes (skip login failures)
-    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
+    const url = error.config?.url || '';
+    // Only handle global session expiry on 401 when calling protected routes (skip login/logout)
+    if (
+      error.response?.status === 401 &&
+      !url.includes('/auth/login') &&
+      !url.includes('/auth/logout')
+    ) {
       AUTH_STORAGE_KEYS.forEach((key) => {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
       });
-      // Redirection handled by router guard
+      if (typeof onUnauthorized === 'function') {
+        onUnauthorized();
+      }
     }
     return Promise.reject(error);
   }

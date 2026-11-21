@@ -534,36 +534,8 @@ async function loadInvoices() {
   }
 }
 
-async function loadSuppliers() {
-  try {
-    const res = await api.get('/contacts', { params: { is_supplier: 1, per_page: 500 } });
-    suppliers.value = res.data.data || [];
-  } catch {
-    // Ignore optional filter preload error
-  }
-}
-
-async function loadProducts() {
-  try {
-    const res = await api.get('/products', { params: { is_active: 1, per_page: 1000 } });
-    products.value = res.data.data || [];
-  } catch {
-    // Ignore preload error
-  }
-}
-
-async function loadConfirmedPurchaseOrders() {
-  try {
-    const res = await api.get('/purchase-orders', { params: { status: 'converted', per_page: 100 } });
-    confirmedOrders.value = res.data.data || [];
-  } catch {
-    // Ignore preload error
-  }
-}
-
 function openCreateModal() {
   selectedInvoice.value = null;
-  loadConfirmedPurchaseOrders();
   formModalOpen.value = true;
 }
 
@@ -689,8 +661,6 @@ watch(
 
 onMounted(() => {
   loadInvoices();
-  loadSuppliers();
-  loadProducts();
   openFromQuery();
 });
 </script>

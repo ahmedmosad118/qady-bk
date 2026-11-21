@@ -108,6 +108,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import PosTopBar from './PosTopBar.vue';
 import PosCatalog from './PosCatalog.vue';
 import PosCart from './PosCart.vue';
@@ -127,6 +128,7 @@ import { usePosStore } from '../../stores/pos';
 import { useNotificationStore } from '../../stores/notification';
 
 const { t } = useI18n();
+const router = useRouter();
 const posStore = usePosStore();
 const notify = useNotificationStore();
 
@@ -241,7 +243,7 @@ async function handleConfirmCloseShift({ actual_cash, notes }) {
     const res = await posStore.closeShift(actual_cash, notes);
     if (res.success) {
       showCloseShiftModal.value = false;
-      showOpenShiftModal.value = true;
+      await router.push({ name: 'home' });
     }
   } finally {
     submittingCloseShift.value = false;

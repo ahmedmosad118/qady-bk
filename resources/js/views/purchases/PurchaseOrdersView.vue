@@ -528,24 +528,6 @@ async function loadOrders() {
   }
 }
 
-async function loadSuppliers() {
-  try {
-    const res = await api.get('/contacts', { params: { is_supplier: 1, per_page: 500 } });
-    suppliers.value = res.data.data || [];
-  } catch {
-    // Keep empty on error
-  }
-}
-
-async function loadProducts() {
-  try {
-    const res = await api.get('/products', { params: { is_active: 1, per_page: 1000 } });
-    products.value = res.data.data || [];
-  } catch {
-    // Keep empty on error
-  }
-}
-
 function getLinkedInvoice(order) {
   const list = order?.purchase_invoices || [];
   if (list.length === 0) return null;
@@ -688,8 +670,6 @@ watch(
 
 onMounted(() => {
   loadOrders();
-  loadSuppliers();
-  loadProducts();
   openFromQuery();
 });
 </script>

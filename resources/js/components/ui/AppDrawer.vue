@@ -2,6 +2,7 @@
   <Teleport to="body">
     <div
       v-if="isOpen"
+      data-app-drawer
       class="fixed inset-0 z-[999] overflow-hidden"
       :dir="isRtl ? 'rtl' : 'ltr'"
       role="dialog"
@@ -18,6 +19,7 @@
       >
         <div
           v-if="isOpen"
+          data-app-drawer-backdrop
           class="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
           @click="handleBackdropClick"
         />
@@ -25,6 +27,7 @@
 
       <!-- Drawer Panel Wrapper -->
       <div
+        data-app-drawer-wrapper
         class="fixed inset-y-0 flex max-w-full pointer-events-none"
         :class="placementClasses"
       >
@@ -38,6 +41,7 @@
         >
           <div
             v-if="isOpen"
+            data-app-drawer-panel
             class="pointer-events-auto relative flex h-full w-screen flex-col overflow-hidden bg-[var(--card)] text-[var(--text)] shadow-2xl transition-all"
             :class="[
               widthClass,
@@ -80,7 +84,7 @@
             </div>
 
             <!-- Drawer Body (Scrollable) -->
-            <div class="custom-scrollbar flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <div data-app-drawer-body class="custom-scrollbar flex-1 overflow-y-auto px-5 py-5 sm:px-6">
               <slot />
             </div>
 

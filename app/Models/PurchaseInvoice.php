@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -194,6 +195,20 @@ class PurchaseInvoice extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (PurchaseInvoice $invoice): void {
+            if (empty($invoice->invoice_number)) {
+                $invoice->invoice_number = 'TMP-' . Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (PurchaseInvoice $invoice): void {
+            if (empty($invoice->invoice_number) || str_starts_with((string) $invoice->invoice_number, 'TMP-')) {
+                $invoice->forceFill([
+                    'invoice_number' => sprintf('PIN-%s-%05d', now()->format('Y'), $invoice->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::deleting(function (PurchaseInvoice $invoice): void {
             if ($invoice->hasPostedGoodsReceipt()) {
                 throw new LogicException('Cannot delete a purchase invoice that has already affected inventory.');

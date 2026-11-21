@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -97,6 +98,20 @@ class PosReturn extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (PosReturn $return): void {
+            if (empty($return->return_number)) {
+                $return->return_number = 'TMP-' . Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (PosReturn $return): void {
+            if (empty($return->return_number) || str_starts_with((string) $return->return_number, 'TMP-')) {
+                $return->forceFill([
+                    'return_number' => sprintf('RET-%s-%05d', now()->format('Y'), $return->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::updating(function (): void {
             throw new LogicException('POS returns are finalized and immutable.');
         });
