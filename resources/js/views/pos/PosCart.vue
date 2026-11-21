@@ -71,18 +71,18 @@
         <div class="flex items-center gap-2 text-xs">
           <div class="flex items-center gap-1.5">
             <span class="text-[11px] font-bold text-[var(--muted)]">{{ $t('pos.priceLabel') }}</span>
-            <div class="relative flex items-center" dir="ltr">
+            <div class="relative flex items-center">
               <input
                 :value="item.unit_price"
                 type="number"
                 min="0"
                 step="any"
-                class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] pl-1 pr-6 font-mono"
+                class="w-20 h-7 text-center font-bold text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] ps-1 pe-6 font-mono"
                 :title="$t('pos.overridePriceTooltip')"
                 @change="posStore.updateCartItemPrice(item.product_id, $event.target.value)"
                 @keyup.enter="$event.target.blur()"
               />
-              <span class="absolute right-1.5 text-[10px] font-bold text-[var(--muted)] pointer-events-none">{{ $t('common.currency') }}</span>
+              <span class="absolute end-1.5 text-[10px] font-bold text-[var(--muted)] pointer-events-none">{{ $t('common.currency') }}</span>
             </div>
           </div>
 

@@ -41,7 +41,6 @@
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <span
-              dir="ltr"
               class="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--text)]"
             >
               {{ node.code }}

@@ -156,6 +156,11 @@ class PosReturnService
                 // 1. Lock and validate shift
                 /** @var PosShift $shift */
                 $shift = PosShift::query()->lockForUpdate()->findOrFail($data['shift_id']);
+                if ((int) $shift->opened_by !== (int) $user->id) {
+                    throw ValidationException::withMessages([
+                        'shift_id' => [__('pos.errors.shift_belongs_to_another_user')],
+                    ]);
+                }
                 if ($shift->isClosed()) {
                     throw ValidationException::withMessages([
                         'shift_id' => ['الوردية المحددة مغلقة. لا يمكن إجراء عمليات إرجاع على وردية مغلقة.'],

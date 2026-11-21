@@ -38,9 +38,8 @@
             inputmode="numeric"
             required
             placeholder="01XXXXXXXXX"
-            class="w-full h-11 px-3 text-sm rounded-xl border bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] text-left"
+            class="w-full h-11 px-3 text-sm rounded-xl border bg-[var(--card)] text-[var(--text)] outline-none focus:border-[var(--crimson)] text-start"
             :class="fieldError('mobile') ? 'border-red-500' : 'border-[var(--border)]'"
-            dir="ltr"
             @input="onMobileInput"
           />
           <p v-if="fieldError('mobile')" class="mt-1 text-xs font-semibold text-red-500">

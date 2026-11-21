@@ -165,11 +165,10 @@
               class="transition-colors hover:bg-[var(--bg)]/50"
             >
               <!-- Order Number -->
-              <td class="px-5 py-4">
+              <td class="px-5 py-4 whitespace-nowrap">
                 <button
                   type="button"
                   class="font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
-                  dir="ltr"
                   @click="openDetailModal(order)"
                 >
                   {{ order.order_number }}

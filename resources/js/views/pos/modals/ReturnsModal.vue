@@ -73,8 +73,8 @@
         <!-- Invoice Header Card -->
         <div class="p-4 rounded-2xl bg-[var(--bg)] border border-[var(--border)] space-y-2 text-xs">
           <div class="flex items-center justify-between">
-            <span class="font-mono font-black text-sm text-[var(--text)]" dir="ltr">{{ activeInvoice.invoice_number }}</span>
-            <span class="font-mono font-bold text-[var(--muted)]" dir="ltr">{{ formatDateTime(activeInvoice.sold_at, locale) }}</span>
+            <span class="font-mono font-black text-sm text-[var(--text)]">{{ activeInvoice.invoice_number }}</span>
+            <span class="font-mono font-bold text-[var(--muted)]">{{ formatDateTime(activeInvoice.sold_at, locale) }}</span>
           </div>
           <div class="flex flex-wrap justify-between gap-2 pt-1 border-t border-[var(--border)]">
             <span>{{ $t('pos.modals.returns.customerLabel') }} <b>{{ activeInvoice.customer?.name || $t('pos.modals.heldSales.cashCustomer') }}</b></span>
@@ -208,7 +208,7 @@
             >
               <div class="min-w-0 flex-1 space-y-1">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="font-mono text-sm font-black text-[var(--text)] group-hover:text-[var(--crimson)] transition-colors" dir="ltr">
+                  <span class="font-mono text-sm font-black text-[var(--text)] group-hover:text-[var(--crimson)] transition-colors">
                     {{ sale.invoice_number }}
                   </span>
                   <span class="rounded-md bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 text-[11px] font-bold text-[var(--muted)]">
@@ -222,7 +222,7 @@
                   <span class="font-semibold text-[var(--text)]/80 truncate">
                     {{ sale.customer?.name || $t('pos.modals.heldSales.cashCustomer') }}
                   </span>
-                  <span class="font-mono text-[11px]" dir="ltr">{{ formatDateTime(sale.sold_at, locale) }}</span>
+                  <span class="font-mono text-[11px]">{{ formatDateTime(sale.sold_at, locale) }}</span>
                 </div>
               </div>
 

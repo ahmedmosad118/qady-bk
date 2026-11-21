@@ -257,13 +257,11 @@ function onSearchInput() {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
     scrollToTop();
-    if (posStore.isOnline) {
-      posStore.reloadProducts({
-        query: posStore.searchQuery,
-        categoryId: posStore.selectedCategoryId,
-        page: 1,
-      });
-    }
+    posStore.reloadProducts({
+      query: posStore.searchQuery,
+      categoryId: posStore.selectedCategoryId,
+      page: 1,
+    });
   }, 300);
 }
 
@@ -271,29 +269,24 @@ function clearSearch() {
   clearTimeout(searchDebounceTimer);
   posStore.searchQuery = '';
   scrollToTop();
-  if (posStore.isOnline) {
-    posStore.reloadProducts({
-      query: '',
-      categoryId: posStore.selectedCategoryId,
-      page: 1,
-    });
-  }
+  posStore.reloadProducts({
+    query: '',
+    categoryId: posStore.selectedCategoryId,
+    page: 1,
+  });
 }
 
 function onSelectCategory(catId) {
   posStore.selectedCategoryId = catId;
   scrollToTop();
-  if (posStore.isOnline) {
-    posStore.reloadProducts({
-      query: posStore.searchQuery,
-      categoryId: catId,
-      page: 1,
-    });
-  }
+  posStore.reloadProducts({
+    query: posStore.searchQuery,
+    categoryId: catId,
+    page: 1,
+  });
 }
 
 async function changePage(targetPage) {
-  if (!posStore.isOnline) return;
   scrollToTop();
   await posStore.goToProductsPage(targetPage);
 }

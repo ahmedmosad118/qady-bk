@@ -236,17 +236,5 @@ class PosIdempotencyTest extends TestCase
         ]);
 
         $response->assertForbidden();
-
-        // Also blocked on offline sync
-        $syncResp = $this->postJson('/api/pos/sync/sales', [
-            'client_uuid' => (string) Str::uuid(),
-            'shift_id' => $this->shift->id,
-            'payment_method_id' => $this->cashMethod->id,
-            'items' => [
-                ['product_id' => $this->product->id, 'quantity' => 1],
-            ],
-        ]);
-
-        $syncResp->assertForbidden();
     }
 }

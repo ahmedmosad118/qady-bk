@@ -129,11 +129,10 @@
               class="transition-colors hover:bg-[var(--bg)]/50"
             >
               <!-- Document Number -->
-              <td class="px-4 py-3.5">
+              <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
                   type="button"
-                  class="font-mono text-sm font-extrabold text-[var(--text)] hover:underline cursor-pointer"
-                  dir="ltr"
+                  class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                   @click="openDetailModal(doc)"
                 >
                   {{ doc.document_number }}
@@ -141,7 +140,7 @@
               </td>
 
               <!-- Document Source -->
-              <td class="px-4 py-3.5">
+              <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
                   v-if="documentSourceInfo(doc)?.clickable"
                   type="button"
@@ -151,7 +150,7 @@
                 >
                   <component :is="documentSourceInfo(doc).icon" class="h-3.5 w-3.5 text-[var(--muted)] shrink-0" aria-hidden="true" />
                   <span class="text-[var(--muted)] font-semibold">{{ documentSourceInfo(doc).label }}:</span>
-                  <span class="font-mono" dir="ltr">{{ documentSourceInfo(doc).number }}</span>
+                  <span class="font-mono">{{ documentSourceInfo(doc).number }}</span>
                   <ExternalLink class="h-3 w-3 text-[var(--muted)] shrink-0" aria-hidden="true" />
                 </button>
                 <span

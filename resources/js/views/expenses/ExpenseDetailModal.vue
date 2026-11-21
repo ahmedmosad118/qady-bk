@@ -17,7 +17,7 @@
 
           <div>
             <div class="flex flex-wrap items-center gap-2.5">
-              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono" dir="ltr">
+              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono">
                 {{ expense?.expense_number || '—' }}
               </h2>
 
@@ -162,7 +162,7 @@
           <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
-                <th class="py-3 px-4">#</th>
+                <th class="w-10 py-3 px-4 text-center">#</th>
                 <th class="py-3 px-4 text-start">{{ $t('expenses.itemName') }}</th>
                 <th class="py-3 px-4 text-start">{{ $t('expenses.itemAttachments') }}</th>
                 <th class="py-3 px-4 text-end">{{ $t('expenses.amount') }}</th>
@@ -174,7 +174,7 @@
                 :key="item.id || idx"
                 class="transition-colors hover:bg-[var(--bg)]/50 align-top"
               >
-                <td class="py-3.5 px-4 text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
+                <td class="py-3.5 px-4 text-center text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
                 <td class="py-3.5 px-4">
                   <div class="font-bold text-[var(--text)] text-sm">{{ item.name }}</div>
                   <p v-if="item.description" class="mt-1 text-xs text-[var(--muted)] whitespace-pre-line">

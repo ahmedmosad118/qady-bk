@@ -106,31 +106,31 @@
       <!-- Table -->
       <div v-if="loading || contacts.length" class="overflow-x-auto">
         <table class="w-full min-w-[820px] table-auto text-start">
-          <thead class="bg-[var(--bg)]">
+          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-start">
                 {{ contactColHeader }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] sm:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-center sm:table-cell">
                 {{ $t('contacts.typeCol') }}
               </th>
               <th
                 v-if="activeRole === 'all'"
                 scope="col"
-                class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]"
+                class="px-4 py-3.5 text-start"
               >
                 {{ $t('contacts.rolesCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] lg:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-start lg:table-cell">
                 {{ $t('contacts.phoneCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] xl:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-start xl:table-cell">
                 {{ $t('contacts.emailCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-center">
                 {{ $t('contacts.statusCol') }}
               </th>
-              <th scope="col" class="w-24 px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="w-24 px-4 py-3.5 text-end">
                 {{ $t('common.actions') }}
               </th>
             </tr>
@@ -150,11 +150,11 @@
             </tr>
           </tbody>
 
-          <tbody v-else>
+          <tbody v-else class="divide-y divide-[var(--border)]">
             <tr
               v-for="contact in contacts"
               :key="contact.id"
-              class="border-t border-[var(--border)] transition-colors hover:bg-[var(--bg)]/40"
+              class="transition-colors hover:bg-[var(--bg)]/40"
             >
               <td class="px-4 py-3.5">
                 <div class="flex items-center gap-3">
@@ -192,7 +192,7 @@
                 </div>
               </td>
 
-              <td class="hidden px-4 py-3.5 sm:table-cell">
+              <td class="hidden px-4 py-3.5 text-center sm:table-cell">
                 <span class="inline-flex rounded-md bg-[var(--bg)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
                   {{ typeLabel(contact.type) }}
                 </span>
@@ -216,7 +216,7 @@
               </td>
 
               <td class="hidden px-4 py-3.5 lg:table-cell">
-                <span v-if="contact.mobile || contact.phone" class="font-mono text-sm text-[var(--muted)]" dir="ltr">
+                <span v-if="contact.mobile || contact.phone" class="font-mono text-sm text-[var(--muted)]">
                   {{ contact.mobile || contact.phone }}
                 </span>
                 <span v-else class="text-sm text-[var(--muted)]">—</span>
@@ -227,12 +227,12 @@
                 <span v-else class="text-sm text-[var(--muted)]">—</span>
               </td>
 
-              <td class="px-4 py-3.5">
+              <td class="px-4 py-3.5 text-center">
                 <StatusBadge :active="!!contact.is_active" />
               </td>
 
-              <td class="px-4 py-3.5">
-                <div class="flex items-center gap-1.5">
+              <td class="px-4 py-3.5 text-end">
+                <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
                     class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"

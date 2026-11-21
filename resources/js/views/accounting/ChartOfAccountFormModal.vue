@@ -55,7 +55,6 @@
         <input
           v-model="form.code"
           type="text"
-          dir="ltr"
           :placeholder="isEditing ? '' : $t('chartOfAccounts.autoCodePlaceholder')"
           :disabled="saving"
           class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 font-mono text-sm font-semibold text-[var(--text)] outline-none transition placeholder:font-sans placeholder:text-xs focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"

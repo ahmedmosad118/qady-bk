@@ -8,7 +8,7 @@
             <LockKeyhole class="w-5 h-5" />
           </div>
           <div>
-            <h3 class="text-lg font-black">{{ posStore.isOpenShift ? $t('pos.modals.openShift.manageTitle') : $t('pos.modals.openShift.selectTitle') }}</h3>
+            <h3 class="text-lg font-black">{{ $t('pos.modals.openShift.newShiftTab') }}</h3>
             <p class="text-xs text-[var(--muted)]">{{ $t('pos.modals.openShift.subtitle') }}</p>
           </div>
         </div>
@@ -21,68 +21,8 @@
         </button>
       </div>
 
-      <!-- Mode Selector (if open shifts exist) -->
-      <div v-if="posStore.availableOpenShifts.length > 0" class="flex border border-[var(--border)] rounded-2xl p-1 bg-[var(--bar)] mb-4">
-        <button
-          type="button"
-          class="flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer"
-          :class="activeTab === 'select' ? 'bg-[var(--card)] text-[var(--text)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--text)]'"
-          @click="activeTab = 'select'"
-        >
-          {{ $t('pos.modals.openShift.openShiftsTab', { count: posStore.availableOpenShifts.length }) }}
-        </button>
-        <button
-          type="button"
-          class="flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer"
-          :class="activeTab === 'new' ? 'bg-[var(--card)] text-[var(--text)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--text)]'"
-          @click="activeTab = 'new'"
-        >
-          {{ $t('pos.modals.openShift.newShiftTab') }}
-        </button>
-      </div>
-
-      <!-- Tab 1: Select Open Shift -->
-      <div v-if="activeTab === 'select' && posStore.availableOpenShifts.length > 0" class="space-y-3 mb-4">
-        <p class="text-xs text-[var(--muted)]">{{ $t('pos.modals.openShift.selectPrompt') }}</p>
-        <div
-          v-for="shift in posStore.availableOpenShifts"
-          :key="shift.id"
-          class="p-4 rounded-2xl border transition flex items-center justify-between gap-3"
-          :class="posStore.activeShift?.id === shift.id
-            ? 'border-[var(--ok)] bg-[var(--okbg)]/20'
-            : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--crimson)]'"
-        >
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <b class="text-sm font-black">{{ shift.shift_number }}</b>
-              <span v-if="shift.opened_by === authStore.user?.id" class="text-[10px] font-bold bg-[var(--soft)] text-[var(--crimson)] px-1.5 py-0.5 rounded">
-                {{ $t('pos.modals.openShift.yourShift') }}
-              </span>
-            </div>
-            <div class="text-xs text-[var(--muted)] flex flex-wrap gap-2">
-              <span>{{ $t('pos.modals.openShift.userPrefix', { name: shift.opened_by_name || $t('pos.salesPage.cashier') }) }}</span>
-              <span>·</span>
-              <span>{{ $t('pos.modals.openShift.startedPrefix', { time: formatTime(shift.opened_at) }) }}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="h-9 px-4 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-            :class="posStore.activeShift?.id === shift.id
-              ? 'bg-[var(--ok)] text-white'
-              : 'bg-[var(--crimson)] text-white hover:opacity-90'"
-            @click="selectShift(shift.id)"
-          >
-            <Check v-if="posStore.activeShift?.id === shift.id" class="w-3.5 h-3.5" />
-            <span>{{ posStore.activeShift?.id === shift.id ? $t('pos.modals.openShift.currentShift') : $t('pos.modals.openShift.chooseShift') }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tab 2: Open New Shift -->
-      <form v-else @submit.prevent="submitOpen" class="space-y-4">
+      <!-- Open New Shift Form -->
+      <form @submit.prevent="submitOpen" class="space-y-4">
         <div class="text-start">
           <label class="block text-xs font-bold mb-1 text-[var(--muted)]">{{ $t('pos.modals.openShift.openingBalanceLabel') }}</label>
           <input
@@ -120,12 +60,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { LockKeyhole, X, Check } from 'lucide-vue-next';
-import { usePosStore } from '../../../stores/pos';
-import { useAuthStore } from '../../../stores/auth';
-
-const { locale } = useI18n();
+import { LockKeyhole, X } from 'lucide-vue-next';
 
 defineProps({
   loading: {
@@ -134,33 +69,15 @@ defineProps({
   },
 });
 
-const emit = defineEmits(['open', 'close', 'select']);
+const emit = defineEmits(['open', 'close']);
 
-const posStore = usePosStore();
-const authStore = useAuthStore();
-
-const activeTab = ref(posStore.availableOpenShifts.length > 0 ? 'select' : 'new');
 const openingBalance = ref(0);
 const notes = ref('');
-
-function selectShift(shiftId) {
-  if (posStore.selectShift(shiftId)) {
-    emit('close');
-  }
-}
 
 function submitOpen() {
   emit('open', {
     opening_balance: Number(openingBalance.value || 0),
     notes: notes.value,
-  });
-}
-
-function formatTime(isoStr) {
-  if (!isoStr) return '';
-  return new Date(isoStr).toLocaleTimeString(locale.value === 'ar' ? 'ar-EG' : 'en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
 </script>

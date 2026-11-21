@@ -21,43 +21,11 @@
       </div>
     </div>
 
-    <!-- Status Chips -->
-    <div class="flex items-center gap-2 ms-2">
-      <!-- Online / Offline -->
-      <span
-        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-        :class="posStore.isOnline ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40'"
-      >
-        <Wifi v-if="posStore.isOnline" class="w-3 h-3 text-emerald-600" />
-        <WifiOff v-else class="w-3 h-3 text-amber-600" />
-        <span>{{ posStore.isOnline ? $t('pos.online') : $t('pos.offline') }}</span>
-      </span>
-    </div>
-
     <!-- Spacer -->
     <div class="flex-1"></div>
 
     <!-- Top Action Buttons -->
     <div class="flex items-center gap-2">
-      <!-- Offline Queue Indicator (when has pending or conflict items) -->
-      <button
-        v-if="posStore.offlineQueue.length > 0"
-        type="button"
-        class="h-9 px-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 transition flex items-center gap-1.5 relative"
-        :title="$t('pos.offlineQueueTooltip')"
-        @click="$emit('open-offline-queue')"
-      >
-        <RefreshCw v-if="posStore.syncingQueue" class="w-4 h-4 text-amber-600 animate-spin" />
-        <CloudOff v-else class="w-4 h-4 text-amber-600" />
-        <span class="hidden sm:inline">{{ $t('pos.offlineQueue') }}</span>
-        <span
-          class="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-white text-[11px] font-black"
-          :class="posStore.conflictOfflineCount > 0 ? 'bg-red-600' : 'bg-amber-600'"
-        >
-          {{ posStore.offlineQueue.length }}
-        </span>
-      </button>
-
       <!-- Search Invoice / Returns -->
       <button
         type="button"
@@ -145,8 +113,6 @@
 
 <script setup>
 import {
-  Wifi,
-  WifiOff,
   Search,
   ArrowLeftRight,
   Pause,
@@ -154,8 +120,6 @@ import {
   LockKeyhole,
   LockKeyholeOpen,
   LayoutDashboard,
-  CloudOff,
-  RefreshCw,
 } from 'lucide-vue-next';
 import { usePosStore } from '../../stores/pos';
 
@@ -165,7 +129,6 @@ const emit = defineEmits([
   'open-held',
   'open-close-shift',
   'open-open-shift',
-  'open-offline-queue',
 ]);
 
 const posStore = usePosStore();

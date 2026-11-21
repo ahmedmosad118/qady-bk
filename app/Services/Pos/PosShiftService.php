@@ -23,11 +23,24 @@ class PosShiftService
     ) {}
 
     /**
-     * Open a new shift.
+     * Open a new shift for the user.
+     * Strictly enforces one open shift per user at any time.
      */
     public function openShift(User $user, float|int|string $openingBalance = '0.00', ?string $notes = null): PosShift
     {
         return DB::transaction(function () use ($user, $openingBalance, $notes): PosShift {
+            $existingOpen = PosShift::query()
+                ->where('opened_by', $user->id)
+                ->open()
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingOpen !== null) {
+                throw ValidationException::withMessages([
+                    'shift' => [__('pos.errors.user_already_has_open_shift', ['number' => $existingOpen->shift_number])],
+                ]);
+            }
+
             $opening = Decimal::max(
                 '0.00',
                 Decimal::fromNumeric($openingBalance, Decimal::MONEY_SCALE),
@@ -52,6 +65,18 @@ class PosShiftService
     }
 
     /**
+     * Ensure the shift belongs to the acting user.
+     */
+    protected function assertShiftBelongsToUser(PosShift $shift, User $user): void
+    {
+        if ((int) $shift->opened_by !== (int) $user->id) {
+            throw ValidationException::withMessages([
+                'shift' => [__('pos.errors.shift_belongs_to_another_user')],
+            ]);
+        }
+    }
+
+    /**
      * Close an active shift.
      * Takes snapshot of expected cash, actual cash, and difference.
      */
@@ -60,6 +85,8 @@ class PosShiftService
         return DB::transaction(function () use ($shift, $user, $actualCash, $notes): PosShift {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
+
+            $this->assertShiftBelongsToUser($locked, $user);
 
             if ($locked->isClosed()) {
                 throw ValidationException::withMessages([
@@ -107,6 +134,8 @@ class PosShiftService
         return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
+
+            $this->assertShiftBelongsToUser($locked, $user);
 
             if ($locked->isClosed()) {
                 throw ValidationException::withMessages([
@@ -157,6 +186,8 @@ class PosShiftService
         return DB::transaction(function () use ($shift, $user, $formattedAmount, $name, $description): PosShiftTransaction {
             /** @var PosShift $locked */
             $locked = PosShift::query()->lockForUpdate()->findOrFail($shift->id);
+
+            $this->assertShiftBelongsToUser($locked, $user);
 
             if ($locked->isClosed()) {
                 throw ValidationException::withMessages([
@@ -230,16 +261,18 @@ class PosShiftService
     }
 
     /**
-     * Get list of open shifts.
+     * Get list of open shifts (optionally scoped to a specific user).
      *
      * @return Collection<int, PosShift>
      */
-    public function listOpenShifts(): Collection
+    public function listOpenShifts(?User $user = null): Collection
     {
         return PosShift::query()
             ->open()
+            ->when($user !== null, fn ($q) => $q->where('opened_by', $user->id))
             ->with(['openedBy'])
             ->orderByDesc('opened_at')
+            ->orderByDesc('id')
             ->get();
     }
 

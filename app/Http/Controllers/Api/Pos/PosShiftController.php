@@ -48,11 +48,11 @@ class PosShiftController extends Controller
     }
 
     /**
-     * List currently open shifts.
+     * List currently open shift(s) belonging strictly to the authenticated user.
      */
-    public function openShifts(): JsonResponse
+    public function openShifts(Request $request): JsonResponse
     {
-        $shifts = $this->shiftService->listOpenShifts();
+        $shifts = $this->shiftService->listOpenShifts($request->user());
 
         return response()->json([
             'success' => true,

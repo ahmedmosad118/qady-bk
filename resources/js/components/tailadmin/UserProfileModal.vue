@@ -189,16 +189,15 @@
                   <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     {{ $t('profile.email') }} <span class="text-rose-500">*</span>
                   </label>
-                  <div class="relative" dir="ltr">
+                  <div class="relative">
                     <input
                       type="email"
                       v-model="profileForm.email"
                       required
-                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
-                      dir="ltr"
+                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-9 pe-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
                     />
                     <Mail
-                      class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400"
+                      class="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-gray-400"
                     />
                   </div>
                   <p v-if="profileErrors.email" class="mt-1 text-[11px] font-bold text-rose-500">
@@ -211,16 +210,15 @@
                   <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     {{ $t('profile.phone') }}
                   </label>
-                  <div class="relative" dir="ltr">
+                  <div class="relative">
                     <input
                       type="tel"
                       v-model="profileForm.phone"
                       placeholder="010xxxxxxxx"
-                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors text-left"
-                      dir="ltr"
+                      class="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 ps-9 pe-3.5 text-xs font-medium text-gray-900 outline-hidden focus:border-[#A3162B] focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#A3162B] dark:focus:bg-gray-800 transition-colors"
                     />
                     <Phone
-                      class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400"
+                      class="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-gray-400"
                     />
                   </div>
                   <p v-if="profileErrors.phone" class="mt-1 text-[11px] font-bold text-rose-500">

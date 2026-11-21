@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import i18n from '../i18n';
+import i18n from '../i18n/index.js';
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({

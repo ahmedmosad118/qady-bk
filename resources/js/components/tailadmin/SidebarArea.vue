@@ -2,7 +2,7 @@
   <!-- Mobile Backdrop -->
   <div
     v-if="sidebarOpen"
-    class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] lg:hidden"
+    class="print:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] lg:hidden"
     @click="closeMobileSidebar"
   />
 
@@ -17,7 +17,7 @@
       isRtl ? 'right-0 border-l' : 'left-0 border-r',
       isRail ? 'lg:w-[80px] lg:px-2.5' : 'w-[272px] px-3.5',
     ]"
-    class="fixed top-0 z-50 flex h-screen shrink-0 flex-col border-[var(--border)] bg-[var(--card)] py-[18px] transition-all duration-200 ease-linear lg:sticky lg:top-0"
+    class="print:hidden fixed top-0 z-50 flex h-screen shrink-0 flex-col border-[var(--border)] bg-[var(--card)] py-[18px] transition-all duration-200 ease-linear lg:sticky lg:top-0"
   >
     <!-- Brand Header -->
     <div

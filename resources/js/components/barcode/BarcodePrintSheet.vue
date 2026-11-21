@@ -61,11 +61,11 @@ const gridStyle = computed(() => {
   display: none;
 }
 @media print {
-  body > *:not(#barcode-print-root) {
+  body:has(#barcode-print-root) > *:not(#barcode-print-root) {
     display: none !important;
   }
-  html,
-  body {
+  body:has(#barcode-print-root),
+  html:has(#barcode-print-root) {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;

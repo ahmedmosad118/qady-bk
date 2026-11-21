@@ -14,7 +14,7 @@
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h3 class="font-extrabold text-base sm:text-lg leading-tight text-[var(--text)]">{{ $t('pos.shiftDetail.title') }}</h3>
-              <span v-if="shift" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]" dir="ltr">
+              <span v-if="shift" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]">
                 {{ shift.shift_number }}
               </span>
               <span
@@ -179,7 +179,7 @@
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.openedAt') }}</span>
-                  <span class="col-span-2 font-mono font-bold" dir="ltr">{{ formatDateTime(shift.opened_at, locale) }}</span>
+                  <span class="col-span-2 font-mono font-bold">{{ formatDateTime(shift.opened_at, locale) }}</span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.closedBy') }}</span>
@@ -189,7 +189,7 @@
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">{{ $t('pos.shiftDetail.closedAt') }}</span>
-                  <span class="col-span-2 font-mono font-bold" dir="ltr">
+                  <span class="col-span-2 font-mono font-bold">
                     {{ shift.closed_at ? formatDateTime(shift.closed_at, locale) : $t('pos.shiftDetail.stillOpen') }}
                   </span>
                 </div>
@@ -216,7 +216,7 @@
               <table class="w-full text-xs text-start">
                 <thead>
                   <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
-                    <th class="px-3.5 py-2.5 text-start">#</th>
+                    <th class="w-10 px-3.5 py-2.5 text-center">#</th>
                     <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txTypeCol') }}</th>
                     <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txDescCol') }}</th>
                     <th class="px-3.5 py-2.5 text-start">{{ $t('pos.shiftDetail.txRefCol') }}</th>
@@ -231,7 +231,7 @@
                     :key="tx.id || idx"
                     class="hover:bg-[var(--bg)]/50 transition-colors"
                   >
-                    <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
+                    <td class="px-3.5 py-3 text-center font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
                     <td class="px-3.5 py-3">
                       <span
                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
@@ -254,7 +254,7 @@
                       <span v-else class="text-[var(--muted)]">—</span>
                     </td>
                     <td class="px-3.5 py-3 text-[var(--muted)]">{{ tx.creator?.name || $t('pos.salesPage.cashier') }}</td>
-                    <td class="px-3.5 py-3 font-mono text-[11px] text-[var(--muted)]" dir="ltr">
+                    <td class="px-3.5 py-3 font-mono text-[11px] text-[var(--muted)]">
                       {{ formatDateTime(tx.created_at, locale) }}
                     </td>
                     <td class="px-3.5 py-3 text-end font-mono font-black" :class="txAmountClass(tx.type)">

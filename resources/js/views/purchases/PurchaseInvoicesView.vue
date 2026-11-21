@@ -161,11 +161,10 @@
               class="transition-colors hover:bg-[var(--bg)]/50"
             >
               <!-- Invoice Number -->
-              <td class="px-5 py-4">
+              <td class="px-5 py-4 whitespace-nowrap">
                 <button
                   type="button"
                   class="font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
-                  dir="ltr"
                   @click="openDetailModal(invoice)"
                 >
                   {{ invoice.invoice_number }}
@@ -173,12 +172,11 @@
               </td>
 
               <!-- Document Source -->
-              <td class="px-5 py-4">
+              <td class="px-5 py-4 whitespace-nowrap">
                 <button
                   v-if="invoice.purchase_order?.id"
                   type="button"
                   class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)] hover:text-[var(--crimson)] cursor-pointer"
-                  dir="ltr"
                   :title="$t('purchaseInvoices.openPurchaseOrder')"
                   @click="goToPurchaseOrder(invoice.purchase_order.id)"
                 >

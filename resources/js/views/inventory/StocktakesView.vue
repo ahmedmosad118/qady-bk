@@ -120,7 +120,7 @@
               <td class="px-4 py-3.5 text-center text-xs font-bold text-[var(--muted)]">
                 {{ (meta.current_page - 1) * meta.per_page + idx + 1 }}
               </td>
-              <td class="px-4 py-3.5 font-mono font-black text-[var(--text)]" dir="ltr">
+              <td class="px-4 py-3.5 font-mono font-black text-[var(--text)]">
                 {{ st.stocktake_number }}
               </td>
               <td v-if="warehouses.length > 1" class="px-4 py-3.5 font-bold text-[var(--text)]">
@@ -142,7 +142,7 @@
                       :style="{ width: `${progressPercentage(st)}%` }"
                     ></div>
                   </div>
-                  <span class="text-xs font-mono font-bold text-[var(--muted)]" dir="ltr">
+                  <span class="text-xs font-mono font-bold text-[var(--muted)]">
                     {{ st.counted_items_count || 0 }}/{{ st.total_items_count || 0 }}
                   </span>
                 </div>

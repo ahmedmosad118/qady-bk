@@ -24,7 +24,6 @@
             <input
               v-model="scanCode"
               type="text"
-              dir="ltr"
               :placeholder="$t('barcodePrint.scanPlaceholder')"
               class="field"
               @keydown.enter.prevent="addByBarcode"
@@ -37,7 +36,7 @@
             <li v-for="p in results" :key="p.id" class="flex items-center justify-between gap-3 py-2">
               <div class="min-w-0">
                 <p class="truncate text-sm font-bold text-[var(--text)]">{{ p.name }}</p>
-                <p class="text-xs text-[var(--muted)]" dir="ltr">{{ p.barcode || $t('barcodePrint.noBarcode') }}</p>
+                <p class="text-xs font-mono text-[var(--muted)]">{{ p.barcode || $t('barcodePrint.noBarcode') }}</p>
               </div>
               <button type="button" class="btn-ghost" :disabled="isSelected(p.id)" @click="add(p)">
                 <Plus class="h-4 w-4" aria-hidden="true" />
@@ -72,7 +71,7 @@
             <li v-for="item in selected" :key="item.id" class="flex items-center gap-3 py-2">
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-bold text-[var(--text)]">{{ item.name }}</p>
-                <p class="text-xs text-[var(--muted)]" dir="ltr">
+                <p class="text-xs font-mono text-[var(--muted)]">
                   {{ item.barcode || $t('barcodePrint.willGenerate') }}
                 </p>
               </div>

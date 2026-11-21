@@ -14,7 +14,7 @@
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h3 class="font-extrabold text-base sm:text-lg leading-tight text-[var(--text)]">{{ $t('pos.saleDetail.title') }}</h3>
-              <span v-if="sale" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]" dir="ltr">
+              <span v-if="sale" class="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-[var(--bg)] border border-[var(--border)] font-black text-[var(--text)]">
                 {{ sale.invoice_number }}
               </span>
             </div>
@@ -195,7 +195,7 @@
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">{{ $t('pos.saleDetail.soldAt') }}</span>
-                  <span class="col-span-2 font-mono font-bold" dir="ltr">{{ formatDateTime(sale.sold_at, locale) }}</span>
+                  <span class="col-span-2 font-mono font-bold">{{ formatDateTime(sale.sold_at, locale) }}</span>
                 </div>
                 <div class="grid grid-cols-3 px-4 py-2.5">
                   <span class="text-[var(--muted)] font-semibold">{{ $t('pos.saleDetail.invoiceDiscount') }}</span>
@@ -238,12 +238,12 @@
                 <table class="w-full text-start text-xs">
                   <thead>
                     <tr class="bg-[var(--bar)] text-[var(--muted)] font-bold border-b border-[var(--border)]">
-                      <th class="px-3.5 py-2.5 text-start">#</th>
+                      <th class="w-10 px-3.5 py-2.5 text-center">#</th>
                       <th class="px-3.5 py-2.5 text-start">{{ $t('pos.saleDetail.colItem') }}</th>
                       <th class="px-3.5 py-2.5 text-start">{{ $t('pos.saleDetail.colBarcode') }}</th>
                       <th class="px-3.5 py-2.5 text-center">{{ $t('pos.saleDetail.colQty') }}</th>
-                      <th class="px-3.5 py-2.5 text-end">{{ $t('pos.saleDetail.colUnitPrice') }}</th>
-                      <th class="px-3.5 py-2.5 text-end">{{ $t('pos.saleDetail.colDiscount') }}</th>
+                      <th class="px-3.5 py-2.5 text-center">{{ $t('pos.saleDetail.colUnitPrice') }}</th>
+                      <th class="px-3.5 py-2.5 text-center">{{ $t('pos.saleDetail.colDiscount') }}</th>
                       <th class="px-3.5 py-2.5 text-end">{{ $t('pos.saleDetail.colTotal') }}</th>
                     </tr>
                   </thead>
@@ -253,7 +253,7 @@
                       :key="item.id || idx"
                       class="hover:bg-[var(--bg)]/50 transition-colors"
                     >
-                      <td class="px-3.5 py-3 font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
+                      <td class="px-3.5 py-3 text-center font-mono text-[var(--muted)]">{{ idx + 1 }}</td>
                       <td class="px-3.5 py-3">
                         <b class="text-[var(--text)] block">{{ item.product_snapshot?.name || item.product?.name || $t('pos.saleDetail.unnamedItem') }}</b>
                         <span v-if="item.original_unit_price && item.original_unit_price !== item.unit_price" class="text-[10px] text-[var(--muted)] block">
@@ -273,10 +273,10 @@
                       <td class="px-3.5 py-3 text-center font-bold text-[var(--text)] font-mono">
                         {{ Number(item.quantity || 0) }}
                       </td>
-                      <td class="px-3.5 py-3 text-end font-mono">
+                      <td class="px-3.5 py-3 text-center font-mono">
                         {{ Number(item.unit_price || 0).toFixed(2) }}
                       </td>
-                      <td class="px-3.5 py-3 text-end font-mono text-[var(--muted)]">
+                      <td class="px-3.5 py-3 text-center font-mono text-[var(--muted)]">
                         {{ Number(item.discount_amount || 0) > 0 ? Number(item.discount_amount).toFixed(2) : '—' }}
                       </td>
                       <td class="px-3.5 py-3 text-end font-mono font-black text-[var(--text)]">
@@ -375,8 +375,8 @@
                       <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[10px] font-bold text-[var(--muted)]">
                         <th class="px-4 py-2 text-start">{{ $t('pos.saleDetail.colReturnedItem') }}</th>
                         <th class="px-4 py-2 text-center">{{ $t('pos.saleDetail.colReturnedQty') }}</th>
-                        <th class="px-4 py-2 text-end">{{ $t('pos.saleDetail.colUnitPrice') }}</th>
-                        <th class="px-4 py-2 text-end">{{ $t('pos.saleDetail.colAllocatedDiscount') }}</th>
+                        <th class="px-4 py-2 text-center">{{ $t('pos.saleDetail.colUnitPrice') }}</th>
+                        <th class="px-4 py-2 text-center">{{ $t('pos.saleDetail.colAllocatedDiscount') }}</th>
                         <th class="px-4 py-2 text-end">{{ $t('pos.saleDetail.colRefundedAmount') }}</th>
                       </tr>
                     </thead>
@@ -391,10 +391,10 @@
                         <td class="px-4 py-2.5 text-center font-mono font-extrabold text-[var(--text)]">
                           {{ Number(rItem.quantity || 0) }}
                         </td>
-                        <td class="px-4 py-2.5 text-end font-mono text-[var(--muted)]">
+                        <td class="px-4 py-2.5 text-center font-mono text-[var(--muted)]">
                           {{ Number(rItem.unit_price || 0).toFixed(2) }} {{ $t('common.currency') }}
                         </td>
-                        <td class="px-4 py-2.5 text-end font-mono text-[var(--muted)]">
+                        <td class="px-4 py-2.5 text-center font-mono text-[var(--muted)]">
                           -{{ Number(rItem.allocated_discount || 0).toFixed(2) }} {{ $t('common.currency') }}
                         </td>
                         <td class="px-4 py-2.5 text-end font-mono font-black text-[var(--text)]">
@@ -434,11 +434,11 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 text-xs">
                 <div>
                   <span class="text-[var(--muted)] font-semibold block">{{ $t('pos.saleDetail.phone') }}</span>
-                  <span class="font-mono font-bold mt-1 block" dir="ltr">{{ sale.customer.phone || $t('pos.saleDetail.notRegistered') }}</span>
+                  <span class="font-mono font-bold mt-1 block">{{ sale.customer.phone || $t('pos.saleDetail.notRegistered') }}</span>
                 </div>
                 <div>
                   <span class="text-[var(--muted)] font-semibold block">{{ $t('pos.saleDetail.email') }}</span>
-                  <span class="font-mono mt-1 block" dir="ltr">{{ sale.customer.email || $t('pos.saleDetail.notRegistered') }}</span>
+                  <span class="font-mono mt-1 block">{{ sale.customer.email || $t('pos.saleDetail.notRegistered') }}</span>
                 </div>
                 <div>
                   <span class="text-[var(--muted)] font-semibold block">{{ $t('pos.saleDetail.taxNumber') }}</span>
@@ -484,7 +484,7 @@
                   </div>
                   <div class="flex justify-between">
                     <span class="text-[var(--muted)]">{{ $t('common.createdAt') }}:</span>
-                    <span class="font-mono" dir="ltr">{{ formatDateTime(sale.created_at, locale) }}</span>
+                    <span class="font-mono">{{ formatDateTime(sale.created_at, locale) }}</span>
                   </div>
                 </div>
               </div>
@@ -512,11 +512,11 @@
                   </div>
                   <div class="flex justify-between">
                     <span class="text-[var(--muted)]">{{ $t('pos.saleDetail.shiftOpenedAt') }}</span>
-                    <span class="font-mono" dir="ltr">{{ formatDateTime(sale.shift.opened_at, locale) }}</span>
+                    <span class="font-mono">{{ formatDateTime(sale.shift.opened_at, locale) }}</span>
                   </div>
                   <div v-if="sale.shift.closed_at" class="flex justify-between">
                     <span class="text-[var(--muted)]">{{ $t('pos.saleDetail.shiftClosedAt') }}</span>
-                    <span class="font-mono" dir="ltr">{{ formatDateTime(sale.shift.closed_at, locale) }}</span>
+                    <span class="font-mono">{{ formatDateTime(sale.shift.closed_at, locale) }}</span>
                   </div>
                   <div class="pt-2">
                     <button

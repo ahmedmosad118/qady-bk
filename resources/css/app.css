@@ -237,17 +237,39 @@ body {
 }
 
 /* ==========================================================================
-   POS Thermal Printing Optimization
+   Print Optimization (Thermal Receipts, AppDrawer Documents & Reports)
    ========================================================================== */
 @media print {
+    :root,
+    .dark {
+        --crimson: #a3162b !important;
+        --gold: #b8923a !important;
+        --text: #16181d !important;
+        --muted: #5b616b !important;
+        --bg: #f6f6f8 !important;
+        --card: #ffffff !important;
+        --border: #e6e8ec !important;
+        --bar: #f1f3f7 !important;
+    }
+
+    html,
     body {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
         background-color: #ffffff !important;
         color: #000000 !important;
     }
 
     /* Hide background screen ONLY when thermal receipt or AppDrawer is open */
-    body:has(#thermal-receipt-printable) > #app {
+    body:has(#thermal-receipt-printable) > #app,
+    body:has(#thermal-receipt-printable) > [data-app-drawer] {
+        display: none !important;
+    }
+
+    [data-receipt-modal] {
         visibility: hidden !important;
+        background: transparent !important;
     }
 
     body:has([data-app-drawer]) > #app {
@@ -258,12 +280,16 @@ body {
     [data-app-drawer] {
         position: static !important;
         inset: auto !important;
+        display: block !important;
         overflow: visible !important;
         height: auto !important;
         width: 100% !important;
     }
 
-    [data-app-drawer-backdrop] {
+    [data-app-drawer-backdrop],
+    [data-app-drawer-actions],
+    [data-app-drawer-footer],
+    [data-app-drawer-header] button {
         display: none !important;
     }
 
@@ -273,10 +299,12 @@ body {
         display: block !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: auto !important;
     }
 
     [data-app-drawer-panel] {
         position: static !important;
+        display: block !important;
         width: 100% !important;
         max-width: 100% !important;
         height: auto !important;
@@ -285,11 +313,13 @@ body {
         border: none !important;
         background: #ffffff !important;
         color: #000000 !important;
+        transform: none !important;
     }
 
     [data-app-drawer-body] {
         overflow: visible !important;
         height: auto !important;
+        flex: none !important;
     }
 
     #thermal-receipt-printable,

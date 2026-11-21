@@ -113,11 +113,10 @@
                   v-model="barcodeInput"
                   type="text"
                   :placeholder="$t('stocktaking.scanBarcodePlaceholder')"
-                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 pl-8 text-xs font-mono font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson-soft)]"
-                  dir="ltr"
+                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] pe-3 ps-8 text-xs font-mono font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)] focus:ring-2 focus:ring-[var(--crimson-soft)]"
                   @keydown.enter.prevent="handleBarcodeSubmit"
                 />
-                <Barcode class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
+                <Barcode class="absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
               </div>
 
               <button

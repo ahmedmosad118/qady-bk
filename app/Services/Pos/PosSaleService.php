@@ -213,7 +213,7 @@ class PosSaleService
         try {
             return DB::transaction(function () use ($data, $user, $clientUuid): PosSale {
                 # Lock the shift row for the whole transaction to serialize expected_cash updates per shift.
-                $shift = $this->lockOpenShift((int) ($data['shift_id'] ?? 0));
+                $shift = $this->lockOpenShift((int) ($data['shift_id'] ?? 0), $user);
                 
                 # Resolve the payment method, customer, and default warehouse for stock movements.
                 $paymentMethod = $this->resolvePaymentMethod((int) ($data['payment_method_id'] ?? 0));
@@ -272,13 +272,17 @@ class PosSaleService
     /**
      * Row-lock the shift for the whole transaction (serializes expected_cash updates per shift).
      */
-    protected function lockOpenShift(int $shiftId): PosShift
+    protected function lockOpenShift(int $shiftId, User $user): PosShift
     {
         /** @var PosShift|null $shift */
         $shift = PosShift::query()->lockForUpdate()->find($shiftId);
 
         if ($shift === null) {
             throw ValidationException::withMessages(['shift_id' => [__('pos.errors.shift_not_found')]]);
+        }
+
+        if ((int) $shift->opened_by !== (int) $user->id) {
+            throw ValidationException::withMessages(['shift_id' => [__('pos.errors.shift_belongs_to_another_user')]]);
         }
 
         if ($shift->isClosed()) {

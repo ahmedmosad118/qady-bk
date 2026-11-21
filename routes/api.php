@@ -11,7 +11,6 @@ use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosReturnController;
 use App\Http\Controllers\Api\Pos\PosSaleController;
 use App\Http\Controllers\Api\Pos\PosShiftController;
-use App\Http\Controllers\Api\Pos\PosSyncController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Purchase\PurchaseInvoiceController;
@@ -182,10 +181,6 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // POS Dashboard & Statistics
     Route::get('/pos/dashboard/stats', [PosDashboardController::class, 'stats']);
-
-    // POS Offline Sync & Bootstrap
-    Route::get('/pos/sync/bootstrap', [PosSyncController::class, 'bootstrap']);
-    Route::post('/pos/sync/sales', [PosSyncController::class, 'syncSales']);
 
     // General Expenses & Expense Categories
     Route::prefix('expense-categories')->group(function () {

@@ -11,7 +11,6 @@
       @open-held="showHeldModal = true"
       @open-close-shift="handleOpenCloseShift"
       @open-open-shift="showOpenShiftModal = true"
-      @open-offline-queue="showOfflineQueueModal = true"
     />
 
     <!-- Main Workspace (Catalog + Cart) -->
@@ -60,14 +59,7 @@
       v-if="showOpenShiftModal"
       :loading="openingShift"
       @open="handleConfirmOpenShift"
-      @select="handleSelectShift"
       @close="showOpenShiftModal = false"
-    />
-
-    <!-- Offline Queue Modal -->
-    <OfflineQueueModal
-      v-if="showOfflineQueueModal"
-      @close="showOfflineQueueModal = false"
     />
 
     <!-- Close Shift Modal -->
@@ -124,7 +116,6 @@ import CloseShiftModal from './modals/CloseShiftModal.vue';
 import ExpenseModal from './modals/ExpenseModal.vue';
 import ReturnsModal from './modals/ReturnsModal.vue';
 import AddCustomerModal from './modals/AddCustomerModal.vue';
-import OfflineQueueModal from './modals/OfflineQueueModal.vue';
 
 import { usePosStore } from '../../stores/pos';
 import { useNotificationStore } from '../../stores/notification';
@@ -145,7 +136,6 @@ const showCloseShiftModal = ref(false);
 const showExpenseModal = ref(false);
 const showReturnsModal = ref(false);
 const showCustomerModal = ref(false);
-const showOfflineQueueModal = ref(false);
 
 const openingShift = ref(false);
 const closingSummary = ref(null);
@@ -205,21 +195,12 @@ function handleDeleteHeld(heldId) {
   posStore.deleteHeldCart(heldId);
 }
 
-function handleSelectShift(shiftId) {
-  const ok = posStore.selectShift(shiftId);
-  if (ok) {
-    showOpenShiftModal.value = false;
-    notify.success(t('pos.shiftSelectedToast'));
-  }
-}
-
 async function handleConfirmOpenShift({ opening_balance, notes }) {
   openingShift.value = true;
   try {
     const res = await posStore.openShift(opening_balance, notes);
     if (res.success) {
       showOpenShiftModal.value = false;
-      await posStore.bootstrap();
     }
   } finally {
     openingShift.value = false;
@@ -337,7 +318,6 @@ function onGlobalKeyDown(e) {
     else if (showExpenseModal.value) showExpenseModal.value = false;
     else if (showReturnsModal.value) showReturnsModal.value = false;
     else if (showCustomerModal.value) closeCustomerModal();
-    else if (showOfflineQueueModal.value) showOfflineQueueModal.value = false;
   }
 }
 
@@ -347,10 +327,8 @@ onMounted(async () => {
   // Initialize POS
   await posStore.bootstrap();
 
-  // If no shift open, prompt cashier
-  if (!posStore.isOpenShift) {
-    showOpenShiftModal.value = true;
-  }
+  // Only prompt cashier if they do not have an open shift
+  showOpenShiftModal.value = !posStore.isOpenShift;
 });
 
 onUnmounted(() => {

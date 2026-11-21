@@ -17,7 +17,7 @@
 
           <div>
             <div class="flex flex-wrap items-center gap-2.5">
-              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono" dir="ltr">
+              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono">
                 {{ order?.order_number || '—' }}
               </h2>
 
@@ -154,7 +154,7 @@
             <span>{{ $t('purchaseOrders.supplier') }}</span>
           </div>
           <p class="mt-2 text-base font-extrabold text-[var(--text)] truncate">{{ order.supplier?.name || '—' }}</p>
-          <p v-if="order.supplier?.phone || order.supplier?.mobile" class="mt-1 text-xs text-[var(--muted)]" dir="ltr">
+          <p v-if="order.supplier?.phone || order.supplier?.mobile" class="mt-1 text-xs font-mono text-[var(--muted)]">
             {{ order.supplier?.mobile || order.supplier?.phone }}
           </p>
           <p v-if="order.supplier?.tax_number" class="mt-0.5 text-xs text-[var(--muted)]">
@@ -218,7 +218,7 @@
           <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
-                <th class="py-3 px-4">#</th>
+                <th class="w-10 py-3 px-4 text-center">#</th>
                 <th class="py-3 px-4">{{ $t('purchaseOrders.product') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseOrders.quantity') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseOrders.unitPrice') }}</th>
@@ -232,12 +232,12 @@
                 :key="item.id || idx"
                 class="transition-colors hover:bg-[var(--bg)]/50"
               >
-                <td class="py-3 px-4 text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
+                <td class="py-3 px-4 text-center text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
                 <td class="py-3 px-4">
                   <div class="font-bold text-[var(--text)]">
                     {{ item.product_snapshot?.name || item.product?.name || '—' }}
                   </div>
-                  <div v-if="item.product_snapshot?.barcode || item.product?.barcode" class="text-[11px] text-[var(--muted)] font-mono" dir="ltr">
+                  <div v-if="item.product_snapshot?.barcode || item.product?.barcode" class="text-[11px] text-[var(--muted)] font-mono">
                     {{ item.product_snapshot?.barcode || item.product?.barcode }}
                   </div>
                 </td>

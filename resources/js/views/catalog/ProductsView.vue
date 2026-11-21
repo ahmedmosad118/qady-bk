@@ -122,7 +122,7 @@
       <!-- Table -->
       <div v-if="loading || products.length" class="overflow-x-auto">
         <table class="w-full min-w-[780px] table-auto text-start">
-          <thead class="bg-[var(--bg)]">
+          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th scope="col" class="w-12 px-4 py-3.5">
                 <AppCheckbox
@@ -132,28 +132,28 @@
                   @change="toggleAllOnPage"
                 />
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-start">
                 {{ $t('products.productCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-start">
                 {{ $t('products.barcodeCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] lg:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-start lg:table-cell">
                 {{ $t('products.categoryCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] md:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-center md:table-cell">
                 {{ $t('products.purchasePriceCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] md:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-center md:table-cell">
                 {{ $t('products.priceCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] sm:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-center sm:table-cell">
                 {{ $t('products.stockQtyCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-center">
                 {{ $t('products.statusCol') }}
               </th>
-              <th scope="col" class="w-24 px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="w-24 px-4 py-3.5 text-end">
                 {{ $t('common.actions') }}
               </th>
             </tr>
@@ -173,11 +173,11 @@
             </tr>
           </tbody>
 
-          <tbody v-else>
+          <tbody v-else class="divide-y divide-[var(--border)]">
             <tr
               v-for="product in products"
               :key="product.id"
-              class="border-t border-[var(--border)] transition-colors"
+              class="transition-colors"
               :class="isSelected(product) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]'"
             >
               <td class="px-4 py-3.5">
@@ -206,7 +206,7 @@
               </td>
 
               <td class="px-4 py-3.5">
-                <span dir="ltr" class="inline-block font-mono text-sm text-[var(--muted)]">{{ product.barcode || '—' }}</span>
+                <span class="font-mono text-sm text-[var(--muted)]">{{ product.barcode || '—' }}</span>
               </td>
 
               <td class="hidden px-4 py-3.5 lg:table-cell">
@@ -214,15 +214,15 @@
                 <span v-else class="text-sm text-[var(--muted)]">{{ $t('products.uncategorized') }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 md:table-cell">
+              <td class="hidden px-4 py-3.5 text-center md:table-cell">
                 <span class="text-sm font-medium tabular-nums text-[var(--muted)]">{{ formatPrice(product.purchase_price) }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 md:table-cell">
+              <td class="hidden px-4 py-3.5 text-center md:table-cell">
                 <span class="text-sm font-semibold tabular-nums text-[var(--text)]">{{ formatPrice(product.selling_price) }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 sm:table-cell">
+              <td class="hidden px-4 py-3.5 text-center sm:table-cell">
                 <span
                   class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums"
                   :class="Number(product.warehouse_stocks_sum_quantity ?? 0) > 0
@@ -233,12 +233,12 @@
                 </span>
               </td>
 
-              <td class="px-4 py-3.5">
+              <td class="px-4 py-3.5 text-center">
                 <StatusBadge :active="!!product.is_active" />
               </td>
 
-              <td class="px-4 py-3.5">
-                <div class="flex items-center gap-1.5">
+              <td class="px-4 py-3.5 text-end">
+                <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
                     class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"

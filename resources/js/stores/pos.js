@@ -1,13 +1,12 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
-import i18n from '../i18n';
+import i18n from '../i18n/index.js';
 import { useAuthStore } from './auth.js';
 import { useNotificationStore } from './notification.js';
 
 const t = (key, params) => i18n.global.t(key, params);
 
 const HELD_SALES_KEY = 'qady_pos_held_sales';
-const OFFLINE_QUEUE_KEY = 'qady_pos_offline_queue';
 const POS_PRODUCTS_PER_PAGE = 32;
 
 export const usePosStore = defineStore('pos', {
@@ -53,15 +52,9 @@ export const usePosStore = defineStore('pos', {
     // Held Sales (strictly Local Storage only!)
     heldSales: [],
 
-    // Offline sales queue
-    offlineQueue: [],
-    syncingQueue: false,
-
     // UI & Status
-    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     submittingSale: false,
     lastCompletedSale: null,
-    networkListenersAttached: false,
   }),
 
   getters: {
@@ -74,10 +67,6 @@ export const usePosStore = defineStore('pos', {
     },
 
     cartLinesCount: (state) => Object.keys(state.cart.items).length,
-
-    pendingOfflineCount: (state) => state.offlineQueue.filter((q) => q.sync_status !== 'conflict').length,
-
-    conflictOfflineCount: (state) => state.offlineQueue.filter((q) => q.sync_status === 'conflict').length,
 
     cartSubtotal: (state) => {
       return Object.values(state.cart.items).reduce((acc, item) => {
@@ -141,60 +130,13 @@ export const usePosStore = defineStore('pos', {
 
     heldCount: (state) => state.heldSales.length,
 
-    filteredProducts: (state) => {
-      // Online: backend /api/pos/products is authoritative for search, category (incl. children), and 32-per-page pagination.
-      if (state.isOnline) {
-        return state.products;
-      }
-
-      const q = state.searchQuery.trim().toLowerCase();
-      const catId = state.selectedCategoryId;
-
-      // Collect matched category IDs (including all descendant children)
-      let matchedCategoryIds = null;
-      if (catId) {
-        matchedCategoryIds = new Set([catId]);
-        const collectDescendants = (cats) => {
-          for (const c of cats) {
-            if (c.id === catId) {
-              const addAll = (node) => {
-                matchedCategoryIds.add(node.id);
-                if (Array.isArray(node.children)) {
-                  node.children.forEach(addAll);
-                }
-              };
-              addAll(c);
-              return true;
-            }
-            if (Array.isArray(c.children) && collectDescendants(c.children)) {
-              return true;
-            }
-          }
-          return false;
-        };
-        collectDescendants(state.categories);
-      }
-
-      return state.products.filter((p) => {
-        if (matchedCategoryIds && !matchedCategoryIds.has(p.category_id)) {
-          return false;
-        }
-
-        if (!q) return true;
-
-        const nameMatch = p.name && p.name.toLowerCase().includes(q);
-        const barcodeMatch = p.barcode && p.barcode.toLowerCase().includes(q);
-
-        return nameMatch || barcodeMatch;
-      });
-    },
+    filteredProducts: (state) => state.products,
   },
 
   actions: {
     /**
-     * Initialize Local Storage state for Held Sales and Offline queue safely.
+     * Initialize Local Storage state for Held Sales safely.
      * Guaranteed safe against malformed JSON or corrupted entries.
-     * Network listeners attached strictly once.
      */
     initLocalState() {
       try {
@@ -206,46 +148,6 @@ export const usePosStore = defineStore('pos', {
       } catch (e) {
         console.error('Error loading held sales from localStorage:', e);
         this.heldSales = [];
-      }
-
-      try {
-        const rawQueue = localStorage.getItem(OFFLINE_QUEUE_KEY);
-        const parsedQueue = rawQueue ? JSON.parse(rawQueue) : [];
-        this.offlineQueue = Array.isArray(parsedQueue)
-          ? parsedQueue.filter((q) => q && typeof q === 'object' && q.client_uuid && Array.isArray(q.items) && q.items.length > 0)
-          : [];
-      } catch (e) {
-        console.error('Error loading offline queue from localStorage:', e);
-        this.offlineQueue = [];
-      }
-
-      // Online/Offline listeners: registered strictly once
-      if (typeof window !== 'undefined' && !this.networkListenersAttached) {
-        this._onlineHandler = () => {
-          this.isOnline = true;
-          this.syncOfflineQueue();
-        };
-        this._offlineHandler = () => {
-          this.isOnline = false;
-        };
-
-        window.addEventListener('online', this._onlineHandler);
-        window.addEventListener('offline', this._offlineHandler);
-        this.networkListenersAttached = true;
-      }
-    },
-
-    cleanupNetworkListeners() {
-      if (typeof window !== 'undefined' && this.networkListenersAttached) {
-        if (this._onlineHandler) {
-          window.removeEventListener('online', this._onlineHandler);
-          this._onlineHandler = null;
-        }
-        if (this._offlineHandler) {
-          window.removeEventListener('offline', this._offlineHandler);
-          this._offlineHandler = null;
-        }
-        this.networkListenersAttached = false;
       }
     },
 
@@ -269,58 +171,46 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
-     * Save offline queue to localStorage.
-     * Returns true on verified write, false on failure.
-     */
-    persistOfflineQueue() {
-      try {
-        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(this.offlineQueue));
-        return true;
-      } catch (e) {
-        console.error('Failed to persist offline queue in localStorage:', e);
-        const isQuota = e?.name === 'QuotaExceededError' || e?.code === 22 || e?.number === -2147024882;
-        const msg = isQuota
-          ? t('pos.store.offlineQuotaExceeded')
-          : t('pos.store.offlinePersistFailed');
-        useNotificationStore().error(msg);
-        return false;
-      }
-    },
-
-    /**
      * Bootstrap POS environment: Catalog, Active Shifts, Warehouse, Payment Methods, Categories.
      */
     async bootstrap() {
       this.initLocalState();
 
       try {
-        // 1. Fetch lightweight session bootstrap (warehouse, payment methods, open shifts) without dumping all products
-        const bootResp = await api.get('/pos/sync/bootstrap', {
-          params: { include_products: 0 },
+        const [warehouseResp, paymentMethodsResp, openShiftsResp] = await Promise.all([
+          api.get('/warehouses/default'),
+          api.get('/pos/payment-methods'),
+          api.get('/pos/shifts/open'),
+        ]);
+
+        this.currentWarehouse = warehouseResp.data?.data || null;
+        this.paymentMethods = paymentMethodsResp.data?.data || [];
+
+        const rawShifts = Array.isArray(openShiftsResp.data?.data) ? openShiftsResp.data.data : [];
+        const openShifts = rawShifts.map((s) => {
+          const openedById = typeof s.opened_by === 'object' && s.opened_by !== null
+            ? s.opened_by.id
+            : (s.openedBy?.id ?? s.opened_by);
+
+          return {
+            ...s,
+            opened_by_id: openedById,
+            opened_by_name: s.opened_by_name || s.opened_by?.name || s.openedBy?.name || null,
+          };
         });
-        const data = bootResp.data.data;
-
-        this.paymentMethods = data.payment_methods || [];
-        this.currentWarehouse = data.warehouse || null;
-
-        // Shift Selection: strictly load available open shifts and resolve user's shift
-        const openShifts = data.open_shifts || [];
-        this.availableOpenShifts = openShifts;
 
         const authStore = useAuthStore();
         const currentUserId = authStore.user?.id;
 
-        // Only auto-select if current user has exactly one open shift
-        const myShifts = openShifts.filter((s) => s.opened_by === currentUserId);
-        if (myShifts.length === 1) {
-          this.activeShift = myShifts[0];
-        } else {
-          // If current user has 0 open shifts or multiple open shifts,
-          // NEVER automatically hijack another user's shift!
-          this.activeShift = null;
-        }
+        // Filter strictly to current user's open shift(s) (backend already scopes /pos/shifts/open to request->user())
+        const myShifts = currentUserId !== undefined && currentUserId !== null
+          ? openShifts.filter((s) => s.opened_by_id === undefined || s.opened_by_id === null || Number(s.opened_by_id) === Number(currentUserId))
+          : openShifts;
 
-        // 2. Fetch categories & first paginated page of products (32 per page) in parallel
+        this.availableOpenShifts = myShifts;
+        this.activeShift = myShifts.length > 0 ? myShifts[0] : null;
+
+        // Fetch categories & first paginated page of products (32 per page)
         this.fetchCategories();
         await this.reloadProducts({
           query: this.searchQuery,
@@ -328,15 +218,9 @@ export const usePosStore = defineStore('pos', {
           page: 1,
         });
 
-        // 3. Try syncing any pending offline sales if online
-        if (this.isOnline && this.offlineQueue.length > 0 && !this.syncingQueue) {
-          this.syncOfflineQueue();
-        }
-
         return { success: true };
       } catch (err) {
         console.error('POS bootstrap failed:', err);
-        // If network failed, try fallback to cached bootstrap data
         return { success: false, error: err };
       }
     },
@@ -923,98 +807,33 @@ export const usePosStore = defineStore('pos', {
       this.submittingSale = true;
 
       try {
-        if (this.isOnline) {
-          const resp = await api.post('/pos/sales', payload);
-          const sale = resp.data.data;
+        const resp = await api.post('/pos/sales', payload);
+        const sale = resp.data.data;
 
-          this.lastCompletedSale = {
-            ...sale,
-            paid_amount: Number(paid_amount) || Number(sale.grand_total),
-            change_amount: Math.max(0, (Number(paid_amount) || Number(sale.grand_total)) - Number(sale.grand_total)),
-          };
+        this.lastCompletedSale = {
+          ...sale,
+          paid_amount: Number(paid_amount) || Number(sale.grand_total),
+          change_amount: Math.max(0, (Number(paid_amount) || Number(sale.grand_total)) - Number(sale.grand_total)),
+        };
 
-          // Deduct local quantities in memory for instant feedback
-          for (const it of payload.items) {
-            const p = this.products.find((prod) => prod.id === it.product_id);
-            if (p) {
-              p.stock_quantity = Math.max(0, p.stock_quantity - it.quantity);
-            }
+        // Deduct local quantities in memory for instant feedback
+        for (const it of payload.items) {
+          const p = this.products.find((prod) => prod.id === it.product_id);
+          if (p) {
+            p.stock_quantity = Math.max(0, p.stock_quantity - it.quantity);
           }
-
-          // If cart came from a held sale, clean it up only upon confirmed successful checkout
-          if (this.cart.held_id) {
-            this.deleteHeldCart(this.cart.held_id);
-          }
-
-          // Clear cart on successful sale confirmation from server
-          this.clearCart();
-          notify.success(t('pos.store.salePostedSuccess', { number: sale.invoice_number }));
-
-          return { success: true, sale: this.lastCompletedSale };
-        } else {
-          // Offline mode: queue in localStorage
-          const offlineRecord = {
-            ...payload,
-            created_at: new Date().toISOString(),
-            grand_total: this.cartGrandTotal,
-            paid_amount: Number(paid_amount) || this.cartGrandTotal,
-            sync_status: 'pending',
-            conflict_reason: null,
-            customer: this.cart.customer ? { ...this.cart.customer } : null,
-            items_snapshot: Object.values(this.cart.items).map((it) => ({
-              product_id: it.product_id,
-              name: it.name,
-              barcode: it.barcode,
-              quantity: it.quantity,
-              unit_price: it.unit_price,
-              total: it.total,
-            })),
-          };
-
-          const backupQueue = [...this.offlineQueue];
-          const existingIdx = this.offlineQueue.findIndex((q) => q.client_uuid === clientUuid);
-          if (existingIdx >= 0) {
-            this.offlineQueue[existingIdx] = offlineRecord;
-          } else {
-            this.offlineQueue.push(offlineRecord);
-          }
-
-          const saved = this.persistOfflineQueue();
-          if (!saved) {
-            // Rollback in-memory queue so it matches physical storage
-            this.offlineQueue = backupQueue;
-            return { success: false, message: t('pos.store.offlineSaveFailed') };
-          }
-
-          // If cart came from held sale, delete it now that offline persistence succeeded
-          if (this.cart.held_id) {
-            this.deleteHeldCart(this.cart.held_id);
-          }
-
-          const offlineSaleFake = {
-            id: 'offline_' + Date.now(),
-            invoice_number: 'OFFLINE-' + Date.now(),
-            sold_at: new Date().toISOString(),
-            is_offline: true,
-            grand_total: this.cartGrandTotal,
-            paid_amount: Number(paid_amount) || this.cartGrandTotal,
-            change_amount: Math.max(0, (Number(paid_amount) || this.cartGrandTotal) - this.cartGrandTotal),
-            customer: this.cart.customer,
-            items: Object.values(this.cart.items).map((it) => ({
-              product: it.product,
-              product_snapshot: { name: it.name, barcode: it.barcode },
-              quantity: it.quantity,
-              unit_price: it.unit_price,
-              total: it.total,
-            })),
-          };
-
-          this.lastCompletedSale = offlineSaleFake;
-          this.clearCart();
-          notify.info(t('pos.store.offlineSavedInfo'));
-
-          return { success: true, sale: offlineSaleFake };
         }
+
+        // If cart came from a held sale, clean it up only upon confirmed successful checkout
+        if (this.cart.held_id) {
+          this.deleteHeldCart(this.cart.held_id);
+        }
+
+        // Clear cart on successful sale confirmation from server
+        this.clearCart();
+        notify.success(t('pos.store.salePostedSuccess', { number: sale.invoice_number }));
+
+        return { success: true, sale: this.lastCompletedSale };
       } catch (err) {
         console.error('Sale checkout failed:', err);
         const msg = err.response?.data?.message || err.message || t('pos.store.checkoutServerFailed');
@@ -1022,69 +841,6 @@ export const usePosStore = defineStore('pos', {
         return { success: false, message: msg };
       } finally {
         this.submittingSale = false;
-      }
-    },
-
-    /**
-     * Process pending offline queue to server.
-     * Prevents concurrent sync loops via syncingQueue guard.
-     * Preserves conflicting or errored transactions without deleting them.
-     */
-    async syncOfflineQueue() {
-      if (this.syncingQueue || !this.isOnline || this.offlineQueue.length === 0) return;
-      this.syncingQueue = true;
-
-      const remaining = [];
-      let syncedCount = 0;
-      let conflictCount = 0;
-
-      try {
-        for (const item of this.offlineQueue) {
-          try {
-            const resp = await api.post('/pos/sync/sales', item);
-            if (resp.data.status === 'synced' || resp.data.success) {
-              syncedCount++;
-              // Successfully synced -> omit from remaining
-            } else {
-              remaining.push({
-                ...item,
-                sync_status: 'conflict',
-                conflict_reason: resp.data.conflict_reason || resp.data.message || t('pos.store.syncConflictFallback'),
-              });
-              conflictCount++;
-            }
-          } catch (err) {
-            const isConflict = err.response?.status === 409 || err.response?.data?.status === 'conflict';
-            const reason = err.response?.data?.conflict_reason || err.response?.data?.message || err.message;
-            if (isConflict) {
-              remaining.push({
-                ...item,
-                sync_status: 'conflict',
-                conflict_reason: reason,
-              });
-              conflictCount++;
-            } else {
-              // Network or transient server error: keep as pending
-              remaining.push({
-                ...item,
-                sync_status: 'pending',
-                last_error: reason,
-              });
-            }
-          }
-        }
-
-        this.offlineQueue = remaining;
-        this.persistOfflineQueue();
-
-        if (syncedCount > 0) {
-          useNotificationStore().success(t('pos.store.syncSuccessCount', { count: syncedCount }));
-        }
-        if (conflictCount > 0) {
-          useNotificationStore().error(t('pos.store.syncConflictCount', { count: conflictCount }));
-        }
-      } finally {
-        this.syncingQueue = false;
       }
     },
 
@@ -1100,6 +856,7 @@ export const usePosStore = defineStore('pos', {
         });
 
         this.activeShift = resp.data.data;
+        this.availableOpenShifts = [this.activeShift];
         notify.success(t('pos.store.shiftOpenedSuccess', { number: this.activeShift.shift_number }));
 
         // Ensure catalog, categories and warehouse info are fully loaded
@@ -1109,6 +866,13 @@ export const usePosStore = defineStore('pos', {
 
         return { success: true, shift: this.activeShift };
       } catch (err) {
+        // If user already had an open shift on another tab/device, sync & restore it automatically
+        if (err.response?.status === 422) {
+          await this.bootstrap();
+          if (this.activeShift) {
+            return { success: true, shift: this.activeShift };
+          }
+        }
         const msg = err.response?.data?.message || t('pos.store.shiftOpenFailed');
         notify.error(msg);
         return { success: false, message: msg };

@@ -42,7 +42,7 @@
               >
                 {{ roleLabel(user) }}
               </span>
-              <span v-if="user.phone" dir="ltr" class="text-sm tabular-nums text-[var(--muted)]">
+              <span v-if="user.phone" class="text-sm font-mono tabular-nums text-[var(--muted)]">
                 {{ user.phone }}
               </span>
             </div>
@@ -80,7 +80,7 @@
     <!-- Desktop table -->
     <div class="hidden overflow-x-auto md:block">
       <table class="w-full min-w-[520px] table-auto text-start">
-        <thead class="bg-[var(--bg)]">
+        <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
           <tr>
             <th scope="col" class="w-12 px-4 py-3.5">
               <AppCheckbox
@@ -90,22 +90,22 @@
                 @change="$emit('toggle-all')"
               />
             </th>
-            <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+            <th scope="col" class="px-4 py-3.5 text-start">
               {{ $t('users.userCol') }}
             </th>
-            <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] xl:table-cell">
+            <th scope="col" class="hidden px-4 py-3.5 text-start xl:table-cell">
               {{ $t('users.roleCol') }}
             </th>
-            <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] xl:table-cell">
+            <th scope="col" class="hidden px-4 py-3.5 text-start xl:table-cell">
               {{ $t('users.phoneCol') }}
             </th>
-            <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+            <th scope="col" class="px-4 py-3.5 text-center">
               {{ $t('users.statusCol') }}
             </th>
-            <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] xl:table-cell">
+            <th scope="col" class="hidden px-4 py-3.5 text-start xl:table-cell">
               {{ $t('users.lastLoginCol') }}
             </th>
-            <th scope="col" class="w-24 px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+            <th scope="col" class="w-24 px-4 py-3.5 text-end">
               {{ $t('common.actions') }}
             </th>
           </tr>
@@ -125,11 +125,11 @@
           </tr>
         </tbody>
 
-        <tbody v-else>
+        <tbody v-else class="divide-y divide-[var(--border)]">
           <tr
             v-for="user in users"
             :key="user.id"
-            class="border-t border-[var(--border)] transition-colors"
+            class="transition-colors"
             :class="isSelected(user) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]'"
           >
             <td class="px-4 py-3.5">
@@ -161,13 +161,13 @@
             </td>
 
             <td class="hidden px-4 py-3.5 xl:table-cell">
-              <span v-if="user.phone" dir="ltr" class="inline-block text-sm tabular-nums text-[var(--muted)]">
+              <span v-if="user.phone" class="font-mono text-sm tabular-nums text-[var(--muted)]">
                 {{ user.phone }}
               </span>
               <span v-else class="text-sm text-[var(--muted)]">—</span>
             </td>
 
-            <td class="px-4 py-3.5">
+            <td class="px-4 py-3.5 text-center">
               <StatusBadge :active="user.status === 'active'" />
             </td>
 
@@ -182,8 +182,8 @@
               </span>
             </td>
 
-            <td class="px-4 py-3.5">
-              <div class="flex items-center gap-1.5">
+            <td class="px-4 py-3.5 text-end">
+              <div class="flex items-center justify-end gap-1.5">
                 <button
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"

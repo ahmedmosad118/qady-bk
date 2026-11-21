@@ -16,7 +16,7 @@
 
     <div class="mt-4 flex items-end justify-between">
       <div>
-        <h4 class="text-2xl font-black text-gray-900 dark:text-white font-sans" dir="ltr">
+        <h4 class="text-2xl font-black text-gray-900 dark:text-white font-sans">
           {{ total }}
         </h4>
         <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mt-1 block">

@@ -12,13 +12,12 @@
               <span
                 v-if="returnRecord"
                 class="rounded-md bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 font-mono text-xs font-black text-[var(--text)]"
-                dir="ltr"
               >
                 {{ returnRecord.return_number }}
               </span>
             </div>
             <p class="mt-0.5 text-xs text-[var(--muted)]">
-              <span v-if="returnRecord" dir="ltr" class="font-mono">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
+              <span v-if="returnRecord" class="font-mono">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
               <span v-else>{{ $t('common.loading') }}</span>
             </p>
           </div>
@@ -123,8 +122,7 @@
             <button
               v-if="returnRecord.sale?.id"
               type="button"
-              class="mt-1 font-mono text-sm font-black text-[var(--text)] hover:underline flex items-center gap-1 cursor-pointer"
-              dir="ltr"
+              class="mt-1 font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline flex items-center gap-1 cursor-pointer"
               @click="$emit('open-sale', returnRecord.sale.id)"
             >
               <span>{{ returnRecord.sale.invoice_number }}</span>
@@ -142,11 +140,11 @@
           <div class="divide-y divide-[var(--border)] text-xs">
             <div class="flex items-center justify-between px-4 py-3">
               <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.returnNumber') }}</span>
-              <span class="font-mono font-bold text-[var(--text)]" dir="ltr">{{ returnRecord.return_number }}</span>
+              <span class="font-mono font-bold text-[var(--text)]">{{ returnRecord.return_number }}</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
               <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.returnDateTime') }}</span>
-              <span class="font-mono font-bold text-[var(--text)]" dir="ltr">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
+              <span class="font-mono font-bold text-[var(--text)]">{{ formatDateTime(returnRecord.returned_at, locale) }}</span>
             </div>
             <div class="flex items-center justify-between px-4 py-3">
               <span class="text-[var(--muted)] font-medium">{{ $t('posReturns.responsibleCashier') }}</span>
@@ -157,8 +155,7 @@
               <button
                 v-if="returnRecord.shift?.id"
                 type="button"
-                class="font-mono font-bold text-[var(--text)] hover:underline cursor-pointer"
-                dir="ltr"
+                class="font-mono font-bold text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                 @click="$emit('open-shift', returnRecord.shift.id)"
               >
                 {{ returnRecord.shift.shift_number }}
@@ -170,11 +167,10 @@
               <button
                 v-if="returnRecord.inventory_documents?.length"
                 type="button"
-                class="inline-flex items-center gap-1.5 font-mono font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
-                dir="ltr"
+                class="inline-flex items-center gap-1.5 font-mono font-bold text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                 @click="openLinkedDoc(returnRecord.inventory_documents[0])"
               >
-                <PackageCheck class="w-3.5 h-3.5" />
+                <PackageCheck class="w-3.5 h-3.5 text-emerald-600" />
                 <span>{{ returnRecord.inventory_documents[0].document_number }}</span>
               </button>
               <span v-else class="font-bold text-[var(--muted)]">—</span>
@@ -203,9 +199,9 @@
                 <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[11px] font-bold text-[var(--muted)]">
                   <th class="px-4 py-3 text-start">{{ $t('posReturns.productCol') }}</th>
                   <th class="px-4 py-3 text-center">{{ $t('posReturns.returnedQtyCol') }}</th>
-                  <th class="px-4 py-3 text-start">{{ $t('posReturns.unitPriceCol') }}</th>
-                  <th class="px-4 py-3 text-start">{{ $t('posReturns.allocatedDiscountCol') }}</th>
-                  <th class="px-4 py-3 text-start">{{ $t('posReturns.refundedAmountCol') }}</th>
+                  <th class="px-4 py-3 text-center">{{ $t('posReturns.unitPriceCol') }}</th>
+                  <th class="px-4 py-3 text-center">{{ $t('posReturns.allocatedDiscountCol') }}</th>
+                  <th class="px-4 py-3 text-end">{{ $t('posReturns.refundedAmountCol') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border)] text-xs">
@@ -219,13 +215,13 @@
                   <td class="px-4 py-3 text-center font-mono font-extrabold text-[var(--text)]">
                     {{ Number(item.quantity).toFixed(item.quantity % 1 === 0 ? 0 : 2) }}
                   </td>
-                  <td class="px-4 py-3 font-mono font-semibold text-[var(--muted)]">
+                  <td class="px-4 py-3 text-center font-mono font-semibold text-[var(--muted)]">
                     {{ Number(item.unit_price || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
-                  <td class="px-4 py-3 font-mono font-semibold text-[var(--muted)]">
+                  <td class="px-4 py-3 text-center font-mono font-semibold text-[var(--muted)]">
                     -{{ Number(item.allocated_discount || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
-                  <td class="px-4 py-3 font-mono font-black text-[var(--text)]">
+                  <td class="px-4 py-3 text-end font-mono font-black text-[var(--text)]">
                     {{ Number(item.refund_amount || 0).toFixed(2) }} {{ $t('common.currency') }}
                   </td>
                 </tr>
@@ -245,12 +241,12 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-mono text-sm font-black text-[var(--text)]" dir="ltr">{{ returnRecord.sale.invoice_number }}</span>
+                  <span class="font-mono text-sm font-black text-[var(--text)]">{{ returnRecord.sale.invoice_number }}</span>
                   <span class="rounded-md bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted)]">
                     {{ paymentMethodLabel(returnRecord.sale.payment_method) }}
                   </span>
                 </div>
-                <p class="mt-0.5 text-xs text-[var(--muted)] font-mono" dir="ltr">{{ formatDateTime(returnRecord.sale.sold_at, locale) }}</p>
+                <p class="mt-0.5 text-xs text-[var(--muted)] font-mono">{{ formatDateTime(returnRecord.sale.sold_at, locale) }}</p>
               </div>
             </div>
 
@@ -270,7 +266,7 @@
               <span class="mt-1 block font-bold text-[var(--text)]">
                 {{ returnRecord.sale.customer?.name || $t('posReturns.walkInCustomer') }}
               </span>
-              <span v-if="returnRecord.sale.customer?.phone" class="mt-0.5 block font-mono text-[11px] text-[var(--muted)]" dir="ltr">
+              <span v-if="returnRecord.sale.customer?.phone" class="mt-0.5 block font-mono text-[11px] text-[var(--muted)]">
                 {{ returnRecord.sale.customer.phone }}
               </span>
             </div>
@@ -306,8 +302,7 @@
                 <div>
                   <button
                     type="button"
-                    class="font-mono text-xs font-extrabold text-[var(--text)] hover:underline cursor-pointer flex items-center gap-1"
-                    dir="ltr"
+                    class="font-mono text-xs font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer flex items-center gap-1"
                     @click="openLinkedDoc(doc)"
                   >
                     <span>{{ doc.document_number }}</span>
@@ -356,14 +351,14 @@
                   <tr class="border-b border-[var(--border)] bg-[var(--bg)]/40 text-[10px] font-bold text-[var(--muted)]">
                     <th class="px-4 py-2 text-start">{{ $t('posReturns.productCol') }}</th>
                     <th class="px-4 py-2 text-center">{{ $t('posReturns.returnedQtyToStock') }}</th>
-                    <th class="px-4 py-2 text-start">{{ $t('posReturns.costCol') }}</th>
+                    <th class="px-4 py-2 text-end">{{ $t('posReturns.costCol') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--border)] text-xs">
                   <tr v-for="dItem in doc.items" :key="dItem.id">
                     <td class="px-4 py-2.5 font-bold text-[var(--text)]">{{ dItem.product?.name }}</td>
                     <td class="px-4 py-2.5 text-center font-mono font-extrabold text-emerald-600">+{{ Number(dItem.quantity) }}</td>
-                    <td class="px-4 py-2.5 font-mono text-[var(--muted)]">{{ Number(dItem.unit_cost || 0).toFixed(2) }} {{ $t('common.currency') }}</td>
+                    <td class="px-4 py-2.5 text-end font-mono text-[var(--muted)]">{{ Number(dItem.unit_cost || 0).toFixed(2) }} {{ $t('common.currency') }}</td>
                   </tr>
                 </tbody>
               </table>

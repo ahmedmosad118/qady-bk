@@ -92,7 +92,6 @@
           <input
             v-model="form.phone"
             type="text"
-            dir="ltr"
             class="mt-2 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 text-sm text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
             :placeholder="$t('warehouses.fields.phonePlaceholder')"
           />

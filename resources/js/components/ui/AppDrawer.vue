@@ -51,6 +51,7 @@
             <!-- Drawer Header -->
             <div
               v-if="$slots.header || title"
+              data-app-drawer-header
               class="shrink-0 border-b border-[var(--border)] bg-[var(--card)] px-5 py-4 sm:px-6"
             >
               <slot name="header">
@@ -65,7 +66,7 @@
                   </div>
                   <button
                     type="button"
-                    class="rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+                    class="print:hidden rounded-xl p-2 text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
                     :aria-label="$t ? $t('common.close') : 'Close'"
                     @click="close"
                   >
@@ -78,7 +79,8 @@
             <!-- Sticky Top Actions Bar (Above content body) -->
             <div
               v-if="$slots.actions"
-              class="shrink-0 border-b border-[var(--border)] bg-[var(--bg)]/90 px-5 py-3 backdrop-blur-xs sm:px-6"
+              data-app-drawer-actions
+              class="print:hidden shrink-0 border-b border-[var(--border)] bg-[var(--bg)]/90 px-5 py-3 backdrop-blur-xs sm:px-6"
             >
               <slot name="actions" />
             </div>
@@ -91,7 +93,8 @@
             <!-- Optional Footer -->
             <div
               v-if="$slots.footer"
-              class="shrink-0 border-t border-[var(--border)] bg-[var(--bg)] px-5 py-3 sm:px-6"
+              data-app-drawer-footer
+              class="print:hidden shrink-0 border-t border-[var(--border)] bg-[var(--bg)] px-5 py-3 sm:px-6"
             >
               <slot name="footer" />
             </div>
@@ -187,6 +190,7 @@ function handleBackdropClick() {
 }
 
 function handleKeyDown(event) {
+  if (event.defaultPrevented) return;
   if (props.closeOnEsc && event.key === 'Escape' && isOpen.value) {
     close();
   }

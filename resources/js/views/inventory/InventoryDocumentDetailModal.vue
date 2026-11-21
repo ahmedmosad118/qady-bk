@@ -18,7 +18,7 @@
 
           <div>
             <div class="flex flex-wrap items-center gap-2.5">
-              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono" dir="ltr">
+              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono">
                 {{ document?.document_number || '—' }}
               </h2>
 
@@ -382,7 +382,6 @@
               </span>
               <span
                 class="font-mono text-sm font-black text-[var(--text)]"
-                dir="ltr"
               >
                 {{ linkedReference.number }}
               </span>
@@ -492,7 +491,7 @@
                   </div>
                 </td>
                 <td class="px-4 py-3">
-                  <span class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--muted)]" dir="ltr">
+                  <span class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--muted)]">
                     {{ item.product?.barcode || '—' }}
                   </span>
                 </td>

@@ -122,7 +122,7 @@
             class="flex items-center justify-between gap-3 py-3.5 first:pt-1 last:pb-0"
           >
             <div class="min-w-0">
-              <p class="text-sm font-bold text-[var(--text)]" dir="ltr">{{ invoice.number }}</p>
+              <p class="text-sm font-bold text-[var(--text)]">{{ invoice.number }}</p>
               <p class="mt-0.5 truncate text-sm text-[var(--muted)]">{{ invoice.customer }}</p>
             </div>
 

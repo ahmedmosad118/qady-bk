@@ -83,7 +83,7 @@
               <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedAt') }}</th>
               <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedBy') }}</th>
               <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedBy') }}</th>
-              <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.totalSales') }}</th>
+              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.totalSales') }}</th>
               <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.cashDiff') }}</th>
               <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.actions') }}</th>
             </tr>
@@ -120,7 +120,6 @@
                 <button
                   type="button"
                   class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
-                  dir="ltr"
                   @click.stop="openShiftDetails(shift.id)"
                 >
                   <Clock class="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -141,14 +140,14 @@
 
               <!-- Opened At -->
               <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
-                <div class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
+                <div class="font-mono text-xs font-semibold text-[var(--text)]">
                   {{ formatDateTime(shift.opened_at, locale) }}
                 </div>
               </td>
 
               <!-- Closed At -->
               <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
-                <div v-if="shift.closed_at" class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
+                <div v-if="shift.closed_at" class="font-mono text-xs font-semibold text-[var(--text)]">
                   {{ formatDateTime(shift.closed_at, locale) }}
                 </div>
                 <span v-else class="text-xs font-semibold text-emerald-600">{{ $t('pos.shiftsPage.running') }}</span>
@@ -172,7 +171,7 @@
               </td>
 
               <!-- Sales Total -->
-              <td class="px-4 py-3.5 whitespace-nowrap text-end">
+              <td class="px-4 py-3.5 whitespace-nowrap text-center">
                 <b class="text-sm font-black text-[var(--text)] font-mono">
                   {{ Number(shift.sales_sum_grand_total || 0).toFixed(2) }}
                   <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>

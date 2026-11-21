@@ -1,6 +1,12 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" @keydown.esc="handleClose">
-    <div class="w-full max-w-[500px] max-h-[95vh] flex flex-col rounded-3xl bg-[var(--card)] p-5 shadow-2xl border border-[var(--border)] text-[var(--text)]">
+  <Teleport to="body">
+    <div
+      data-receipt-modal
+      class="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      :dir="locale === 'ar' ? 'rtl' : 'ltr'"
+      @keydown.esc="handleClose"
+    >
+      <div class="w-full max-w-[500px] max-h-[95vh] flex flex-col rounded-3xl bg-[var(--card)] p-5 shadow-2xl border border-[var(--border)] text-[var(--text)]">
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 mb-2 border-b border-[var(--border)] flex-none">
         <div class="flex items-center gap-2">
@@ -86,7 +92,7 @@
             </div>
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.dateTime') }}</span>
-              <span class="font-mono" dir="ltr">{{ formattedDate }}</span>
+              <span class="font-mono">{{ formattedDate }}</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 font-sans">{{ $t('pos.modals.receipt.customer') }}</span>
@@ -224,7 +230,8 @@
         </button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -479,9 +486,11 @@ function printReceipt() {
 function onReceiptKeyDown(e) {
   if (e.ctrlKey && e.key.toLowerCase() === 'p') {
     e.preventDefault();
+    e.stopImmediatePropagation();
     printReceipt();
   } else if (e.key === 'Escape') {
     e.preventDefault();
+    e.stopImmediatePropagation();
     handleClose();
   }
 }

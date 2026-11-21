@@ -112,7 +112,7 @@
 
               <!-- Barcode -->
               <td class="px-4 py-3.5">
-                <span class="rounded-md bg-[var(--bg)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--text)]" dir="ltr">
+                <span class="rounded-md bg-[var(--bg)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--text)]">
                   {{ stock.product?.barcode || '—' }}
                 </span>
               </td>
@@ -214,7 +214,7 @@
                 <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl">
                   {{ activeStockRow?.product?.name }}
                 </h2>
-                <span v-if="activeStockRow?.product?.barcode" class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--muted)]" dir="ltr">
+                <span v-if="activeStockRow?.product?.barcode" class="rounded-md bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--muted)]">
                   {{ activeStockRow.product.barcode }}
                 </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-0.5 text-xs font-bold text-emerald-600 border border-emerald-500/20">
@@ -334,7 +334,7 @@
                 >
                   <td class="px-3 py-2.5 text-center font-bold text-[var(--muted)]">{{ i + 1 }}</td>
                   <td class="px-3 py-2.5 font-medium">{{ m.movement_date }}</td>
-                  <td class="px-3 py-2.5 font-mono font-bold" dir="ltr">
+                  <td class="px-3 py-2.5 font-mono font-bold">
                     <span>{{ m.document_number }}</span>
                     <span v-if="m.is_reversal" class="ms-1 rounded bg-amber-500/10 px-1 py-0.5 text-[10px] text-amber-600 font-sans">
                       {{ $t('warehouseStocks.reversalMovement') }}

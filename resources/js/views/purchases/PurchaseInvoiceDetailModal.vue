@@ -17,7 +17,7 @@
 
           <div>
             <div class="flex flex-wrap items-center gap-2.5">
-              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono" dir="ltr">
+              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono">
                 {{ invoice?.invoice_number || '—' }}
               </h2>
 
@@ -132,7 +132,7 @@
             <span>{{ $t('purchaseInvoices.supplier') }}</span>
           </div>
           <p class="mt-2 text-base font-extrabold text-[var(--text)] truncate">{{ invoice.supplier?.name || '—' }}</p>
-          <p v-if="invoice.supplier?.phone || invoice.supplier?.mobile" class="mt-1 text-xs text-[var(--muted)]" dir="ltr">
+          <p v-if="invoice.supplier?.phone || invoice.supplier?.mobile" class="mt-1 text-xs font-mono text-[var(--muted)]">
             {{ invoice.supplier?.mobile || invoice.supplier?.phone }}
           </p>
           <p v-if="invoice.supplier?.tax_number" class="mt-0.5 text-xs text-[var(--muted)]">
@@ -159,8 +159,7 @@
               <span class="text-[var(--muted)]">{{ $t('purchaseInvoices.purchaseOrder') }}:</span>
               <button
                 type="button"
-                class="inline-flex items-center gap-1 font-bold font-mono text-[var(--text)] hover:underline cursor-pointer"
-                dir="ltr"
+                class="inline-flex items-center gap-1 font-bold font-mono text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                 :title="$t('purchaseInvoices.openPurchaseOrder')"
                 @click="goToPurchaseOrder"
               >
@@ -183,14 +182,13 @@
               <button
                 v-if="invoice.goods_receipt?.id"
                 type="button"
-                class="inline-flex items-center gap-1 font-bold font-mono text-[var(--text)] hover:underline cursor-pointer"
-                dir="ltr"
+                class="inline-flex items-center gap-1 font-bold font-mono text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
                 @click="goToGoodsReceipt"
               >
                 <span>{{ invoice.goods_receipt.document_number }}</span>
                 <ExternalLink class="h-3 w-3 text-[var(--muted)]" />
               </button>
-              <span v-else class="font-bold font-mono text-[var(--text)]" dir="ltr">—</span>
+              <span v-else class="font-bold font-mono text-[var(--text)]">—</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-[var(--muted)]">{{ $t('purchaseInvoices.goodsReceiptStatus') }}:</span>
@@ -224,7 +222,7 @@
           <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
-                <th class="py-3 px-4">#</th>
+                <th class="w-10 py-3 px-4 text-center">#</th>
                 <th class="py-3 px-4 text-start">{{ $t('purchaseInvoices.product') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseInvoices.quantity') }}</th>
                 <th class="py-3 px-4 text-center">{{ $t('purchaseInvoices.unitPrice') }}</th>
@@ -238,12 +236,12 @@
                 :key="item.id || idx"
                 class="transition-colors hover:bg-[var(--bg)]/50"
               >
-                <td class="py-3 px-4 text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
+                <td class="py-3 px-4 text-center text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
                 <td class="py-3 px-4">
                   <div class="font-bold text-[var(--text)]">
                     {{ item.product_snapshot?.name || item.product?.name || '—' }}
                   </div>
-                  <div v-if="item.product_snapshot?.barcode || item.product?.barcode" class="text-[11px] text-[var(--muted)] font-mono" dir="ltr">
+                  <div v-if="item.product_snapshot?.barcode || item.product?.barcode" class="text-[11px] text-[var(--muted)] font-mono">
                     {{ item.product_snapshot?.barcode || item.product?.barcode }}
                   </div>
                 </td>
@@ -289,7 +287,7 @@
           <table class="w-full text-start text-xs">
             <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
               <tr>
-                <th class="py-3 px-4">#</th>
+                <th class="w-10 py-3 px-4 text-center">#</th>
                 <th class="py-3 px-4 text-start">{{ $t('purchaseInvoices.expenseName') }}</th>
                 <th class="py-3 px-4 text-start">{{ $t('purchaseInvoices.expenseNotes') }}</th>
                 <th class="py-3 px-4 text-end">{{ $t('purchaseInvoices.expenseAmount') }}</th>
@@ -297,7 +295,7 @@
             </thead>
             <tbody class="divide-y divide-[var(--border)]">
               <tr v-for="(expense, idx) in invoice.expenses" :key="expense.id || idx">
-                <td class="py-2.5 px-4 text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
+                <td class="py-2.5 px-4 text-center text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
                 <td class="py-2.5 px-4 font-bold text-[var(--text)]">{{ expense.name }}</td>
                 <td class="py-2.5 px-4 text-[var(--muted)]">{{ expense.notes || '—' }}</td>
                 <td class="py-2.5 px-4 text-end font-mono font-bold text-[var(--text)]">

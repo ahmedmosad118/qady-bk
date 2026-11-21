@@ -61,7 +61,7 @@
             <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.paymentMethod') }}</th>
             <th v-if="!shiftId" class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.shift') }}</th>
             <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.items') }}</th>
-            <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.grandTotal') }}</th>
+            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.grandTotal') }}</th>
             <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.returns') }}</th>
             <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.actions') }}</th>
           </tr>
@@ -98,7 +98,6 @@
               <button
                 type="button"
                 class="font-mono text-sm font-extrabold text-[var(--text)] hover:text-[var(--crimson)] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
-                dir="ltr"
                 @click.stop="emit('open-sale', sale.id, 'info')"
               >
                 <Receipt class="w-3.5 h-3.5 shrink-0 text-[var(--muted)]" />
@@ -108,7 +107,7 @@
 
             <!-- Date and Time -->
             <td class="px-4 py-3.5 whitespace-nowrap text-xs text-[var(--muted)]">
-              <div class="font-mono text-xs font-semibold text-[var(--text)]" dir="ltr">
+              <div class="font-mono text-xs font-semibold text-[var(--text)]">
                 {{ formatDateTime(sale.sold_at || sale.created_at, locale) }}
               </div>
             </td>
@@ -117,7 +116,7 @@
             <td class="px-4 py-3.5 whitespace-nowrap">
               <div v-if="sale.customer" class="flex flex-col">
                 <span class="text-xs font-bold text-[var(--text)]">{{ sale.customer.name }}</span>
-                <span v-if="sale.customer.phone" class="text-[11px] font-mono text-[var(--muted)]" dir="ltr">
+                <span v-if="sale.customer.phone" class="text-[11px] font-mono text-[var(--muted)]">
                   {{ sale.customer.phone }}
                 </span>
               </div>
@@ -150,7 +149,6 @@
                 v-if="sale.shift || sale.pos_shift_id"
                 type="button"
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono font-bold border border-[var(--border)] hover:bg-[var(--bg)] transition cursor-pointer"
-                dir="ltr"
                 :title="$t('pos.salesPage.viewShiftTooltip')"
                 @click.stop="emit('open-shift', sale.pos_shift_id || sale.shift?.id)"
               >
@@ -166,7 +164,7 @@
             </td>
 
             <!-- Grand Total -->
-            <td class="px-4 py-3.5 whitespace-nowrap text-end">
+            <td class="px-4 py-3.5 whitespace-nowrap text-center">
               <b class="text-sm font-black text-[var(--text)] font-mono">
                 {{ Number(sale.grand_total || 0).toFixed(2) }}
                 <span class="text-xs font-sans font-medium text-[var(--muted)]">{{ $t('common.currency') }}</span>

@@ -1,6 +1,6 @@
 import { createI18n } from 'vue-i18n';
-import ar from '../locales/ar';
-import en from '../locales/en';
+import ar from '../locales/ar.js';
+import en from '../locales/en.js';
 import { STORAGE_KEYS } from '../config/storage.js';
 
 const defaultLocale = localStorage.getItem(STORAGE_KEYS.LOCALE) || 'ar';

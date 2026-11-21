@@ -1,24 +1,24 @@
 <template>
   <div
-    class="flex h-screen overflow-hidden bg-[var(--bg)] font-sans text-[var(--text)] transition-colors duration-150"
+    class="flex h-screen overflow-hidden print:block print:h-auto print:overflow-visible bg-[var(--bg)] font-sans text-[var(--text)] transition-colors duration-150"
     :dir="$i18n.locale === 'ar' ? 'rtl' : 'ltr'"
   >
     <!-- Sidebar -->
-    <SidebarArea :sidebar-open="sidebarOpen" @close-sidebar="sidebarOpen = false" />
+    <SidebarArea class="print:hidden" :sidebar-open="sidebarOpen" @close-sidebar="sidebarOpen = false" />
 
     <!-- Main Content Column -->
-    <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+    <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden print:block print:h-auto print:overflow-visible">
       <!-- Header -->
-      <HeaderArea @toggle-sidebar="sidebarOpen = !sidebarOpen" />
+      <HeaderArea class="print:hidden" @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
       <!-- Page Content -->
-      <main class="grow p-3 sm:p-4 md:p-6">
+      <main class="grow p-3 sm:p-4 md:p-6 print:p-0">
         <router-view />
       </main>
     </div>
 
     <!-- Toast notifications (top, never covering page actions) -->
-    <ToastStack />
+    <ToastStack class="print:hidden" />
   </div>
 </template>
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
-import i18n from '../i18n';
+import i18n from '../i18n/index.js';
 import { AUTH_STORAGE_KEYS, STORAGE_KEYS } from '../config/storage.js';
 
 /**

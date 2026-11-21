@@ -113,7 +113,7 @@
       <!-- Table -->
       <div v-if="loading || filteredRows.length" class="overflow-x-auto">
         <table class="w-full min-w-[680px] table-auto text-start">
-          <thead class="bg-[var(--bg)]">
+          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
               <th scope="col" class="w-12 px-4 py-3.5">
                 <AppCheckbox
@@ -123,16 +123,16 @@
                   @change="toggleAll"
                 />
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-start">
                 {{ $t('productCategories.nameCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-sm font-semibold text-[var(--muted)] sm:table-cell">
+              <th scope="col" class="hidden px-4 py-3.5 text-start sm:table-cell">
                 {{ $t('productCategories.parentCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="px-4 py-3.5 text-center">
                 {{ $t('productCategories.statusCol') }}
               </th>
-              <th scope="col" class="w-24 px-4 py-3.5 text-sm font-semibold text-[var(--muted)]">
+              <th scope="col" class="w-24 px-4 py-3.5 text-end">
                 {{ $t('common.actions') }}
               </th>
             </tr>
@@ -146,11 +146,11 @@
             </tr>
           </tbody>
 
-          <tbody v-else>
+          <tbody v-else class="divide-y divide-[var(--border)]">
             <tr
               v-for="category in filteredRows"
               :key="category.id"
-              class="border-t border-[var(--border)] transition-colors"
+              class="transition-colors"
               :class="isSelected(category) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]'"
             >
               <td class="px-4 py-3.5">
@@ -189,12 +189,12 @@
                 <span v-else class="text-sm text-[var(--muted)]">{{ $t('productCategories.noParent') }}</span>
               </td>
 
-              <td class="px-4 py-3.5">
+              <td class="px-4 py-3.5 text-center">
                 <StatusBadge :active="!!category.is_active" />
               </td>
 
-              <td class="px-4 py-3.5">
-                <div class="flex items-center gap-1.5">
+              <td class="px-4 py-3.5 text-end">
+                <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
                     class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"

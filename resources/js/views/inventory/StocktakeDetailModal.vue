@@ -17,7 +17,7 @@
 
           <div>
             <div class="flex flex-wrap items-center gap-2.5">
-              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono" dir="ltr">
+              <h2 class="text-lg font-black tracking-tight text-[var(--text)] sm:text-xl font-mono">
                 {{ stocktake?.stocktake_number || '—' }}
               </h2>
 
@@ -272,7 +272,7 @@
                   <span class="font-extrabold text-[var(--text)] block">{{ item.product?.name }}</span>
                   <span v-if="item.product?.author" class="text-[11px] text-[var(--muted)] block">{{ item.product.author }}</span>
                 </td>
-                <td class="px-3 py-3 text-center font-mono text-[11px] text-[var(--muted)]" dir="ltr">
+                <td class="px-3 py-3 text-center font-mono text-[11px] text-[var(--muted)]">
                   <div v-if="item.product?.barcode" class="text-[11px] text-emerald-600 font-bold tracking-tight">
                     ║▌ {{ item.product.barcode }}
                   </div>
@@ -421,7 +421,7 @@
                 <td class="px-3 py-3 text-center text-xs text-[var(--muted)]">{{ idx + 1 }}</td>
                 <td class="px-3 py-3">
                   <span class="font-extrabold text-[var(--text)] block">{{ item.product?.name }}</span>
-                  <span v-if="item.product?.barcode" class="font-mono text-[11px] text-[var(--muted)] block" dir="ltr">{{ item.product.barcode }}</span>
+                  <span v-if="item.product?.barcode" class="font-mono text-[11px] text-[var(--muted)] block">{{ item.product.barcode }}</span>
                 </td>
                 <td class="px-3 py-3 text-center font-bold text-[var(--text)]">
                   {{ item.system_quantity !== null ? item.system_quantity : '—' }}
@@ -434,7 +434,6 @@
                     v-if="item.variance !== null"
                     class="font-black font-mono text-sm"
                     :class="varianceTextClass(item.variance_direction)"
-                    dir="ltr"
                   >
                     {{ item.variance > 0 ? `+${item.variance}` : item.variance }}
                   </span>
@@ -475,7 +474,7 @@
             class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xs space-y-3"
           >
             <div class="flex items-center justify-between">
-              <span class="font-mono font-black text-sm text-[var(--text)]" dir="ltr">{{ doc.document_number }}</span>
+              <span class="font-mono font-black text-sm text-[var(--text)]">{{ doc.document_number }}</span>
               <span
                 class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold"
                 :class="statusBadgeClass(doc.status)"
@@ -530,7 +529,7 @@
               <span v-if="h.reason" class="text-[11px] text-[var(--muted)] block mt-0.5">{{ h.reason }}</span>
               <span v-if="h.user" class="text-[10px] text-[var(--muted)] block">{{ $t('stocktaking.detail.byUser') }} {{ h.user.name }}</span>
             </div>
-            <span class="text-[10px] font-mono text-[var(--muted)] shrink-0" dir="ltr">
+            <span class="text-[10px] font-mono text-[var(--muted)] shrink-0">
               {{ formatDateTime(h.created_at) }}
             </span>
           </div>

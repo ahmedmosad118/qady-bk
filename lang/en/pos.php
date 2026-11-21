@@ -14,6 +14,8 @@ return [
     'errors' => [
         'shift_not_found' => 'The selected shift was not found.',
         'shift_closed' => 'The selected shift is closed. Cannot complete a sale on a closed shift.',
+        'shift_belongs_to_another_user' => 'You cannot use a shift belonging to another user.',
+        'user_already_has_open_shift' => 'You already have an open shift (:number). Please close it before opening a new one.',
         'payment_method_not_found' => 'The selected payment method is invalid or does not exist.',
         'default_warehouse_missing' => 'The default warehouse is missing or not configured in the system.',
         'customer_not_found' => 'The selected customer was not found.',

@@ -65,17 +65,94 @@ class PosShiftTest extends TestCase
         ]);
     }
 
-    public function test_can_open_multiple_shifts_simultaneously(): void
+    public function test_same_user_cannot_open_second_shift_while_another_user_can_open_their_own_shift(): void
     {
         $shift1 = $this->shiftService->openShift($this->user, 200.00);
-        $shift2 = $this->shiftService->openShift($this->user, 400.00);
-
         $this->assertTrue($shift1->isOpen());
-        $this->assertTrue($shift2->isOpen());
 
-        $response = $this->getJson('/api/pos/shifts/open');
-        $response->assertOk();
-        $this->assertCount(2, $response->json('data'));
+        // Same user attempting to open a second shift while first is open -> 422
+        $dupResponse = $this->postJson('/api/pos/shifts', [
+            'opening_balance' => 300.00,
+        ]);
+        $dupResponse->assertStatus(422)
+            ->assertJsonValidationErrors(['shift']);
+
+        // Another user can open their own shift simultaneously
+        $otherUser = User::factory()->create();
+        $otherUser->assignRole(Role::findOrCreate('admin', 'web'));
+
+        Sanctum::actingAs($otherUser);
+        $otherShiftResp = $this->postJson('/api/pos/shifts', [
+            'opening_balance' => 400.00,
+        ]);
+        $otherShiftResp->assertCreated();
+        $otherShiftId = $otherShiftResp->json('data.id');
+
+        // /api/pos/shifts/open returns strictly the authenticated user's own open shift
+        $otherOpenResp = $this->getJson('/api/pos/shifts/open');
+        $otherOpenResp->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $otherShiftId);
+
+        // Switching back to original user (e.g. re-login / another device) resumes strictly their own open shift
+        Sanctum::actingAs($this->user);
+        $myOpenResp = $this->getJson('/api/pos/shifts/open');
+        $myOpenResp->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $shift1->id);
+
+        // After closing their shift, the user can open a new shift
+        $this->shiftService->closeShift($shift1, $this->user, 200.00);
+        $newShiftResp = $this->postJson('/api/pos/shifts', [
+            'opening_balance' => 150.00,
+        ]);
+        $newShiftResp->assertCreated();
+    }
+
+    public function test_user_cannot_sell_record_movements_or_close_another_users_shift(): void
+    {
+        $shiftA = $this->shiftService->openShift($this->user, 500.00);
+
+        $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
+        $product = Product::factory()->create(['selling_price' => 100.00]);
+        WarehouseStock::query()->create([
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'quantity' => '10.000',
+        ]);
+
+        $otherUser = User::factory()->create();
+        $otherUser->assignRole(Role::findOrCreate('admin', 'web'));
+        Sanctum::actingAs($otherUser);
+
+        // Other user cannot sell on shiftA
+        $this->postJson('/api/pos/sales', [
+            'shift_id' => $shiftA->id,
+            'payment_method_id' => $cashMethod->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['shift_id']);
+
+        // Other user cannot record expense on shiftA
+        $this->postJson("/api/pos/shifts/{$shiftA->id}/expenses", [
+            'amount' => 20.00,
+            'name' => 'مصروف غير مصرح',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['shift']);
+
+        // Other user cannot record withdrawal on shiftA
+        $this->postJson("/api/pos/shifts/{$shiftA->id}/withdrawals", [
+            'amount' => 50.00,
+            'name' => 'سحب غير مصرح',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['shift']);
+
+        // Other user cannot close shiftA
+        $this->postJson("/api/pos/shifts/{$shiftA->id}/close", [
+            'actual_cash' => 500.00,
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['shift']);
     }
 
     public function test_can_record_expense_and_withdrawal(): void

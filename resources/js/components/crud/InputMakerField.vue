@@ -54,8 +54,7 @@
         :placeholder="formatLabel(field.placeholder) || '0.00'"
         :required="field.required"
         :disabled="field.readonly"
-        class="w-full bg-transparent py-2.5 px-3.5 text-sm font-bold font-mono text-gray-900 dark:text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-left"
-        dir="ltr"
+        class="w-full bg-transparent py-2.5 px-3.5 text-sm font-bold font-mono text-gray-900 dark:text-white outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-start"
       />
       <span
         v-if="field.type === 'currency' || field.name === 'estimated_value'"
