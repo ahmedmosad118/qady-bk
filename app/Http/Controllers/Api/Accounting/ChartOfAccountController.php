@@ -42,7 +42,6 @@ class ChartOfAccountController extends Controller implements HasMiddleware
             'search' => $request->input('search'),
             'account_type' => $request->input('account_type'),
             'account_purpose' => $request->input('account_purpose'),
-            'exclude_contact_accounts' => $request->boolean('exclude_contact_accounts'),
             'sort_by' => $request->input('sort_by'),
             'sort_order' => $request->input('sort_order'),
         ];

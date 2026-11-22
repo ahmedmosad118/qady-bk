@@ -10,7 +10,6 @@ use App\Enums\PaymentMethodType;
 use App\Models\ChartOfAccount;
 use App\Models\PaymentMethod;
 use App\Models\User;
-use App\Services\ContactService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -106,15 +105,8 @@ class PaymentMethodAccountingTest extends TestCase
         $generalAsset = ChartOfAccount::query()->where('code', '1003')->firstOrFail();
         $expenseAccount = ChartOfAccount::query()->where('code', '5001')->firstOrFail();
 
-        $contact = app(ContactService::class)->createContact([
-            'type' => 'individual',
-            'name' => 'عميل مرفوض لطريقة الدفع',
-            'is_customer' => true,
-            'is_supplier' => false,
-        ]);
-
-        // Cash rejects bank, general, expense, and contact accounts
-        foreach ([$bankAccount->id, $generalAsset->id, $expenseAccount->id, $contact->receivable_account_id] as $badId) {
+        // Cash rejects bank, general, and expense accounts
+        foreach ([$bankAccount->id, $generalAsset->id, $expenseAccount->id] as $badId) {
             $this->postJson('/api/payment-methods', [
                 'name' => 'نقدي غير متوافق',
                 'type' => PaymentMethodType::CASH->value,
@@ -123,8 +115,8 @@ class PaymentMethodAccountingTest extends TestCase
                 ->assertJsonValidationErrors(['chart_of_account_id']);
         }
 
-        // Visa rejects cash, general, expense, and contact accounts
-        foreach ([$cashAccount->id, $generalAsset->id, $expenseAccount->id, $contact->receivable_account_id] as $badId) {
+        // Visa rejects cash, general, and expense accounts
+        foreach ([$cashAccount->id, $generalAsset->id, $expenseAccount->id] as $badId) {
             $this->postJson('/api/payment-methods', [
                 'name' => 'فيزا غير متوافقة',
                 'type' => PaymentMethodType::VISA->value,

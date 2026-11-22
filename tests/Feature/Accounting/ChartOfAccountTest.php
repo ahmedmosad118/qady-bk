@@ -14,7 +14,6 @@ use App\Models\User;
 use App\Services\Accounting\AccountCodeGenerator;
 use App\Services\Accounting\AccountingSettingRegistry;
 use App\Services\Accounting\ChartOfAccountService;
-use App\Services\ContactService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -229,7 +228,7 @@ class ChartOfAccountTest extends TestCase
             ->assertJsonValidationErrors(['account_purpose']);
     }
 
-    public function test_deletion_and_type_guards_protect_settings_contacts_and_payment_methods(): void
+    public function test_deletion_and_type_guards_protect_settings_and_payment_methods(): void
     {
         $this->seed(ChartOfAccountSeeder::class);
         $this->seed(PaymentMethodSeeder::class);
@@ -245,6 +244,11 @@ class ChartOfAccountTest extends TestCase
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['account_type']);
 
+        $this->putJson("/api/accounting/accounts/{$inventory->id}", [
+            'account_purpose' => AccountPurpose::CASH->value,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_purpose']);
+
         // Linked to payment method
         $cash = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
         $pm = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
@@ -258,17 +262,6 @@ class ChartOfAccountTest extends TestCase
             'account_purpose' => AccountPurpose::BANK->value,
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['account_purpose']);
-
-        // Linked to contact
-        $contact = app(ContactService::class)->createContact([
-            'type' => 'individual',
-            'name' => 'مورد للاختبار',
-            'is_customer' => false,
-            'is_supplier' => true,
-        ]);
-        $this->deleteJson("/api/accounting/accounts/{$contact->payable_account_id}")
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['account']);
 
         // Unused account can be deleted
         $unused = ChartOfAccount::query()->create([

@@ -105,6 +105,15 @@
         />
       </div>
 
+      <!-- Bulk Actions -->
+      <BulkActionsBar
+        v-if="canDelete"
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelectedAccounts"
+        @clear="clearSelection"
+      />
+
       <!-- Loading -->
       <div v-if="loading && accounts.length === 0" class="p-12 text-center">
         <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
@@ -132,6 +141,14 @@
           <!-- Group Header -->
           <div class="flex items-center justify-between gap-3 border-b border-[var(--border)]/70 bg-[var(--bg)]/70 px-4 py-3 sm:px-5">
             <div class="flex items-center gap-2.5">
+              <AppCheckbox
+                v-if="canDelete"
+                :checked="isGroupAllSelected(group.items)"
+                :indeterminate="isGroupSomeSelected(group.items) && !isGroupAllSelected(group.items)"
+                :disabled="!group.items.some((acc) => acc.can_delete)"
+                :aria-label="$t('common.selectAll')"
+                @change="toggleGroupSelection(group.items)"
+              />
               <span
                 class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
                 :class="typeBadgeClass(group.type)"
@@ -154,10 +171,18 @@
             <div
               v-for="account in group.items"
               :key="account.id"
-              class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg)]/60 sm:px-5"
+              class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors sm:px-5"
+              :class="isSelected(account) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/60'"
             >
-              <!-- Start: Icon, Code, Name, Description -->
+              <!-- Start: Checkbox, Icon, Code, Name, Description -->
               <div class="flex min-w-0 flex-1 items-center gap-3">
+                <AppCheckbox
+                  v-if="canDelete"
+                  :checked="isSelected(account)"
+                  :disabled="!account.can_delete"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(account)"
+                />
                 <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--bg)] text-[var(--muted)]" aria-hidden="true">
                   <FileText class="h-4 w-4" />
                 </span>
@@ -194,15 +219,6 @@
                 >
                   <Settings2 class="h-3 w-3" />
                   <span>{{ $t('chartOfAccounts.settingBadge') }}</span>
-                </span>
-
-                <span
-                  v-if="account.is_linked_to_contact"
-                  class="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300"
-                  :title="$t('chartOfAccounts.linkedToContact')"
-                >
-                  <UserCheck class="h-3 w-3" />
-                  <span>{{ $t('chartOfAccounts.contactBadge') }}</span>
                 </span>
 
                 <span
@@ -272,16 +288,18 @@ import {
   Plus,
   Settings2,
   Trash2,
-  UserCheck,
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import PaginationBar from '../../components/ui/PaginationBar.vue';
 import ChartOfAccountFormModal from './ChartOfAccountFormModal.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -355,6 +373,7 @@ const visibleGroups = computed(() => {
 let searchTimer = null;
 
 async function loadAccounts(page = 1) {
+  clearSelection();
   loading.value = true;
   loadError.value = '';
   try {
@@ -427,7 +446,6 @@ function purposeBadgeClass(purpose) {
 
 function deleteDisabledReason(account) {
   if (account.is_linked_to_settings) return t('chartOfAccounts.cannotDeleteSetting');
-  if (account.is_linked_to_contact) return t('chartOfAccounts.cannotDeleteContact');
   if (account.is_linked_to_payment_method) return t('chartOfAccounts.cannotDeletePaymentMethod');
   return '';
 }
@@ -456,11 +474,75 @@ async function handleDelete(account) {
 
   try {
     await api.delete(`/accounting/accounts/${account.id}`);
+    removeId(account.id);
     showSuccess({ title: t('common.successTitle'), text: t('chartOfAccounts.deletedSuccess') });
     await loadAccounts(meta.current_page);
   } catch (err) {
     const msg = err.response?.data?.errors?.account?.[0] || err.response?.data?.message || t('common.errorTitle');
     showError({ title: t('common.error'), text: msg });
+  }
+}
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  isSelected,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(accounts, { canSelect: (account) => Boolean(account.can_delete) });
+
+function isGroupAllSelected(items) {
+  const deletable = (items || []).filter((acc) => acc.can_delete);
+  return deletable.length > 0 && deletable.every((acc) => selectedIds.value.includes(acc.id));
+}
+
+function isGroupSomeSelected(items) {
+  const deletable = (items || []).filter((acc) => acc.can_delete);
+  return deletable.some((acc) => selectedIds.value.includes(acc.id));
+}
+
+function toggleGroupSelection(items) {
+  const deletableIds = (items || []).filter((acc) => acc.can_delete).map((acc) => acc.id);
+  if (deletableIds.length === 0) return;
+
+  if (isGroupAllSelected(items)) {
+    selectedIds.value = selectedIds.value.filter((id) => !deletableIds.includes(id));
+    return;
+  }
+
+  selectedIds.value = Array.from(new Set([...selectedIds.value, ...deletableIds]));
+}
+
+async function deleteSelectedAccounts() {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await confirmDelete({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/accounting/accounts/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await loadAccounts(meta.current_page);
+
+  if (deletedCount > 0 && failedCount === 0) {
+    showSuccess({ title: t('common.successTitle'), text: t('common.bulkDeleteSuccess', { count: deletedCount }) });
+  } else {
+    showError({
+      title: t('common.error'),
+      text: firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }),
+    });
   }
 }
 

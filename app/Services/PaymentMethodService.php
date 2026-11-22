@@ -8,19 +8,13 @@ use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use App\Enums\PaymentMethodType;
 use App\Models\ChartOfAccount;
-use App\Models\Contact;
 use App\Models\PaymentMethod;
-use App\Services\Accounting\AccountingSettingService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PaymentMethodService
 {
-    public function __construct(
-        protected AccountingSettingService $accountingSettingService,
-    ) {}
-
     /**
      * List all payment methods with their linked Chart of Accounts info.
      *
@@ -35,7 +29,7 @@ class PaymentMethodService
     }
 
     /**
-     * Return compatible non-contact Asset accounts grouped by payment method type.
+     * Return compatible Asset accounts grouped by payment method type.
      *
      * @return array<string, array<int, array<string, mixed>>>
      */
@@ -50,18 +44,12 @@ class PaymentMethodService
             ->orderBy('code')
             ->get(['id', 'code', 'name', 'account_type', 'account_purpose']);
 
-        $contactAccountSet = $this->accountingSettingService->getContactAccountIdSet();
-
         $byPurpose = [
             AccountPurpose::CASH->value => [],
             AccountPurpose::BANK->value => [],
         ];
 
         foreach ($accounts as $account) {
-            if (isset($contactAccountSet[$account->id])) {
-                continue;
-            }
-
             $purpose = ($account->account_purpose ?? AccountPurpose::GENERAL)->value;
             if (! isset($byPurpose[$purpose])) {
                 continue;
@@ -160,17 +148,6 @@ class PaymentMethodService
         if (! $account) {
             throw ValidationException::withMessages([
                 'chart_of_account_id' => [(string) __('accounting.errors.payment_method_account_not_found')],
-            ]);
-        }
-
-        $usedByContact = Contact::withTrashed()
-            ->where('receivable_account_id', $accountId)
-            ->orWhere('payable_account_id', $accountId)
-            ->exists();
-
-        if ($usedByContact) {
-            throw ValidationException::withMessages([
-                'chart_of_account_id' => [(string) __('accounting.errors.payment_method_account_cannot_be_contact')],
             ]);
         }
 

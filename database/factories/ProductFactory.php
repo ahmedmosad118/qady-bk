@@ -32,6 +32,7 @@ class ProductFactory extends Factory
             'purchase_price' => $purchase,
             'selling_price' => round($purchase * 1.4, 2),
             'is_active' => true,
+            'show_in_shop' => false,
         ];
     }
 
@@ -62,6 +63,16 @@ class ProductFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    /**
+     * A product visible in the online shop.
+     */
+    public function visibleInShop(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'show_in_shop' => true,
         ]);
     }
 }

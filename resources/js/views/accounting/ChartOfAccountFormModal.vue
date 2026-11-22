@@ -182,7 +182,6 @@ const isTypeLocked = computed(() => {
   if (!isEditing.value) return false;
   return Boolean(
     props.editingAccount?.is_linked_to_settings
-    || props.editingAccount?.is_linked_to_contact
     || props.editingAccount?.is_linked_to_payment_method
   );
 });
@@ -190,7 +189,7 @@ const isTypeLocked = computed(() => {
 const isPurposeLocked = computed(() => {
   if (!isEditing.value) return false;
   return Boolean(
-    props.editingAccount?.is_linked_to_contact
+    props.editingAccount?.is_linked_to_settings
     || props.editingAccount?.is_linked_to_payment_method
   );
 });

@@ -90,14 +90,13 @@ export function createExpenseCategoryFetcher() {
   );
 }
 
-export function createAccountFetcher({ accountType = '', accountPurpose = '', excludeContactAccounts = false } = {}) {
+export function createAccountFetcher({ accountType = '', accountPurpose = '' } = {}) {
   return createPaginatedFetcher(
     '/accounting/accounts',
     () => {
       const params = {};
       if (accountType) params.account_type = accountType;
       if (accountPurpose) params.account_purpose = accountPurpose;
-      if (excludeContactAccounts) params.exclude_contact_accounts = 1;
       return params;
     },
     (acc) => ({

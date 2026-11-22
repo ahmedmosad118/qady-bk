@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'code',
@@ -33,22 +32,6 @@ class ChartOfAccount extends Model
             'account_type' => AccountType::class,
             'account_purpose' => AccountPurpose::class,
         ];
-    }
-
-    /**
-     * Contact that owns this account as its receivable account, if any.
-     */
-    public function receivableContact(): HasOne
-    {
-        return $this->hasOne(Contact::class, 'receivable_account_id');
-    }
-
-    /**
-     * Contact that owns this account as its payable account, if any.
-     */
-    public function payableContact(): HasOne
-    {
-        return $this->hasOne(Contact::class, 'payable_account_id');
     }
 
     /**

@@ -36,6 +36,7 @@ class StoreProductRequest extends FormRequest
                 'max:9999999999',
             ],
             'is_active' => ['required', 'boolean'],
+            'show_in_shop' => ['sometimes', 'boolean'],
             'category_id' => [
                 'nullable',
                 'integer',

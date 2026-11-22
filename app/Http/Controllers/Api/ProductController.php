@@ -49,6 +49,7 @@ class ProductController extends Controller implements HasMiddleware
             'ids' => $request->filled('ids') ? explode(',', (string) $request->input('ids')) : null,
             'category_id' => $request->input('category_id'),
             'is_active' => $request->input('is_active'),
+            'show_in_shop' => $request->input('show_in_shop'),
             'sort_by' => $request->input('sort_by'),
             'sort_order' => $request->input('sort_order'),
         ];

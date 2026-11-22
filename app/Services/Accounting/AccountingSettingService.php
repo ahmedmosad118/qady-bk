@@ -6,7 +6,6 @@ namespace App\Services\Accounting;
 
 use App\Enums\AccountPurpose;
 use App\Models\ChartOfAccount;
-use App\Models\Contact;
 use App\Models\Setting;
 use App\Services\SettingService;
 use Illuminate\Database\Eloquent\Collection;
@@ -108,22 +107,15 @@ class AccountingSettingService
     public function getCompatibleAccountsByKey(): array
     {
         $accounts = ChartOfAccount::query()
+            ->where('account_purpose', AccountPurpose::GENERAL->value)
             ->orderBy('code')
             ->get(['id', 'code', 'name', 'account_type', 'account_purpose']);
-
-        $contactAccountSet = $this->getContactAccountIdSet();
 
         $grouped = [];
         foreach (AccountingSettingRegistry::definitions() as $key => $def) {
             $compatible = [];
             foreach ($accounts as $account) {
-                $purpose = $account->account_purpose ?? AccountPurpose::GENERAL;
-
-                if (
-                    $account->account_type !== $def['account_type']
-                    || $purpose !== AccountPurpose::GENERAL
-                    || isset($contactAccountSet[$account->id])
-                ) {
+                if ($account->account_type !== $def['account_type']) {
                     continue;
                 }
 
@@ -132,7 +124,7 @@ class AccountingSettingService
                     'code' => $account->code,
                     'name' => $account->name,
                     'account_type' => $account->account_type->value,
-                    'account_purpose' => $purpose->value,
+                    'account_purpose' => AccountPurpose::GENERAL->value,
                 ];
             }
 
@@ -239,35 +231,6 @@ class AccountingSettingService
     }
 
     /**
-     * @param  array<int, int>|null  $filterIds
-     * @return array<int, true>
-     */
-    public function getContactAccountIdSet(?array $filterIds = null): array
-    {
-        $query = Contact::withTrashed()->where(function ($q) use ($filterIds): void {
-            if ($filterIds !== null) {
-                $q->whereIn('receivable_account_id', $filterIds)
-                    ->orWhereIn('payable_account_id', $filterIds);
-            } else {
-                $q->whereNotNull('receivable_account_id')
-                    ->orWhereNotNull('payable_account_id');
-            }
-        });
-
-        $set = [];
-        foreach ($query->get(['receivable_account_id', 'payable_account_id']) as $c) {
-            if ($c->receivable_account_id) {
-                $set[(int) $c->receivable_account_id] = true;
-            }
-            if ($c->payable_account_id) {
-                $set[(int) $c->payable_account_id] = true;
-            }
-        }
-
-        return $set;
-    }
-
-    /**
      * @param  array<string, mixed>  $candidateData
      * @param  array<string, array<string, mixed>>  $definitions
      */
@@ -291,7 +254,6 @@ class AccountingSettingService
                 ->get()
                 ->keyBy('id');
 
-        $contactAccountSet = $settingAccountIds === [] ? [] : $this->getContactAccountIdSet($settingAccountIds);
         $assignedAccounts = [];
         $errors = [];
 
@@ -315,8 +277,6 @@ class AccountingSettingService
                 ])];
             } elseif (($account->account_purpose ?? AccountPurpose::GENERAL) !== AccountPurpose::GENERAL) {
                 $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_cannot_be_cash_or_bank', ['label' => $label])];
-            } elseif (isset($contactAccountSet[$account->id])) {
-                $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_cannot_be_contact_account', ['label' => $label])];
             } elseif (isset($assignedAccounts[$account->id])) {
                 $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_duplicate', ['label' => $label])];
             } else {

@@ -10,7 +10,6 @@ use App\Models\ChartOfAccount;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Accounting\AccountingSettingRegistry;
-use App\Services\ContactService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -171,19 +170,6 @@ class AccountingSettingTest extends TestCase
 
         $this->putJson('/api/settings/accounting', [
             'settings' => ['inventory' => $bankAccount->id],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.inventory']);
-
-        // Contact-owned account cannot be assigned -> rejected
-        $contact = app(ContactService::class)->createContact([
-            'type' => 'individual',
-            'name' => 'عميل مرفوض للإعدادات',
-            'is_customer' => true,
-            'is_supplier' => false,
-        ]);
-
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['inventory' => $contact->receivable_account_id],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['settings.inventory']);
     }

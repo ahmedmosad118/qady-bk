@@ -79,11 +79,29 @@
         </div>
       </FilterToolbar>
 
+      <!-- Bulk Actions -->
+      <BulkActionsBar
+        v-if="activeType"
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelectedDocuments"
+        @clear="clearSelection"
+      />
+
       <!-- Table View -->
       <div class="overflow-x-auto">
         <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
+              <th v-if="activeType" class="w-12 px-4 py-3.5">
+                <AppCheckbox
+                  :checked="allPageSelected"
+                  :indeterminate="somePageSelected && !allPageSelected"
+                  :disabled="selectableItems.length === 0"
+                  :aria-label="$t('common.selectAll')"
+                  @change="toggleAllOnPage"
+                />
+              </th>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.documentNumber') }}</th>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.documentSource') }}</th>
               <th class="px-4 py-3.5">{{ $t('inventory.fields.type') }}</th>
@@ -98,7 +116,7 @@
           <tbody class="divide-y divide-[var(--border)]">
             <!-- Loading indicator -->
             <tr v-if="loading && documents.length === 0">
-              <td colspan="9" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
+              <td :colspan="activeType ? 10 : 9" class="px-4 py-12 text-center text-sm text-[var(--muted)]">
                 <Loader2 class="mx-auto h-6 w-6 animate-spin text-[var(--muted)]" />
                 <span class="mt-2 block">{{ $t('common.loading') }}</span>
               </td>
@@ -106,7 +124,7 @@
 
             <!-- Empty State -->
             <tr v-else-if="documents.length === 0">
-              <td colspan="9" class="px-4 py-12 text-center">
+              <td :colspan="activeType ? 10 : 9" class="px-4 py-12 text-center">
                 <FileText class="mx-auto h-10 w-10 text-[var(--muted)]/50" />
                 <h3 class="mt-3 text-base font-bold text-[var(--text)]">{{ $t('inventory.noDocuments') }}</h3>
                 <p class="mt-1 text-xs text-[var(--muted)]">{{ $t('inventory.noDocumentsDesc') }}</p>
@@ -126,8 +144,17 @@
             <tr
               v-for="doc in documents"
               :key="doc.id"
-              class="transition-colors hover:bg-[var(--bg)]/50"
+              class="transition-colors"
+              :class="isSelected(doc) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/50'"
             >
+              <td v-if="activeType" class="px-4 py-3.5">
+                <AppCheckbox
+                  :checked="isSelected(doc)"
+                  :disabled="!canDeleteDocument(doc)"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(doc)"
+                />
+              </td>
               <!-- Document Number -->
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
@@ -343,14 +370,17 @@ import {
   Trash2,
 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import InventoryDocumentDetailModal from './InventoryDocumentDetailModal.vue';
 import InventoryDocumentFormModal from './InventoryDocumentFormModal.vue';
 import PosSaleDetailModal from '../pos/management/PosSaleDetailModal.vue';
 import PosReturnDetailModal from '../pos/management/PosReturnDetailModal.vue';
 import api from '../../services/api';
-import { confirmDelete as confirmDeleteAlert, showError } from '../../services/alert';
+import { confirmDelete as confirmDeleteAlert, showError, showSuccess } from '../../services/alert';
 import {
   inventoryDirectionLabel as directionLabel,
   inventoryStatusBadgeClass as statusBadgeClass,
@@ -559,6 +589,7 @@ function changePage(page) {
 }
 
 async function loadDocuments() {
+  clearSelection();
   loading.value = true;
   loadError.value = '';
 
@@ -657,9 +688,55 @@ async function confirmDelete(doc) {
 
   try {
     await api.delete(`/inventory-documents/${doc.id}`);
+    removeId(doc.id);
     loadDocuments();
   } catch (err) {
     await showError(err?.response?.data?.message || t('inventory.deleteDraftError'));
+  }
+}
+
+const canDeleteDocument = (doc) =>
+  Boolean(activeType.value && doc.referenceable_type !== 'purchase_invoice' && doc.status === 'draft');
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  selectableItems,
+  allPageSelected,
+  somePageSelected,
+  isSelected,
+  toggleAllOnPage,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(documents, { canSelect: canDeleteDocument });
+
+async function deleteSelectedDocuments() {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await confirmDeleteAlert({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/inventory-documents/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await loadDocuments();
+
+  if (deletedCount > 0 && failedCount === 0) {
+    await showSuccess({ text: t('common.bulkDeleteSuccess', { count: deletedCount }) });
+  } else if (failedCount > 0) {
+    await showError(firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }));
   }
 }
 

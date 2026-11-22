@@ -7,7 +7,6 @@ namespace App\Services\Accounting;
 use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
-use App\Models\Contact;
 use App\Models\PaymentMethod;
 use App\Repositories\ChartOfAccountRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -159,7 +158,7 @@ class ChartOfAccountService
     }
 
     /**
-     * Delete an account only if it is not linked to settings, contacts, or payment methods.
+     * Delete an account only if it is not linked to settings or payment methods.
      */
     public function delete(ChartOfAccount $account): bool
     {
@@ -170,17 +169,6 @@ class ChartOfAccountService
             if ($this->accountingSettingService->isAccountLinkedToAnySetting($locked->id)) {
                 throw ValidationException::withMessages([
                     'account' => [(string) __('accounting.errors.delete_linked_to_settings')],
-                ]);
-            }
-
-            $linkedToContact = Contact::withTrashed()
-                ->where('receivable_account_id', $locked->id)
-                ->orWhere('payable_account_id', $locked->id)
-                ->exists();
-
-            if ($linkedToContact) {
-                throw ValidationException::withMessages([
-                    'account' => [(string) __('accounting.errors.delete_linked_to_contact')],
                 ]);
             }
 
@@ -241,25 +229,6 @@ class ChartOfAccountService
             if ($targetPurpose !== AccountPurpose::GENERAL) {
                 throw ValidationException::withMessages([
                     'account_purpose' => [(string) __('accounting.errors.setting_account_purpose_locked')],
-                ]);
-            }
-        }
-
-        $linkedContact = Contact::withTrashed()
-            ->where('receivable_account_id', $locked->id)
-            ->orWhere('payable_account_id', $locked->id)
-            ->first(['id', 'receivable_account_id', 'payable_account_id']);
-
-        if ($linkedContact) {
-            if ($targetType !== $locked->account_type) {
-                throw ValidationException::withMessages([
-                    'account_type' => [(string) __('accounting.errors.contact_account_type_locked')],
-                ]);
-            }
-
-            if ($targetPurpose !== AccountPurpose::GENERAL) {
-                throw ValidationException::withMessages([
-                    'account_purpose' => [(string) __('accounting.errors.contact_account_purpose_locked')],
                 ]);
             }
         }

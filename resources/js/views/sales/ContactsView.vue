@@ -103,11 +103,28 @@
         </div>
       </FilterToolbar>
 
+      <!-- Bulk actions -->
+      <BulkActionsBar
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelected"
+        @clear="clearSelection"
+      />
+
       <!-- Table -->
       <div v-if="loading || contacts.length" class="overflow-x-auto">
         <table class="w-full min-w-[820px] table-auto text-start">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
+              <th scope="col" class="w-12 px-4 py-3.5">
+                <AppCheckbox
+                  :checked="allPageSelected"
+                  :indeterminate="somePageSelected && !allPageSelected"
+                  :disabled="selectableItems.length === 0"
+                  :aria-label="$t('common.selectAll')"
+                  @change="toggleAllOnPage"
+                />
+              </th>
               <th scope="col" class="px-4 py-3.5 text-start">
                 {{ contactColHeader }}
               </th>
@@ -138,7 +155,7 @@
 
           <tbody v-if="loading" aria-busy="true">
             <tr v-for="n in 5" :key="n" class="border-t border-[var(--border)]">
-              <td :colspan="activeRole === 'all' ? 7 : 6" class="px-4 py-4">
+              <td :colspan="activeRole === 'all' ? 8 : 7" class="px-4 py-4">
                 <div class="flex items-center gap-3">
                   <div class="h-10 w-10 animate-pulse rounded-full bg-[var(--bg)]"></div>
                   <div class="flex-1 space-y-2">
@@ -154,8 +171,16 @@
             <tr
               v-for="contact in contacts"
               :key="contact.id"
-              class="transition-colors hover:bg-[var(--bg)]/40"
+              class="transition-colors"
+              :class="isSelected(contact) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/40'"
             >
+              <td class="px-4 py-3.5">
+                <AppCheckbox
+                  :checked="isSelected(contact)"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(contact)"
+                />
+              </td>
               <td class="px-4 py-3.5">
                 <div class="flex items-center gap-3">
                   <span
@@ -373,12 +398,15 @@ import {
 import api from '../../services/api';
 import alertService from '../../services/alert';
 import { useNotificationStore } from '../../stores/notification';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 
 const props = defineProps({
   role: {
@@ -796,10 +824,59 @@ const deleteContact = async (contact) => {
 
   try {
     const response = await api.delete(`/contacts/${contact.id}`);
+    removeId(contact.id);
     notificationStore.success(response.data.message || t('common.successDelete'), t('common.successTitle'));
     await loadContacts();
   } catch (err) {
     notificationStore.error(err.response?.data?.message || t('common.errorTitle'), t('common.errorTitle'));
+  }
+};
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  selectableItems,
+  allPageSelected,
+  somePageSelected,
+  isSelected,
+  toggleAllOnPage,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(contacts);
+
+const deleteSelected = async () => {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await alertService.confirmDelete({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/contacts/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await loadContacts();
+
+  if (deletedCount > 0 && failedCount === 0) {
+    notificationStore.success(t('common.bulkDeleteSuccess', { count: deletedCount }), t('common.successTitle'));
+  } else if (deletedCount > 0 && failedCount > 0) {
+    notificationStore.error(
+      firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }),
+      t('common.errorTitle')
+    );
+  } else {
+    notificationStore.error(firstErrorMessage || t('common.deleteError'), t('common.errorTitle'));
   }
 };
 
@@ -817,6 +894,7 @@ const resetFilters = () => {
 
 let searchDebounceTimer = null;
 watch(search, () => {
+  clearSelection();
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
     if (page.value !== 1) {
@@ -828,6 +906,7 @@ watch(search, () => {
 });
 
 watch([statusFilter, roleFilter, typeFilter], () => {
+  clearSelection();
   clearTimeout(searchDebounceTimer);
   if (page.value !== 1) {
     page.value = 1;
@@ -837,6 +916,7 @@ watch([statusFilter, roleFilter, typeFilter], () => {
 });
 
 watch(page, () => {
+  clearSelection();
   loadContacts();
 });
 
@@ -844,6 +924,7 @@ watch(page, () => {
 watch(
   () => [route.path, props.role],
   () => {
+    clearSelection();
     clearTimeout(searchDebounceTimer);
     if (page.value !== 1) {
       page.value = 1;

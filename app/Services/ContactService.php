@@ -7,18 +7,12 @@ namespace App\Services;
 use App\Enums\ContactType;
 use App\Models\Contact;
 use App\Models\ContactAddress;
-use App\Services\Accounting\ContactAccountService;
 use Illuminate\Support\Facades\DB;
 
 class ContactService
 {
-    public function __construct(
-        protected ContactAccountService $contactAccountService,
-    ) {}
-
     /**
-     * Create a new contact along with role-appropriate receivable/payable accounts
-     * within a single database transaction.
+     * Create a new contact within a single database transaction.
      *
      * @param  array<string, mixed>  $data
      */
@@ -30,8 +24,6 @@ class ContactService
             $contact = new Contact;
             $contact->fill($data);
             $contact->save();
-
-            $this->contactAccountService->syncAccountsForContact($contact);
 
             // If an initial address is provided with contact creation, save it.
             if (! empty($data['address']) && is_array($data['address'])) {
@@ -48,8 +40,7 @@ class ContactService
     }
 
     /**
-     * Update an existing contact and provision any newly required role accounts
-     * while preserving historical accounts if a role is removed.
+     * Update an existing contact.
      *
      * @param  array<string, mixed>  $data
      */
@@ -59,13 +50,8 @@ class ContactService
 
         return DB::transaction(function () use ($contact, $data) {
             $contact->update($data);
-            $this->contactAccountService->syncAccountsForContact($contact);
 
-            return $contact->fresh([
-                'addresses',
-                'receivableAccount:id,code,name',
-                'payableAccount:id,code,name',
-            ]);
+            return $contact->fresh(['addresses']);
         });
     }
 

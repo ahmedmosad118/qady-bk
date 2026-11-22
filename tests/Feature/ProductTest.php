@@ -287,4 +287,59 @@ class ProductTest extends TestCase
         $this->assertEquals(120.50, (float) $response->json('data.0.purchase_price'));
         $this->assertEquals(20, (float) $response->json('data.0.warehouse_stocks_sum_quantity'));
     }
+
+    public function test_show_in_shop_defaults_to_false_and_can_be_toggled_on_create_and_update(): void
+    {
+        $this->actingUser();
+
+        $createdDefault = $this->postJson('/api/products', $this->validPayload());
+        $createdDefault->assertCreated()
+            ->assertJsonPath('data.show_in_shop', false);
+
+        $createdVisible = $this->postJson('/api/products', $this->validPayload([
+            'name' => 'كتاب المتجر',
+            'show_in_shop' => true,
+        ]));
+        $createdVisible->assertCreated()
+            ->assertJsonPath('data.show_in_shop', true);
+
+        $productId = (int) $createdVisible->json('data.id');
+
+        $this->putJson("/api/products/{$productId}", $this->validPayload([
+            'name' => 'كتاب المتجر',
+            'show_in_shop' => false,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.show_in_shop', false);
+
+        $this->assertDatabaseHas('products', [
+            'id' => $productId,
+            'show_in_shop' => false,
+        ]);
+
+        $this->postJson('/api/products', $this->validPayload([
+            'show_in_shop' => 'not-a-boolean',
+        ]))->assertUnprocessable()->assertJsonValidationErrors(['show_in_shop']);
+    }
+
+    public function test_products_can_be_filtered_by_show_in_shop_and_visible_in_shop_scope(): void
+    {
+        $this->actingUser();
+
+        $shopActive = Product::factory()->visibleInShop()->create(['name' => 'ظاهر نشط', 'is_active' => true]);
+        Product::factory()->visibleInShop()->inactive()->create(['name' => 'ظاهر معطل']);
+        Product::factory()->create(['name' => 'مخفي نشط', 'is_active' => true, 'show_in_shop' => false]);
+
+        $visibleResponse = $this->getJson('/api/products?show_in_shop=1');
+        $visibleResponse->assertOk()
+            ->assertJsonPath('meta.total', 2);
+
+        $hiddenResponse = $this->getJson('/api/products?show_in_shop=0');
+        $hiddenResponse->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.name', 'مخفي نشط');
+
+        $scopedIds = Product::query()->visibleInShop()->pluck('id')->all();
+        $this->assertSame([$shopActive->id], $scopedIds);
+    }
 }

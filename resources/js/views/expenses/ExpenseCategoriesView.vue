@@ -33,11 +33,28 @@
         @reset="resetFilters"
       />
 
+      <!-- Bulk Actions -->
+      <BulkActionsBar
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelectedCategories"
+        @clear="clearSelection"
+      />
+
       <!-- Table Section -->
       <div class="overflow-x-auto">
         <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
+              <th class="w-12 px-4 py-3.5">
+                <AppCheckbox
+                  :checked="allPageSelected"
+                  :indeterminate="somePageSelected && !allPageSelected"
+                  :disabled="selectableItems.length === 0"
+                  :aria-label="$t('common.selectAll')"
+                  @change="toggleAllOnPage"
+                />
+              </th>
               <th class="px-5 py-3.5 text-start">
                 <button
                   type="button"
@@ -56,7 +73,7 @@
           <tbody class="divide-y divide-[var(--border)]">
             <!-- Loading State -->
             <tr v-if="loading && categories.length === 0">
-              <td colspan="3" class="py-16 text-center">
+              <td colspan="4" class="py-16 text-center">
                 <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
                   <span>{{ $t('common.loading') }}</span>
@@ -66,7 +83,7 @@
 
             <!-- Empty State -->
             <tr v-else-if="categories.length === 0">
-              <td colspan="3" class="py-16 text-center">
+              <td colspan="4" class="py-16 text-center">
                 <div class="mx-auto flex max-w-sm flex-col items-center">
                   <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
                     <Tags class="h-7 w-7" />
@@ -93,8 +110,17 @@
             <tr
               v-for="cat in categories"
               :key="cat.id"
-              class="transition-colors hover:bg-[var(--bg)]/50"
+              class="transition-colors"
+              :class="isSelected(cat) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/50'"
             >
+              <td class="px-4 py-4">
+                <AppCheckbox
+                  :checked="isSelected(cat)"
+                  :disabled="(cat.expenses_count || 0) > 0"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(cat)"
+                />
+              </td>
               <td class="px-5 py-4">
                 <button
                   type="button"
@@ -351,9 +377,12 @@ import {
   Trash2,
   X,
 } from 'lucide-vue-next';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import api from '../../services/api';
 import { confirmDelete, showError, showSuccess } from '../../services/alert';
 
@@ -393,6 +422,7 @@ const form = reactive({
 const formErrors = ref({});
 
 async function fetchCategories(page = 1) {
+  clearSelection();
   loading.value = true;
   try {
     const res = await api.get('/expense-categories', {
@@ -506,10 +536,53 @@ async function handleDelete(category) {
 
   try {
     await api.delete(`/expense-categories/${category.id}`);
+    removeId(category.id);
     showSuccess({ text: t('expenses.categoryDeleted') });
     await fetchCategories(meta.current_page);
   } catch (err) {
     showError({ text: err?.response?.data?.message || t('common.error') });
+  }
+}
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  selectableItems,
+  allPageSelected,
+  somePageSelected,
+  isSelected,
+  toggleAllOnPage,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(categories, { canSelect: (cat) => (cat.expenses_count || 0) === 0 });
+
+async function deleteSelectedCategories() {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await confirmDelete({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/expense-categories/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await fetchCategories(meta.current_page);
+
+  if (deletedCount > 0 && failedCount === 0) {
+    showSuccess({ text: t('common.bulkDeleteSuccess', { count: deletedCount }) });
+  } else {
+    showError({ text: firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }) });
   }
 }
 

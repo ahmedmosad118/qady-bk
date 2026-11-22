@@ -13,11 +13,24 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'category_id', 'name', 'barcode', 'author', 'publisher',
     'edition', 'publication_year', 'cover_image',
-    'purchase_price', 'selling_price', 'is_active',
+    'purchase_price', 'selling_price', 'is_active', 'show_in_shop',
 ])]
 class Product extends Model
 {
     use HasFactory, SoftDeletes;
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+            'show_in_shop' => 'boolean',
+        ];
+    }
 
     /**
      * The book category this edition belongs to (may be uncategorized).
@@ -33,6 +46,14 @@ class Product extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope to products visible in the online shop.
+     */
+    public function scopeVisibleInShop(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->where('show_in_shop', true);
     }
 
     /**

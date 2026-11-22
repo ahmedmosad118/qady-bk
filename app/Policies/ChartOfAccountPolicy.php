@@ -12,7 +12,5 @@ class ChartOfAccountPolicy extends BasePolicy
     protected array $lookupPermissions = [
         'accounting.settings.view',
         'accounting.settings.update',
-        'contacts.create',
-        'contacts.update',
     ];
 }

@@ -61,6 +61,28 @@
             </div>
           </div>
 
+          <!-- Online Shop visibility -->
+          <div>
+            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">{{ $t('products.shopFilter') }}</label>
+            <div class="flex flex-wrap gap-2">
+              <FilterChip
+                :label="$t('products.shopAll')"
+                :active="shopFilter === 'all'"
+                @click="shopFilter = 'all'"
+              />
+              <FilterChip
+                :label="$t('products.shopVisible')"
+                :active="shopFilter === 'visible'"
+                @click="shopFilter = 'visible'"
+              />
+              <FilterChip
+                :label="$t('products.shopHidden')"
+                :active="shopFilter === 'hidden'"
+                @click="shopFilter = 'hidden'"
+              />
+            </div>
+          </div>
+
           <!-- Category -->
           <div>
             <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('products.categoryFilter') }}</label>
@@ -121,10 +143,10 @@
 
       <!-- Table -->
       <div v-if="loading || products.length" class="overflow-x-auto">
-        <table class="w-full min-w-[780px] table-auto text-start">
+        <table class="w-full min-w-[920px] table-fixed text-start">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
-              <th scope="col" class="w-12 px-4 py-3.5">
+              <th scope="col" class="w-11 px-3 py-3.5">
                 <AppCheckbox
                   :checked="allPageSelected"
                   :indeterminate="somePageSelected && !allPageSelected"
@@ -132,28 +154,31 @@
                   @change="toggleAllOnPage"
                 />
               </th>
-              <th scope="col" class="px-4 py-3.5 text-start">
+              <th scope="col" class="w-1/4 px-3 py-3.5 text-start">
                 {{ $t('products.productCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-start">
+              <th scope="col" class="px-3 py-3.5 text-start">
                 {{ $t('products.barcodeCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-start lg:table-cell">
+              <th scope="col" class="hidden w-[10%] px-3 py-3.5 text-start lg:table-cell">
                 {{ $t('products.categoryCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-center md:table-cell">
+              <th scope="col" class="hidden w-[9%] px-3 py-3.5 text-center md:table-cell">
                 {{ $t('products.purchasePriceCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-center md:table-cell">
+              <th scope="col" class="hidden w-[9%] px-3 py-3.5 text-center md:table-cell">
                 {{ $t('products.priceCol') }}
               </th>
-              <th scope="col" class="hidden px-4 py-3.5 text-center sm:table-cell">
+              <th scope="col" class="hidden w-[7%] px-3 py-3.5 text-center sm:table-cell">
                 {{ $t('products.stockQtyCol') }}
               </th>
-              <th scope="col" class="px-4 py-3.5 text-center">
+              <th scope="col" class="hidden w-[6%] px-3 py-3.5 text-center lg:table-cell">
+                {{ $t('products.shopCol') }}
+              </th>
+              <th scope="col" class="w-[8%] px-3 py-3.5 text-center">
                 {{ $t('products.statusCol') }}
               </th>
-              <th scope="col" class="w-24 px-4 py-3.5 text-end">
+              <th scope="col" class="w-20 px-3 py-3.5 text-end">
                 {{ $t('common.actions') }}
               </th>
             </tr>
@@ -161,13 +186,10 @@
 
           <tbody v-if="loading" aria-busy="true">
             <tr v-for="n in 5" :key="n" class="border-t border-[var(--border)]">
-              <td colspan="9" class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <div class="h-10 w-10 animate-pulse rounded-xl bg-[var(--bg)]"></div>
-                  <div class="flex-1 space-y-2">
-                    <div class="h-3.5 w-40 animate-pulse rounded bg-[var(--bg)]"></div>
-                    <div class="h-3 w-56 max-w-full animate-pulse rounded bg-[var(--bg)]"></div>
-                  </div>
+              <td colspan="10" class="px-3 py-4">
+                <div class="flex-1 space-y-2">
+                  <div class="h-3.5 w-40 animate-pulse rounded bg-[var(--bg)]"></div>
+                  <div class="h-3 w-56 max-w-full animate-pulse rounded bg-[var(--bg)]"></div>
                 </div>
               </td>
             </tr>
@@ -180,7 +202,7 @@
               class="transition-colors"
               :class="isSelected(product) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]'"
             >
-              <td class="px-4 py-3.5">
+              <td class="px-3 py-3.5">
                 <AppCheckbox
                   :checked="isSelected(product)"
                   :aria-label="$t('products.selectRow', { name: product.name })"
@@ -188,41 +210,33 @@
                 />
               </td>
 
-              <td class="px-4 py-3.5">
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--crimson-soft)] text-[var(--crimson)]"
-                    aria-hidden="true"
-                  >
-                    <BookOpen class="h-5 w-5" />
-                  </span>
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-bold text-[var(--text)]">{{ product.name }}</p>
-                    <p class="mt-0.5 truncate text-sm text-[var(--muted)]">
-                      {{ product.author || product.publisher || '—' }}
-                    </p>
-                  </div>
+              <td class="w-1/4 px-3 py-3.5">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-bold text-[var(--text)]" :title="product.name">{{ product.name }}</p>
+                  <p class="mt-0.5 truncate text-sm text-[var(--muted)]">
+                    {{ product.author || product.publisher || '—' }}
+                  </p>
                 </div>
               </td>
 
-              <td class="px-4 py-3.5">
-                <span class="font-mono text-sm text-[var(--muted)]">{{ product.barcode || '—' }}</span>
+              <td class="px-3 py-3.5">
+                <span class="block truncate font-mono text-sm text-[var(--muted)]" :title="product.barcode || ''">{{ product.barcode || '—' }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 lg:table-cell">
-                <span v-if="product.category" class="text-sm text-[var(--muted)]">{{ product.category.name }}</span>
+              <td class="hidden px-3 py-3.5 lg:table-cell">
+                <span v-if="product.category" class="block truncate text-sm text-[var(--muted)]" :title="product.category.name">{{ product.category.name }}</span>
                 <span v-else class="text-sm text-[var(--muted)]">{{ $t('products.uncategorized') }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 text-center md:table-cell">
-                <span class="text-sm font-medium tabular-nums text-[var(--muted)]">{{ formatPrice(product.purchase_price) }}</span>
+              <td class="hidden px-3 py-3.5 text-center md:table-cell">
+                <span class="whitespace-nowrap text-sm font-medium tabular-nums text-[var(--muted)]">{{ formatPrice(product.purchase_price) }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 text-center md:table-cell">
-                <span class="text-sm font-semibold tabular-nums text-[var(--text)]">{{ formatPrice(product.selling_price) }}</span>
+              <td class="hidden px-3 py-3.5 text-center md:table-cell">
+                <span class="whitespace-nowrap text-sm font-semibold tabular-nums text-[var(--text)]">{{ formatPrice(product.selling_price) }}</span>
               </td>
 
-              <td class="hidden px-4 py-3.5 text-center sm:table-cell">
+              <td class="hidden px-3 py-3.5 text-center sm:table-cell">
                 <span
                   class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums"
                   :class="Number(product.warehouse_stocks_sum_quantity ?? 0) > 0
@@ -233,11 +247,27 @@
                 </span>
               </td>
 
-              <td class="px-4 py-3.5 text-center">
+              <td class="hidden px-3 py-3.5 text-center lg:table-cell">
+                <span
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-full border"
+                  :class="
+                    product.show_in_shop
+                      ? 'border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success)]'
+                      : 'border-[var(--border)] bg-[var(--bg)] text-[var(--muted)]'
+                  "
+                  :title="product.show_in_shop ? $t('products.shopVisible') : $t('products.shopHidden')"
+                  :aria-label="product.show_in_shop ? $t('products.shopVisible') : $t('products.shopHidden')"
+                >
+                  <Check v-if="product.show_in_shop" class="h-4 w-4" aria-hidden="true" />
+                  <X v-else class="h-4 w-4" aria-hidden="true" />
+                </span>
+              </td>
+
+              <td class="px-3 py-3.5 text-center">
                 <StatusBadge :active="!!product.is_active" />
               </td>
 
-              <td class="px-4 py-3.5 text-end">
+              <td class="px-3 py-3.5 text-end">
                 <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
@@ -374,6 +404,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Check,
   ChevronDown,
   Pencil,
   Plus,
@@ -381,6 +412,7 @@ import {
   RotateCw,
   SearchX,
   Trash2,
+  X,
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import alertService from '../../services/alert';
@@ -409,7 +441,8 @@ const schema = {
     { name: 'purchase_price', label: 'products.fields.purchasePrice', type: 'currency', required: true, col: 6, default: 0 },
     { name: 'selling_price', label: 'products.fields.sellingPrice', type: 'currency', required: true, col: 6, default: 0 },
     { name: 'cover_image', label: 'products.fields.coverImage', type: 'text', col: 12 },
-    { name: 'is_active', label: 'products.fields.isActive', type: 'boolean', col: 12, default: true },
+    { name: 'is_active', label: 'products.fields.isActive', type: 'boolean', col: 6, default: true },
+    { name: 'show_in_shop', label: 'products.fields.showInShop', type: 'boolean', col: 6, default: false },
   ],
 };
 
@@ -421,6 +454,7 @@ const loadError = ref('');
 
 const search = ref('');
 const statusFilter = ref('all');
+const shopFilter = ref('all');
 const categoryFilter = ref('all');
 
 const page = ref(1);
@@ -447,6 +481,7 @@ const categoryOptions = computed(() => {
 const activeFiltersCount = computed(() => {
   let count = 0;
   if (statusFilter.value !== 'all') count++;
+  if (shopFilter.value !== 'all') count++;
   if (categoryFilter.value !== 'all') count++;
   return count;
 });
@@ -519,6 +554,7 @@ const loadProducts = async () => {
         search: search.value.trim() || undefined,
         category_id: categoryFilter.value !== 'all' ? categoryFilter.value : undefined,
         is_active: statusFilter.value === 'all' ? undefined : statusFilter.value === 'active',
+        show_in_shop: shopFilter.value === 'all' ? undefined : shopFilter.value === 'visible',
         sort_by: 'name',
         sort_order: 'asc',
       },
@@ -555,6 +591,7 @@ const createDefaults = () => ({
   purchase_price: 0,
   selling_price: 0,
   is_active: true,
+  show_in_shop: false,
 });
 
 const openCreate = () => {
@@ -581,6 +618,7 @@ const openEdit = (product) => {
     purchase_price: Number(product.purchase_price ?? 0),
     selling_price: Number(product.selling_price ?? 0),
     is_active: !!product.is_active,
+    show_in_shop: !!product.show_in_shop,
   };
   showModal.value = true;
 };
@@ -703,9 +741,10 @@ const deleteSelected = async () => {
 };
 
 const resetFilters = () => {
-  const hadFilters = search.value !== '' || statusFilter.value !== 'all' || categoryFilter.value !== 'all';
+  const hadFilters = search.value !== '' || statusFilter.value !== 'all' || shopFilter.value !== 'all' || categoryFilter.value !== 'all';
   search.value = '';
   statusFilter.value = 'all';
+  shopFilter.value = 'all';
   categoryFilter.value = 'all';
   if (!hadFilters && page.value !== 1) {
     page.value = 1;
@@ -713,7 +752,7 @@ const resetFilters = () => {
 };
 
 let searchDebounce = null;
-watch([search, statusFilter, categoryFilter], () => {
+watch([search, statusFilter, shopFilter, categoryFilter], () => {
   selectedIds.value = [];
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(() => {

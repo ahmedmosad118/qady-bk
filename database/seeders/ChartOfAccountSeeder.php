@@ -7,7 +7,6 @@ namespace Database\Seeders;
 use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
-use App\Models\Contact;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
 use App\Services\Accounting\AccountCodeGenerator;
@@ -35,7 +34,6 @@ class ChartOfAccountSeeder extends Seeder
                 ->first();
 
             $existingData = is_array($existingSetting?->data) ? $existingSetting->data : [];
-            $contactAccountIds = $this->getContactAccountIdSet();
 
             $settingKeyByChartKey = [];
             foreach (AccountingSettingRegistry::definitions() as $settingKey => $def) {
@@ -49,13 +47,12 @@ class ChartOfAccountSeeder extends Seeder
                 $account = $this->findOrCreateDefaultAccount(
                     $entry,
                     $settingKeyByChartKey[$entry['key']] ?? null,
-                    $existingData,
-                    $contactAccountIds
+                    $existingData
                 );
                 $seededIdsByKey[$entry['key']] = (int) $account->id;
             }
 
-            $this->syncAccountingSettings($existingSetting, $existingData, $seededIdsByKey, $contactAccountIds);
+            $this->syncAccountingSettings($existingSetting, $existingData, $seededIdsByKey);
             $this->linkMissingPaymentMethodAccounts($seededIdsByKey);
         });
     }
@@ -63,13 +60,11 @@ class ChartOfAccountSeeder extends Seeder
     /**
      * @param  array<string, mixed>  $entry
      * @param  array<string, mixed>  $existingSettingData
-     * @param  array<int, true>  $contactAccountIds
      */
     private function findOrCreateDefaultAccount(
         array $entry,
         ?string $mappedSettingKey,
-        array $existingSettingData,
-        array $contactAccountIds
+        array $existingSettingData
     ): ChartOfAccount {
         /** @var AccountType $type */
         $type = $entry['account_type'];
@@ -79,7 +74,7 @@ class ChartOfAccountSeeder extends Seeder
         // 1. Reuse account already configured in Accounting Settings (even if renamed/recoded).
         if ($mappedSettingKey !== null && is_numeric($existingSettingData[$mappedSettingKey] ?? null)) {
             $configuredId = (int) $existingSettingData[$mappedSettingKey];
-            if ($configuredId > 0 && ! isset($contactAccountIds[$configuredId])) {
+            if ($configuredId > 0) {
                 $configured = ChartOfAccount::query()
                     ->where('id', $configuredId)
                     ->where('account_type', $type->value)
@@ -100,7 +95,7 @@ class ChartOfAccountSeeder extends Seeder
                 ->orderBy('id')
                 ->first();
 
-            if ($linkedPmAccount && ! isset($contactAccountIds[(int) $linkedPmAccount->id])) {
+            if ($linkedPmAccount) {
                 return $linkedPmAccount;
             }
 
@@ -108,41 +103,35 @@ class ChartOfAccountSeeder extends Seeder
                 ->where('account_type', AccountType::ASSET->value)
                 ->where('account_purpose', $purpose->value)
                 ->orderBy('id')
-                ->get();
+                ->first();
 
-            foreach ($purposeMatched as $candidate) {
-                if (! isset($contactAccountIds[(int) $candidate->id])) {
-                    return $candidate;
-                }
+            if ($purposeMatched) {
+                return $purposeMatched;
             }
         }
 
-        // 3. Match by canonical new code or legacy code (with matching type, non-contact).
+        // 3. Match by canonical new code or legacy code (with matching type).
         $codes = array_values(array_unique([$entry['code'], ...$entry['legacy_codes']]));
-        $codeMatches = ChartOfAccount::query()
+        $codeMatched = ChartOfAccount::query()
             ->whereIn('code', $codes)
             ->where('account_type', $type->value)
             ->orderBy('id')
-            ->get();
+            ->first();
 
-        foreach ($codeMatches as $candidate) {
-            if (! isset($contactAccountIds[(int) $candidate->id])) {
-                return $candidate;
-            }
+        if ($codeMatched) {
+            return $codeMatched;
         }
 
-        // 4. Match by canonical name or legacy name (with matching type, non-contact).
+        // 4. Match by canonical name or legacy name (with matching type).
         $names = array_values(array_unique([$entry['name'], ...$entry['legacy_names']]));
-        $nameMatches = ChartOfAccount::query()
+        $nameMatched = ChartOfAccount::query()
             ->whereIn('name', $names)
             ->where('account_type', $type->value)
             ->orderBy('id')
-            ->get();
+            ->first();
 
-        foreach ($nameMatches as $candidate) {
-            if (! isset($contactAccountIds[(int) $candidate->id])) {
-                return $candidate;
-            }
+        if ($nameMatched) {
+            return $nameMatched;
         }
 
         // 5. Create fresh default account without colliding on code.
@@ -163,13 +152,11 @@ class ChartOfAccountSeeder extends Seeder
     /**
      * @param  array<string, mixed>  $existingData
      * @param  array<string, int>  $seededIdsByKey
-     * @param  array<int, true>  $contactAccountIds
      */
     private function syncAccountingSettings(
         ?Setting $existingSetting,
         array $existingData,
-        array $seededIdsByKey,
-        array $contactAccountIds
+        array $seededIdsByKey
     ): void {
         $payload = $existingData;
         foreach (AccountingSettingRegistry::obsoleteKeys() as $obsoleteKey) {
@@ -193,7 +180,6 @@ class ChartOfAccountSeeder extends Seeder
             $currentAcc = $currentId !== null ? $existingAccounts->get($currentId) : null;
 
             $isValidExisting = $currentAcc !== null
-                && ! isset($contactAccountIds[(int) $currentAcc->id])
                 && $currentAcc->account_type === $def['account_type']
                 && ($currentAcc->account_purpose ?? AccountPurpose::GENERAL) === AccountPurpose::GENERAL;
 
@@ -240,30 +226,5 @@ class ChartOfAccountSeeder extends Seeder
                 $method->update(['chart_of_account_id' => $targetId]);
             }
         }
-    }
-
-    /**
-     * @return array<int, true>
-     */
-    private function getContactAccountIdSet(): array
-    {
-        $set = [];
-        $contacts = Contact::withTrashed()
-            ->where(function ($query): void {
-                $query->whereNotNull('receivable_account_id')
-                    ->orWhereNotNull('payable_account_id');
-            })
-            ->get(['receivable_account_id', 'payable_account_id']);
-
-        foreach ($contacts as $contact) {
-            if ($contact->receivable_account_id !== null) {
-                $set[(int) $contact->receivable_account_id] = true;
-            }
-            if ($contact->payable_account_id !== null) {
-                $set[(int) $contact->payable_account_id] = true;
-            }
-        }
-
-        return $set;
     }
 }

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\ChartOfAccount;
 use App\Models\Contact;
 use App\Models\User;
-use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,8 +15,6 @@ class ContactTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->seed(ChartOfAccountSeeder::class);
     }
 
     private function actingUser(): User
@@ -27,6 +25,7 @@ class ContactTest extends TestCase
     public function test_can_create_an_individual_contact(): void
     {
         $this->actingUser();
+        $accountsBefore = ChartOfAccount::query()->count();
 
         $response = $this->postJson('/api/contacts', [
             'type' => 'individual',
@@ -43,6 +42,8 @@ class ContactTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.name', 'أحمد محمود القاضي')
             ->assertJsonPath('data.type', 'individual');
+
+        $this->assertSame($accountsBefore, ChartOfAccount::query()->count());
 
         $this->assertDatabaseHas('contacts', [
             'name' => 'أحمد محمود القاضي',

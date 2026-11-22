@@ -86,11 +86,7 @@ class ContactController extends Controller implements HasMiddleware
 
         return response()->json([
             'success' => true,
-            'data' => $contact->load([
-                'addresses',
-                'receivableAccount:id,code,name',
-                'payableAccount:id,code,name',
-            ]),
+            'data' => $contact->load(['addresses']),
         ]);
     }
 

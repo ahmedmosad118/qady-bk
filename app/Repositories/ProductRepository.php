@@ -44,6 +44,10 @@ class ProductRepository
             $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
         }
 
+        if (isset($filters['show_in_shop']) && $filters['show_in_shop'] !== '' && $filters['show_in_shop'] !== null) {
+            $query->where('show_in_shop', filter_var($filters['show_in_shop'], FILTER_VALIDATE_BOOLEAN));
+        }
+
         $sortBy = in_array($filters['sort_by'] ?? null, ['name', 'barcode', 'selling_price', 'purchase_price', 'created_at'], true)
             ? (string) $filters['sort_by']
             : 'id';

@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -169,21 +168,5 @@ class Contact extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class, 'contact_id');
-    }
-
-    /**
-     * Dedicated customer receivable sub-account in the chart of accounts.
-     */
-    public function receivableAccount(): BelongsTo
-    {
-        return $this->belongsTo(ChartOfAccount::class, 'receivable_account_id');
-    }
-
-    /**
-     * Dedicated supplier payable sub-account in the chart of accounts.
-     */
-    public function payableAccount(): BelongsTo
-    {
-        return $this->belongsTo(ChartOfAccount::class, 'payable_account_id');
     }
 }

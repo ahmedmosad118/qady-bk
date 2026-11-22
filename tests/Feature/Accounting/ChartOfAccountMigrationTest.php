@@ -13,9 +13,8 @@ use Tests\TestCase;
 
 class ChartOfAccountMigrationTest extends TestCase
 {
-    public function test_migrations_preserve_legacy_accounts_contacts_and_payment_methods_and_clean_obsolete_state(): void
+    public function test_migrations_preserve_legacy_accounts_and_payment_methods_and_remove_contact_accounts_safely(): void
     {
-        // Guard: only run direct migrate on in-memory SQLite test database.
         $this->assertSame('sqlite', config('database.default'));
         $this->assertSame(':memory:', config('database.connections.sqlite.database'));
 
@@ -23,16 +22,19 @@ class ChartOfAccountMigrationTest extends TestCase
 
         $m1 = require database_path('migrations/2026_11_23_000001_simplify_chart_of_accounts_and_accounting_settings.php');
         $m2 = require database_path('migrations/2026_11_23_000002_add_chart_of_account_id_to_payment_methods_table.php');
+        $m3 = require database_path('migrations/2026_11_23_000003_remove_contact_accounts.php');
 
-        // Roll back the two new migrations to simulate an existing pre-migration database
+        // Roll back the three new migrations to simulate an existing pre-migration database
+        $m3->down();
         $m2->down();
         $m1->down();
 
         $this->assertTrue(Schema::hasColumn('chart_of_accounts', 'parent_id'));
         $this->assertFalse(Schema::hasColumn('chart_of_accounts', 'account_purpose'));
         $this->assertFalse(Schema::hasColumn('payment_methods', 'chart_of_account_id'));
+        $this->assertTrue(Schema::hasColumn('contacts', 'receivable_account_id'));
+        $this->assertTrue(Schema::hasColumn('contacts', 'payable_account_id'));
 
-        // Seed legacy hierarchical chart, customized group, contact sub-accounts, settings, and payment methods
         $assetsRootId = DB::table('chart_of_accounts')->insertGetId([
             'parent_id' => null,
             'code' => '1',
@@ -114,7 +116,7 @@ class ChartOfAccountMigrationTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $contactId = DB::table('contacts')->insertGetId([
+        DB::table('contacts')->insert([
             'type' => 'individual',
             'name' => 'أحمد',
             'is_customer' => 1,
@@ -156,32 +158,30 @@ class ChartOfAccountMigrationTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        // Run both migrations forward
+        // Run all three migrations forward
         $m1->up();
         $m2->up();
+        $m3->up();
 
-        // 1. Hierarchy removed, purpose added
+        // 1. Hierarchy & contact account columns removed, purpose added
         $this->assertFalse(Schema::hasColumn('chart_of_accounts', 'parent_id'));
         $this->assertTrue(Schema::hasColumn('chart_of_accounts', 'account_purpose'));
+        $this->assertFalse(Schema::hasColumn('contacts', 'receivable_account_id'));
+        $this->assertFalse(Schema::hasColumn('contacts', 'payable_account_id'));
 
-        // 2. Legacy unmodified structural groups & control account removed; custom group & real accounts preserved with same IDs
+        // 2. Legacy unmodified structural groups, control accounts, and contact accounts removed; real accounts preserved
         $this->assertDatabaseMissing('chart_of_accounts', ['id' => $assetsRootId]);
         $this->assertDatabaseMissing('chart_of_accounts', ['id' => $currentAssetsId]);
         $this->assertDatabaseMissing('chart_of_accounts', ['id' => $arControlId]);
+        $this->assertDatabaseMissing('chart_of_accounts', ['id' => $contactRecId]);
+        $this->assertDatabaseMissing('chart_of_accounts', ['id' => $contactPayId]);
 
         $this->assertDatabaseHas('chart_of_accounts', ['id' => $customGroupId, 'code' => '1.099', 'name' => 'مجموعة مخصصة للمستخدم']);
         $this->assertDatabaseHas('chart_of_accounts', ['id' => $cashId, 'code' => '1.001.001', 'name' => 'خزينة المكتبة الرئيسية', 'account_purpose' => AccountPurpose::CASH->value]);
         $this->assertDatabaseHas('chart_of_accounts', ['id' => $bankId, 'code' => '1.001.002', 'name' => 'حساب البنك الأهلي', 'account_purpose' => AccountPurpose::BANK->value]);
         $this->assertDatabaseHas('chart_of_accounts', ['id' => $inventoryId, 'code' => '1.001.004', 'account_purpose' => AccountPurpose::GENERAL->value]);
 
-        // 3. Contact relationships preserved with exact IDs
-        $this->assertDatabaseHas('contacts', [
-            'id' => $contactId,
-            'receivable_account_id' => $contactRecId,
-            'payable_account_id' => $contactPayId,
-        ]);
-
-        // 4. Obsolete setting keys removed, valid & unrelated keys preserved
+        // 3. Obsolete setting keys removed, valid & unrelated keys preserved
         $updatedSettings = json_decode((string) DB::table('settings')->where('type', 'accounting')->value('data'), true);
         $this->assertArrayNotHasKey('cash', $updatedSettings);
         $this->assertArrayNotHasKey('bank', $updatedSettings);
@@ -190,7 +190,7 @@ class ChartOfAccountMigrationTest extends TestCase
         $this->assertSame($inventoryId, $updatedSettings['inventory']);
         $this->assertSame('keep_intact', $updatedSettings['unrelated_key']);
 
-        // 5. Payment methods preserved IDs/types and linked to classified cash/bank accounts
+        // 4. Payment methods preserved IDs/types and linked to classified cash/bank accounts
         $this->assertDatabaseHas('payment_methods', [
             'id' => $cashPmId,
             'type' => PaymentMethodType::CASH->value,

@@ -106,11 +106,28 @@
         </div>
       </FilterToolbar>
 
+      <!-- Bulk Actions -->
+      <BulkActionsBar
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelectedOrders"
+        @clear="clearSelection"
+      />
+
       <!-- Table Section -->
       <div class="overflow-x-auto">
         <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
+              <th class="w-12 px-4 py-3.5">
+                <AppCheckbox
+                  :checked="allPageSelected"
+                  :indeterminate="somePageSelected && !allPageSelected"
+                  :disabled="selectableItems.length === 0"
+                  :aria-label="$t('common.selectAll')"
+                  @change="toggleAllOnPage"
+                />
+              </th>
               <th class="px-5 py-3.5">{{ $t('purchaseOrders.orderNumber') }}</th>
               <th class="px-5 py-3.5">{{ $t('purchaseOrders.supplier') }}</th>
               <th class="px-5 py-3.5 text-center">{{ $t('purchaseOrders.orderDate') }}</th>
@@ -125,7 +142,7 @@
           <tbody class="divide-y divide-[var(--border)]">
             <!-- Loading State -->
             <tr v-if="loading && orders.length === 0">
-              <td colspan="9" class="py-16 text-center">
+              <td colspan="10" class="py-16 text-center">
                 <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
                   <span>{{ $t('common.loading') }}</span>
@@ -135,7 +152,7 @@
 
             <!-- Empty State -->
             <tr v-else-if="orders.length === 0">
-              <td colspan="9" class="py-16 text-center">
+              <td colspan="10" class="py-16 text-center">
                 <div class="mx-auto flex max-w-sm flex-col items-center">
                   <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
                     <ShoppingBag class="h-7 w-7" />
@@ -162,8 +179,17 @@
             <tr
               v-for="order in orders"
               :key="order.id"
-              class="transition-colors hover:bg-[var(--bg)]/50"
+              class="transition-colors"
+              :class="isSelected(order) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/50'"
             >
+              <td class="px-4 py-4">
+                <AppCheckbox
+                  :checked="isSelected(order)"
+                  :disabled="order.status !== 'draft'"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(order)"
+                />
+              </td>
               <!-- Order Number -->
               <td class="px-5 py-4 whitespace-nowrap">
                 <button
@@ -367,9 +393,12 @@ import {
   purchaseStatusBadgeClass as statusBadgeClass,
   totalDiscountAmount,
 } from '../../utils/purchaseFormatters';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import PurchaseOrderFormModal from './PurchaseOrderFormModal.vue';
 import PurchaseOrderDetailModal from './PurchaseOrderDetailModal.vue';
 import {
@@ -467,6 +496,7 @@ function statusLabel(status) {
 }
 
 async function loadOrders() {
+  clearSelection();
   loading.value = true;
   loadError.value = '';
 
@@ -608,6 +638,7 @@ async function deleteOrderAction(order) {
 
   try {
     await api.delete(`/purchase-orders/${order.id}`);
+    removeId(order.id);
     if (detailModalOpen.value && selectedOrder.value?.id === order.id) {
       detailModalOpen.value = false;
     }
@@ -615,6 +646,54 @@ async function deleteOrderAction(order) {
     loadOrders();
   } catch (err) {
     showError({ title: t('common.errorAlertTitle'), text: err.response?.data?.message || t('purchaseOrders.deleteErrorText') });
+  }
+}
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  selectableItems,
+  allPageSelected,
+  somePageSelected,
+  isSelected,
+  toggleAllOnPage,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(orders, { canSelect: (order) => order.status === 'draft' });
+
+async function deleteSelectedOrders() {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await confirmDelete({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/purchase-orders/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await loadOrders();
+
+  if (deletedCount > 0 && failedCount === 0) {
+    showSuccess({
+      title: t('purchaseOrders.deleteSuccessTitle'),
+      text: t('common.bulkDeleteSuccess', { count: deletedCount }),
+    });
+  } else {
+    showError({
+      title: t('common.errorAlertTitle'),
+      text: firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }),
+    });
   }
 }
 

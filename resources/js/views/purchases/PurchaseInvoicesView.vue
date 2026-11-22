@@ -101,11 +101,28 @@
         </div>
       </FilterToolbar>
 
+      <!-- Bulk Actions -->
+      <BulkActionsBar
+        :count="selectedIds.length"
+        :loading="bulkDeleting"
+        @delete="deleteSelectedInvoices"
+        @clear="clearSelection"
+      />
+
       <!-- Table Section -->
       <div class="overflow-x-auto">
         <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
+              <th class="w-12 px-4 py-3.5">
+                <AppCheckbox
+                  :checked="allPageSelected"
+                  :indeterminate="somePageSelected && !allPageSelected"
+                  :disabled="selectableItems.length === 0"
+                  :aria-label="$t('common.selectAll')"
+                  @change="toggleAllOnPage"
+                />
+              </th>
               <th class="px-5 py-3.5 text-start">{{ $t('purchaseInvoices.invoiceNumber') }}</th>
               <th class="px-5 py-3.5 text-start">{{ $t('purchaseInvoices.documentSource') }}</th>
               <th class="px-5 py-3.5 text-start">{{ $t('purchaseInvoices.supplier') }}</th>
@@ -121,7 +138,7 @@
           <tbody class="divide-y divide-[var(--border)]">
             <!-- Loading State -->
             <tr v-if="loading && invoices.length === 0">
-              <td colspan="10" class="py-16 text-center">
+              <td colspan="11" class="py-16 text-center">
                 <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
                   <span>{{ $t('common.loading') }}</span>
@@ -131,7 +148,7 @@
 
             <!-- Empty State -->
             <tr v-else-if="invoices.length === 0">
-              <td colspan="10" class="py-16 text-center">
+              <td colspan="11" class="py-16 text-center">
                 <div class="mx-auto flex max-w-sm flex-col items-center">
                   <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
                     <FileText class="h-7 w-7" />
@@ -158,8 +175,17 @@
             <tr
               v-for="invoice in invoices"
               :key="invoice.id"
-              class="transition-colors hover:bg-[var(--bg)]/50"
+              class="transition-colors"
+              :class="isSelected(invoice) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/50'"
             >
+              <td class="px-4 py-4">
+                <AppCheckbox
+                  :checked="isSelected(invoice)"
+                  :disabled="!canModify(invoice)"
+                  :aria-label="$t('common.selectRow')"
+                  @change="toggleRow(invoice)"
+                />
+              </td>
               <!-- Invoice Number -->
               <td class="px-5 py-4 whitespace-nowrap">
                 <button
@@ -357,9 +383,12 @@ import {
 } from '../../utils/purchaseFormatters';
 import api from '../../services/api';
 import { confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
+import AppCheckbox from '../../components/ui/AppCheckbox.vue';
+import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import PurchaseInvoiceFormModal from './PurchaseInvoiceFormModal.vue';
 import PurchaseInvoiceDetailModal from './PurchaseInvoiceDetailModal.vue';
 import {
@@ -472,6 +501,7 @@ function statusLabel(status) {
 }
 
 async function loadInvoices() {
+  clearSelection();
   loading.value = true;
   loadError.value = '';
 
@@ -592,6 +622,7 @@ async function deleteInvoiceAction(invoice) {
 
   try {
     await api.delete(`/purchase-invoices/${invoice.id}`);
+    removeId(invoice.id);
     if (detailModalOpen.value && selectedInvoice.value?.id === invoice.id) {
       detailModalOpen.value = false;
     }
@@ -604,6 +635,54 @@ async function deleteInvoiceAction(invoice) {
     showError({
       title: t('common.error'),
       text: err.response?.data?.message || t('purchaseInvoices.unexpectedError'),
+    });
+  }
+}
+
+const bulkDeleting = ref(false);
+const {
+  selectedIds,
+  selectableItems,
+  allPageSelected,
+  somePageSelected,
+  isSelected,
+  toggleAllOnPage,
+  toggleRow,
+  clearSelection,
+  removeId,
+} = useBulkSelection(invoices, { canSelect: (invoice) => canModify(invoice) });
+
+async function deleteSelectedInvoices() {
+  if (!selectedIds.value.length || bulkDeleting.value) return;
+
+  const count = selectedIds.value.length;
+  const confirmed = await confirmDelete({
+    title: t('common.confirmBulkDeleteTitle'),
+    text: t('common.confirmBulkDeleteText', { count }),
+    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  bulkDeleting.value = true;
+  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
+    [...selectedIds.value],
+    (id) => api.delete(`/purchase-invoices/${id}`)
+  );
+  bulkDeleting.value = false;
+
+  clearSelection();
+  await loadInvoices();
+
+  if (deletedCount > 0 && failedCount === 0) {
+    showSuccess({
+      title: t('purchaseInvoices.deleteSuccessTitle'),
+      text: t('common.bulkDeleteSuccess', { count: deletedCount }),
+    });
+  } else {
+    showError({
+      title: t('common.error'),
+      text: firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }),
     });
   }
 }
