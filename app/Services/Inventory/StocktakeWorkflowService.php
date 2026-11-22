@@ -10,7 +10,6 @@ use App\Enums\StockAdjustmentDirection;
 use App\Enums\StocktakeItemStatus;
 use App\Enums\StocktakeScope;
 use App\Enums\StocktakeStatus;
-use App\Models\InventoryDocument;
 use App\Models\Product;
 use App\Models\Stocktake;
 use App\Models\StocktakeItem;
@@ -18,6 +17,7 @@ use App\Models\StocktakeItemHistory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryDocumentService;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -113,7 +113,9 @@ class StocktakeWorkflowService
                         'updated_at' => $now,
                     ], $toInsert);
 
-                    StocktakeItem::query()->insert($insertRows);
+                    foreach (array_chunk($insertRows, 500) as $chunk) {
+                        StocktakeItem::query()->insert($chunk);
+                    }
                 }
             }
 
@@ -164,29 +166,28 @@ class StocktakeWorkflowService
                 ]);
             }
 
-            $totalItems = $lockedStocktake->items()->count();
+            $counts = $lockedStocktake->items()
+                ->selectRaw(
+                    'COUNT(*) as total_items, SUM(CASE WHEN count_status != ? THEN 1 ELSE 0 END) as uncounted_count, SUM(CASE WHEN counted_quantity IS NULL THEN 1 ELSE 0 END) as null_count',
+                    [StocktakeItemStatus::COUNTED->value]
+                )
+                ->first();
+
+            $totalItems = (int) ($counts->total_items ?? 0);
             if ($totalItems === 0) {
                 throw ValidationException::withMessages([
                     'items' => [(string) __('stocktakes.errors.no_items')],
                 ]);
             }
 
-            // Check if any items are pending or counting
-            $uncountedCount = $lockedStocktake->items()
-                ->where('count_status', '!=', StocktakeItemStatus::COUNTED)
-                ->count();
-
+            $uncountedCount = (int) ($counts->uncounted_count ?? 0);
             if ($uncountedCount > 0) {
                 throw ValidationException::withMessages([
                     'items' => [(string) __('stocktakes.errors.uncounted_remaining', ['count' => $uncountedCount])],
                 ]);
             }
 
-            // Check for null counted quantities
-            $nullCount = $lockedStocktake->items()
-                ->whereNull('counted_quantity')
-                ->count();
-
+            $nullCount = (int) ($counts->null_count ?? 0);
             if ($nullCount > 0) {
                 throw ValidationException::withMessages([
                     'items' => [(string) __('stocktakes.errors.unsaved_counts')],
@@ -237,7 +238,7 @@ class StocktakeWorkflowService
                 ]);
             }
 
-            $items = $lockedStocktake->items()->get();
+            $items = $lockedStocktake->items()->with('product:id,name')->get();
 
             $increases = [];
             $decreases = [];
@@ -250,18 +251,18 @@ class StocktakeWorkflowService
                     ]);
                 }
 
-                $cmp = bccomp($variance, '0.000', 3);
+                $cmp = Decimal::comp($variance, '0.000', Decimal::QUANTITY_SCALE);
                 if ($cmp > 0) {
                     $increases[] = [
                         'product_id' => $item->product_id,
-                        'quantity' => (float) $variance,
+                        'quantity' => $variance,
                         'notes' => (string) __('stocktakes.notes.surplus_item', ['name' => (string) $item->product?->name]),
                     ];
                 } elseif ($cmp < 0) {
-                    $absVariance = bcmul($variance, '-1', 3);
+                    $absVariance = Decimal::mul($variance, '-1', Decimal::QUANTITY_SCALE);
                     $decreases[] = [
                         'product_id' => $item->product_id,
-                        'quantity' => (float) $absVariance,
+                        'quantity' => $absVariance,
                         'notes' => (string) __('stocktakes.notes.shortage_item', ['name' => (string) $item->product?->name]),
                     ];
                 }
@@ -415,18 +416,14 @@ class StocktakeWorkflowService
             }
 
             // Release any items currently locked in counting
-            $countingItems = $lockedStocktake->items()
+            $lockedStocktake->items()
                 ->where('count_status', StocktakeItemStatus::COUNTING)
-                ->get();
-
-            foreach ($countingItems as $item) {
-                $item->update([
-                    'count_status' => StocktakeItemStatus::PENDING,
+                ->update([
+                    'count_status' => StocktakeItemStatus::PENDING->value,
                     'system_quantity' => null,
                     'count_started_by' => null,
                     'count_started_at' => null,
                 ]);
-            }
 
             $previousStatus = $lockedStocktake->status->value;
 

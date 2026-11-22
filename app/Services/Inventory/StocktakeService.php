@@ -14,10 +14,10 @@ use App\Models\StocktakeItemHistory;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use LogicException;
 
 class StocktakeService
 {
@@ -28,7 +28,7 @@ class StocktakeService
     /**
      * Create a new draft stocktake document.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createStocktake(array $data, User $user): Stocktake
     {
@@ -224,8 +224,9 @@ class StocktakeService
                 ]);
             }
 
-            $qtyStr = number_format((float) $countedQuantity, 3, '.', '');
-            if (bccomp($qtyStr, '0.000', 3) < 0) {
+            $parsedQty = Decimal::parse($countedQuantity);
+            $qtyStr = $parsedQty !== null ? Decimal::round($parsedQty, Decimal::QUANTITY_SCALE) : '0.000';
+            if (Decimal::isNegative($qtyStr, Decimal::QUANTITY_SCALE)) {
                 throw ValidationException::withMessages([
                     'counted_quantity' => [(string) __('stocktakes.errors.negative_count')],
                 ]);

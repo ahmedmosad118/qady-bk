@@ -51,6 +51,8 @@ class PosReturnService
         protected InventoryDocumentWorkflowService $invWorkflowService,
         protected PosShiftService $shiftService,
         protected PosDefaultWarehouseResolver $warehouseResolver,
+        protected PosReturnCalculator $calculator,
+        protected PosReturnQueryService $queryService,
     ) {}
 
     /**
@@ -58,7 +60,7 @@ class PosReturnService
      * Enforces atomic idempotency on client_uuid to prevent duplicate returns,
      * duplicate refunding, and duplicate inventory documents.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function processReturn(array $data, User $user): PosReturn
     {
@@ -72,7 +74,7 @@ class PosReturnService
                 return $existing;
             }
 
-            $lock = Cache::lock('pos_return_uuid_' . $clientUuid, 15);
+            $lock = Cache::lock('pos_return_uuid_'.$clientUuid, 15);
 
             return $lock->block(15, function () use ($data, $user, $clientUuid): PosReturn {
                 $existing = $this->findReturnByClientUuid($clientUuid);
@@ -98,27 +100,19 @@ class PosReturnService
     /**
      * Aggregate previously returned quantities per pos_sale_item_id in a single GROUP BY query.
      *
-     * @param array<int, int> $saleItemIds
+     * @param  array<int, int>  $saleItemIds
      * @return Collection<int, mixed>
      */
     public function sumReturnedQuantitiesBySaleItemIds(array $saleItemIds): Collection
     {
-        if ($saleItemIds === []) {
-            return collect();
-        }
-
-        return PosReturnItem::query()
-            ->whereIn('pos_sale_item_id', array_values(array_unique($saleItemIds)))
-            ->selectRaw('pos_sale_item_id, COALESCE(SUM(quantity), 0) as total_returned')
-            ->groupBy('pos_sale_item_id')
-            ->pluck('total_returned', 'pos_sale_item_id');
+        return $this->queryService->sumReturnedQuantitiesBySaleItemIds($saleItemIds);
     }
 
     /**
      * Determine whether a sale item is eligible for return.
      * Only missing/deleted products or defective/damaged items are rejected.
      *
-     * @param array<string, mixed> $rawItem
+     * @param  array<string, mixed>  $rawItem
      */
     protected function assertItemReturnable(PosSaleItem $saleItem, array $rawItem): void
     {
@@ -147,7 +141,7 @@ class PosReturnService
     /**
      * Internal atomic execution of return processing.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     protected function executeReturnProcessing(array $data, User $user, ?string $clientUuid): PosReturn
     {
@@ -233,7 +227,7 @@ class PosReturnService
                         $prodName = $saleItem->product?->name ?? 'المنتج';
                         throw ValidationException::withMessages([
                             'items' => [
-                                "الكمية المطلوبة لإرجاع '{$prodName}' ({$reqQtyStr}) تتجاوز الكمية المتاحة للإرجاع ({$remainingQtyStr}). المباع: {$origQtyStr}، المرتجع سابقاً: {$alreadyReturnedStr}."
+                                "الكمية المطلوبة لإرجاع '{$prodName}' ({$reqQtyStr}) تتجاوز الكمية المتاحة للإرجاع ({$remainingQtyStr}). المباع: {$origQtyStr}، المرتجع سابقاً: {$alreadyReturnedStr}.",
                             ],
                         ]);
                     }
@@ -241,37 +235,9 @@ class PosReturnService
                     // Track cumulative returned quantity in case same sale item appears twice in payload
                     $returnedByItemId[$saleItem->id] = Decimal::add($alreadyReturnedStr, $reqQtyStr, Decimal::QUANTITY_SCALE);
 
-                    // Calculate pro-rated net paid amount and discount for the returned quantity via Decimal
-                    // Multiply before dividing (amount * reqQty / origQty) to avoid repeating-decimal truncation.
-                    $netLineTotal = Decimal::sub(
-                        (string) $saleItem->total,
-                        (string) $saleItem->allocated_invoice_discount,
-                        Decimal::CALCULATION_SCALE
-                    );
-
-                    $lineRefund = Decimal::round(
-                        Decimal::div(
-                            Decimal::mul($netLineTotal, $reqQtyStr, Decimal::CALCULATION_SCALE),
-                            $origQtyStr,
-                            Decimal::CALCULATION_SCALE
-                        ),
-                        Decimal::MONEY_SCALE
-                    );
-
-                    // Pro-rated discount for returned line = (discount_amount + allocated_invoice_discount) * reqQty / origQty
-                    $totalLineDiscount = Decimal::add(
-                        (string) $saleItem->discount_amount,
-                        (string) $saleItem->allocated_invoice_discount,
-                        Decimal::CALCULATION_SCALE
-                    );
-                    $lineAllocatedDiscount = Decimal::round(
-                        Decimal::div(
-                            Decimal::mul($totalLineDiscount, $reqQtyStr, Decimal::CALCULATION_SCALE),
-                            $origQtyStr,
-                            Decimal::CALCULATION_SCALE
-                        ),
-                        Decimal::MONEY_SCALE
-                    );
+                    $lineCalc = $this->calculator->calculateLine($saleItem, $reqQtyStr, $origQtyStr);
+                    $lineRefund = $lineCalc['refund_amount'];
+                    $lineAllocatedDiscount = $lineCalc['allocated_discount'];
 
                     $totalRefundAmount = Decimal::add($totalRefundAmount, $lineRefund, Decimal::MONEY_SCALE);
 
@@ -315,7 +281,7 @@ class PosReturnService
 
                 // 7. If original sale was cash, record cash_return transaction in the current shift
                 if ($sale->paymentMethod?->type === PaymentMethodType::CASH) {
-                    $tx = new PosShiftTransaction();
+                    $tx = new PosShiftTransaction;
                     $tx->shift_id = $shift->id;
                     $tx->type = PosShiftTransaction::TYPE_CASH_RETURN;
                     $tx->amount = $totalRefundAmount;
@@ -403,7 +369,7 @@ class PosReturnService
     /**
      * Hydrate return relations in memory from already-loaded models.
      *
-     * @param EloquentCollection<int, PosSaleItem> $saleItemsById
+     * @param  EloquentCollection<int, PosSaleItem>  $saleItemsById
      */
     protected function hydrateReturn(
         PosReturn $posReturn,
@@ -437,104 +403,17 @@ class PosReturnService
      */
     public function getReturnableItems(PosSale $sale): array
     {
-        $sale->loadMissing(['items.product', 'paymentMethod', 'customer']);
-
-        $returnedByItemId = $this->sumReturnedQuantitiesBySaleItemIds(
-            $sale->items->pluck('id')->all()
-        );
-
-        $itemsSummary = [];
-        foreach ($sale->items as $item) {
-            $alreadyReturnedStr = Decimal::fromNumeric($returnedByItemId[$item->id] ?? 0, Decimal::QUANTITY_SCALE);
-            $soldQtyStr = Decimal::fromNumeric($item->quantity, Decimal::QUANTITY_SCALE);
-            $remainingQtyStr = Decimal::max(
-                '0.000',
-                Decimal::sub($soldQtyStr, $alreadyReturnedStr, Decimal::QUANTITY_SCALE),
-                Decimal::QUANTITY_SCALE
-            );
-
-            $netLineTotal = Decimal::sub(
-                (string) $item->total,
-                (string) $item->allocated_invoice_discount,
-                Decimal::CALCULATION_SCALE
-            );
-            $netPaidUnitPrice = Decimal::round(
-                Decimal::div($netLineTotal, $soldQtyStr, Decimal::CALCULATION_SCALE),
-                Decimal::MONEY_SCALE
-            );
-
-            $itemsSummary[] = [
-                'pos_sale_item_id' => $item->id,
-                'product_id' => $item->product_id,
-                'product_name' => $item->product?->name,
-                'barcode' => $item->product?->barcode,
-                'sold_quantity' => (float) $soldQtyStr,
-                'already_returned_quantity' => (float) $alreadyReturnedStr,
-                'remaining_returnable_quantity' => (float) $remainingQtyStr,
-                'original_unit_price' => (string) $item->original_unit_price,
-                'sold_unit_price' => (string) $item->unit_price,
-                'net_paid_unit_price' => $netPaidUnitPrice,
-                'can_return' => Decimal::isPositive($remainingQtyStr, Decimal::QUANTITY_SCALE),
-            ];
-        }
-
-        return [
-            'sale' => [
-                'id' => $sale->id,
-                'invoice_number' => $sale->invoice_number,
-                'sold_at' => $sale->sold_at?->toIso8601String(),
-                'payment_method' => $sale->paymentMethod?->name,
-                'customer' => $sale->customer?->name,
-                'subtotal' => (string) $sale->subtotal,
-                'items_discount_total' => (string) $sale->items_discount_total,
-                'invoice_discount_amount' => (string) $sale->invoice_discount_amount,
-                'grand_total' => (string) $sale->grand_total,
-            ],
-            'items' => $itemsSummary,
-        ];
+        return $this->queryService->getReturnableItems($sale);
     }
 
     /**
      * Paginate POS returns with optional filters.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginateReturns(array $filters, int $perPage = 15): LengthAwarePaginator
     {
-        $search = trim((string) ($filters['search'] ?? ''));
-        $shiftId = $filters['shift_id'] ?? null;
-        $posSaleId = $filters['pos_sale_id'] ?? null;
-        $paymentMethodId = $filters['payment_method_id'] ?? null;
-        $dateFrom = $filters['date_from'] ?? null;
-        $dateTo = $filters['date_to'] ?? null;
-
-        return PosReturn::query()
-            ->with([
-                'sale:id,invoice_number,customer_id,grand_total,sold_at',
-                'sale.customer:id,name,phone',
-                'creator:id,name',
-                'paymentMethod:id,name,type',
-                'shift:id,shift_number',
-                'inventoryDocuments:id,document_number,referenceable_type,referenceable_id,status',
-            ])
-            ->withCount('items')
-            ->when($search !== '', function ($q) use ($search): void {
-                $q->where(function ($sub) use ($search): void {
-                    $sub->where('return_number', 'like', "%{$search}%")
-                        ->orWhereHas('sale', function ($sq) use ($search): void {
-                            $sq->where('invoice_number', 'like', "%{$search}%")
-                                ->orWhereHas('customer', fn ($cq) => $cq->where('name', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%"));
-                        })
-                        ->orWhereHas('creator', fn ($uq) => $uq->where('name', 'like', "%{$search}%"));
-                });
-            })
-            ->when($shiftId, fn ($q) => $q->where('shift_id', $shiftId))
-            ->when($posSaleId, fn ($q) => $q->where('pos_sale_id', $posSaleId))
-            ->when($paymentMethodId, fn ($q) => $q->where('payment_method_id', $paymentMethodId))
-            ->when($dateFrom, fn ($q) => $q->whereDate('returned_at', '>=', $dateFrom))
-            ->when($dateTo, fn ($q) => $q->whereDate('returned_at', '<=', $dateTo))
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        return $this->queryService->paginateReturns($filters, $perPage);
     }
 
     /**
@@ -542,19 +421,6 @@ class PosReturnService
      */
     public function getReturnDetails(PosReturn $posReturn): PosReturn
     {
-        return $posReturn->load([
-            'items.product:id,name,barcode',
-            'items.saleItem:id,sale_id,product_id,quantity,unit_price,total,allocated_invoice_discount',
-            'paymentMethod:id,name,type',
-            'sale:id,invoice_number,customer_id,payment_method_id,subtotal,items_discount_total,invoice_discount_amount,grand_total,sold_at',
-            'sale.customer:id,name,phone,email',
-            'sale.paymentMethod:id,name,type',
-            'shift:id,shift_number,opened_at,closed_at',
-            'creator:id,name,email',
-            'inventoryDocuments.sourceWarehouse:id,name,code',
-            'inventoryDocuments.destinationWarehouse:id,name,code',
-            'inventoryDocuments.items.product:id,name,barcode',
-            'inventoryDocuments.creator:id,name',
-        ]);
+        return $this->queryService->getReturnDetails($posReturn);
     }
 }

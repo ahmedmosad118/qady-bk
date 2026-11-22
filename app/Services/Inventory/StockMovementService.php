@@ -10,20 +10,16 @@ use App\Enums\InventoryReturnDirection;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Enums\StockAdjustmentDirection;
 use App\Enums\StockMovementDirection;
-use App\Enums\StocktakeItemStatus;
-use App\Enums\StocktakeStatus;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\StockMovement;
-use App\Models\StocktakeItem;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -35,6 +31,11 @@ class StockMovementService
      * Attempts for transactions that can lose a lock race (InnoDB deadlock => automatic retry).
      */
     public const TRANSACTION_ATTEMPTS = 3;
+
+    public function __construct(
+        protected StockBalanceApplier $balanceApplier,
+        protected StockMovementQueryService $queryService,
+    ) {}
 
     /**
      * Post an approved inventory document:
@@ -118,7 +119,7 @@ class StockMovementService
     /**
      * Ensure a Goods Receipt linked to a Purchase Invoice receives the complete invoice quantities in one operation.
      *
-     * @param Collection<int, InventoryDocumentItem> $docItems
+     * @param  Collection<int, InventoryDocumentItem>  $docItems
      */
     protected function validatePurchaseInvoiceGoodsReceipt(InventoryDocument $document, Collection $docItems): void
     {
@@ -255,212 +256,12 @@ class StockMovementService
      * Atomically locks affected stock records, verifies stock sufficiency,
      * creates StockMovement records, and updates WarehouseStock balances.
      *
-     * @param array<array<string, mixed>> $planned
+     * @param  array<array<string, mixed>>  $planned
      * @return array<StockMovement>
      */
     protected function applyMovements(array $planned): array
     {
-        if ($planned === []) {
-            return [];
-        }
-
-        // 1. Group distinct product IDs by warehouse_id (sorted deterministically to prevent deadlocks)
-        $productsByWarehouse = [];
-        foreach ($planned as $m) {
-            $whId = (int) $m['warehouse_id'];
-            $prodId = (int) $m['product_id'];
-            $productsByWarehouse[$whId][$prodId] = $prodId;
-        }
-
-        ksort($productsByWarehouse);
-
-        // 2. Batch-ensure stock rows exist, batch-lock them with lockForUpdate(), and batch-check stocktake locks per warehouse
-        $lockedStocks = [];
-        $now = Carbon::now();
-
-        foreach ($productsByWarehouse as $whId => $prodIdMap) {
-            $prodIds = array_values($prodIdMap);
-            sort($prodIds);
-
-            $stocks = WarehouseStock::query()
-                ->where('warehouse_id', $whId)
-                ->whereIn('product_id', $prodIds)
-                ->orderBy('product_id')
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('product_id');
-
-            if ($stocks->count() < count($prodIds)) {
-                $missingRows = [];
-                foreach ($prodIds as $prodId) {
-                    if (! $stocks->has($prodId)) {
-                        $missingRows[] = [
-                            'warehouse_id' => $whId,
-                            'product_id' => $prodId,
-                            'quantity' => '0.000',
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-                    }
-                }
-
-                if ($missingRows !== []) {
-                    WarehouseStock::query()->insertOrIgnore($missingRows);
-                }
-
-                $stocks = WarehouseStock::query()
-                    ->where('warehouse_id', $whId)
-                    ->whereIn('product_id', $prodIds)
-                    ->orderBy('product_id')
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('product_id');
-            }
-
-            // Batch-check if any product in this warehouse is locked in COUNTING status in an active stocktake (1 locked query)
-            $lockedProductId = StocktakeItem::query()
-                ->whereIn('product_id', $prodIds)
-                ->where('count_status', StocktakeItemStatus::COUNTING)
-                ->whereHas('stocktake', function (Builder $q) use ($whId): void {
-                    $q->where('warehouse_id', $whId)
-                        ->whereIn('status', [
-                            StocktakeStatus::IN_PROGRESS,
-                            StocktakeStatus::PENDING_APPROVAL,
-                            StocktakeStatus::APPROVED,
-                            StocktakeStatus::REJECTED,
-                        ]);
-                })
-                ->lockForUpdate()
-                ->value('product_id');
-
-            if ($lockedProductId !== null) {
-                $wh = Warehouse::query()->find($whId);
-                $prod = Product::query()->find($lockedProductId);
-
-                throw ValidationException::withMessages([
-                    'stocktake_locked' => [
-                        (string) __('inventory.errors.stocktake_locked', [
-                            'product' => (string) $prod?->name,
-                            'warehouse' => (string) $wh?->name,
-                        ]),
-                    ],
-                ]);
-            }
-
-            foreach ($stocks as $prodId => $stock) {
-                $lockedStocks[$whId . '_' . $prodId] = $stock;
-            }
-        }
-
-        // 3. Calculate net delta per stock row and verify against negative stock using Decimal
-        $deltas = [];
-        foreach ($planned as $m) {
-            $key = $m['warehouse_id'] . '_' . $m['product_id'];
-            $qty = Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE);
-
-            if (! isset($deltas[$key])) {
-                $deltas[$key] = '0.000';
-            }
-
-            if ($m['direction'] === StockMovementDirection::INBOUND) {
-                $deltas[$key] = Decimal::add($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
-            } else {
-                $deltas[$key] = Decimal::sub($deltas[$key], $qty, Decimal::QUANTITY_SCALE);
-            }
-        }
-
-        $newBalancesByWarehouse = [];
-        foreach ($lockedStocks as $key => $stock) {
-            $currentQty = Decimal::fromNumeric($stock->quantity, Decimal::QUANTITY_SCALE);
-            $delta = $deltas[$key] ?? '0.000';
-            $projected = Decimal::add($currentQty, $delta, Decimal::QUANTITY_SCALE);
-
-            if (Decimal::isNegative($projected, Decimal::QUANTITY_SCALE)) {
-                $wh = Warehouse::query()->find($stock->warehouse_id);
-                $prod = Product::query()->find($stock->product_id);
-
-                $shortage = Decimal::mul($projected, '-1', Decimal::QUANTITY_SCALE);
-                $requestedOutbound = Decimal::mul($delta, '-1', Decimal::QUANTITY_SCALE);
-
-                throw ValidationException::withMessages([
-                    'stock' => [
-                        (string) __('inventory.errors.insufficient_stock', [
-                            'product' => (string) $prod?->name,
-                            'warehouse' => (string) $wh?->name,
-                            'current' => $currentQty,
-                            'requested' => $requestedOutbound,
-                            'shortage' => $shortage,
-                        ]),
-                    ],
-                ]);
-            }
-
-            $stock->quantity = $projected;
-            $newBalancesByWarehouse[(int) $stock->warehouse_id][(int) $stock->product_id] = $projected;
-        }
-
-        // 4. Bulk insert StockMovement rows in 1 query
-        $movementRows = [];
-        foreach ($planned as $m) {
-            $dirVal = $m['direction'] instanceof StockMovementDirection ? $m['direction']->value : (string) $m['direction'];
-            $movementRows[] = [
-                'inventory_document_id' => (int) $m['inventory_document_id'],
-                'inventory_document_item_id' => (int) $m['inventory_document_item_id'],
-                'product_id' => (int) $m['product_id'],
-                'warehouse_id' => (int) $m['warehouse_id'],
-                'direction' => $dirVal,
-                'quantity' => Decimal::fromNumeric($m['quantity'], Decimal::QUANTITY_SCALE),
-                'movement_date' => $m['movement_date'],
-                'reversal_of_id' => $m['reversal_of_id'] ?? null,
-                'created_by' => $m['created_by'] ?? null,
-                'created_at' => $now,
-            ];
-        }
-
-        StockMovement::query()->insert($movementRows);
-
-        // 5. Batch update WarehouseStock balances in 1 CASE query per warehouse
-        foreach ($newBalancesByWarehouse as $whId => $balancesByProductId) {
-            if ($balancesByProductId === []) {
-                continue;
-            }
-
-            $cases = [];
-            $bindings = [];
-            foreach ($balancesByProductId as $prodId => $newQty) {
-                $cases[] = 'WHEN ? THEN ?';
-                $bindings[] = (int) $prodId;
-                $bindings[] = $newQty;
-            }
-            $bindings[] = $now->toDateTimeString();
-            $bindings[] = (int) $whId;
-            foreach (array_keys($balancesByProductId) as $prodId) {
-                $bindings[] = (int) $prodId;
-            }
-
-            $inPlaceholders = implode(', ', array_fill(0, count($balancesByProductId), '?'));
-            $caseSql = 'CASE product_id ' . implode(' ', $cases) . ' END';
-
-            DB::update(
-                "UPDATE warehouse_stocks SET quantity = {$caseSql}, updated_at = ? WHERE warehouse_id = ? AND product_id IN ({$inPlaceholders})",
-                $bindings
-            );
-        }
-
-        // 6. Query back the persisted StockMovement records in 1 query so returned models have real DB IDs
-        $documentId = (int) $movementRows[0]['inventory_document_id'];
-        $isReversal = $movementRows[0]['reversal_of_id'] !== null;
-
-        return StockMovement::query()
-            ->where('inventory_document_id', $documentId)
-            ->when(
-                $isReversal,
-                fn (Builder $q) => $q->whereNotNull('reversal_of_id'),
-                fn (Builder $q) => $q->whereNull('reversal_of_id')
-            )
-            ->orderBy('id')
-            ->get()
-            ->all();
+        return $this->balanceApplier->apply($planned)->all();
     }
 
     /**
@@ -468,29 +269,37 @@ class StockMovementService
      */
     protected function validateWarehousesActive(InventoryDocument $document): void
     {
-        if ($document->source_warehouse_id) {
-            $sourceWh = Warehouse::query()->find($document->source_warehouse_id);
-            if (! $sourceWh) {
-                throw ValidationException::withMessages([
-                    'source_warehouse_id' => [(string) __('inventory.errors.source_warehouse_missing')],
-                ]);
-            }
+        $warehouseIds = array_values(array_unique(array_filter([
+            $document->source_warehouse_id,
+            $document->destination_warehouse_id,
+        ])));
+
+        if ($warehouseIds === []) {
+            return;
         }
 
-        if ($document->destination_warehouse_id) {
-            $destWh = Warehouse::query()->find($document->destination_warehouse_id);
-            if (! $destWh) {
-                throw ValidationException::withMessages([
-                    'destination_warehouse_id' => [(string) __('inventory.errors.destination_warehouse_missing')],
-                ]);
-            }
+        $foundIds = Warehouse::query()
+            ->whereIn('id', $warehouseIds)
+            ->pluck('id')
+            ->all();
+
+        if ($document->source_warehouse_id && ! in_array($document->source_warehouse_id, $foundIds, true)) {
+            throw ValidationException::withMessages([
+                'source_warehouse_id' => [(string) __('inventory.errors.source_warehouse_missing')],
+            ]);
+        }
+
+        if ($document->destination_warehouse_id && ! in_array($document->destination_warehouse_id, $foundIds, true)) {
+            throw ValidationException::withMessages([
+                'destination_warehouse_id' => [(string) __('inventory.errors.destination_warehouse_missing')],
+            ]);
         }
     }
 
     /**
      * Build the list of movements to create for the document.
      *
-     * @param Collection<int, InventoryDocumentItem> $items
+     * @param  Collection<int, InventoryDocumentItem>  $items
      * @return array<array<string, mixed>>
      */
     protected function buildPlannedMovementsForDocument(InventoryDocument $document, Collection $items, int $userId): array
@@ -613,7 +422,7 @@ class StockMovementService
     /**
      * Get Stock Card / chronological movement history with running balance for a product in a warehouse.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      * @return array{
      *     product: Product,
      *     warehouse: Warehouse,
@@ -623,169 +432,26 @@ class StockMovementService
      */
     public function getStockCard(int $productId, int $warehouseId, array $filters = []): array
     {
-        $product = Product::query()->findOrFail($productId);
-        $warehouse = Warehouse::query()->findOrFail($warehouseId);
-
-        $stock = WarehouseStock::query()
-            ->where('warehouse_id', $warehouseId)
-            ->where('product_id', $productId)
-            ->first();
-
-        $currentStock = $stock ? (string) $stock->quantity : '0.000';
-
-        $query = StockMovement::query()
-            ->where('product_id', $productId)
-            ->where('warehouse_id', $warehouseId)
-            ->with([
-                'inventoryDocument:id,document_number,document_type,document_date,status',
-                'creator:id,name',
-            ])
-            ->orderBy('movement_date', 'asc')
-            ->orderBy('id', 'asc');
-
-        if (! empty($filters['date_to'])) {
-            $query->whereDate('movement_date', '<=', Carbon::parse($filters['date_to'])->toDateString());
-        }
-
-        $allMovements = $query->get();
-
-        $runningBalance = '0.000';
-        $timeline = [];
-
-        $dateFromStr = ! empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->toDateString() : null;
-        $filterDir = ! empty($filters['direction']) ? strtolower(trim((string) $filters['direction'])) : null;
-
-        foreach ($allMovements as $mov) {
-            $qty = Decimal::fromNumeric($mov->quantity, Decimal::QUANTITY_SCALE);
-            $dirVal = $mov->direction instanceof StockMovementDirection ? $mov->direction->value : (string) $mov->direction;
-
-            if ($dirVal === StockMovementDirection::INBOUND->value) {
-                $runningBalance = Decimal::add($runningBalance, $qty, Decimal::QUANTITY_SCALE);
-                $inQty = $qty;
-                $outQty = '0.000';
-            } else {
-                $runningBalance = Decimal::sub($runningBalance, $qty, Decimal::QUANTITY_SCALE);
-                $inQty = '0.000';
-                $outQty = $qty;
-            }
-
-            $movDateStr = $mov->movement_date->toDateString();
-
-            // Apply date_from filter for presentation while keeping accumulated balance
-            if ($dateFromStr && $movDateStr < $dateFromStr) {
-                continue;
-            }
-
-            // Apply direction filter for presentation
-            if ($filterDir && $dirVal !== $filterDir) {
-                continue;
-            }
-
-            $timeline[] = [
-                'id' => $mov->id,
-                'movement_date' => $movDateStr,
-                'created_at' => $mov->created_at?->toIso8601String(),
-                'document_id' => $mov->inventory_document_id,
-                'document_number' => $mov->inventoryDocument?->document_number,
-                'document_type' => $mov->inventoryDocument?->document_type?->value,
-                'direction' => $dirVal,
-                'in_quantity' => $inQty,
-                'out_quantity' => $outQty,
-                'balance_after' => $runningBalance,
-                'is_reversal' => ! is_null($mov->reversal_of_id),
-                'reversal_of_id' => $mov->reversal_of_id,
-                'created_by_name' => $mov->creator?->name,
-            ];
-        }
-
-        return [
-            'product' => $product,
-            'warehouse' => $warehouse,
-            'current_stock' => $currentStock,
-            'movements' => $timeline,
-        ];
+        return $this->queryService->getStockCard($productId, $warehouseId, $filters);
     }
 
     /**
      * Paginated list of warehouse stocks with filtering.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginateWarehouseStocks(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return WarehouseStock::query()
-            ->with([
-                'warehouse:id,code,name,is_default,is_active',
-                'product:id,category_id,name,barcode,purchase_price,selling_price,is_active',
-                'product.category:id,name',
-            ])
-            ->when(! empty($filters['warehouse_id']), function (Builder $q, $whId): void {
-                $q->where('warehouse_id', (int) $whId);
-            })
-            ->when(! empty($filters['product_id']), function (Builder $q, $prodId): void {
-                $q->where('product_id', (int) $prodId);
-            })
-            ->when(! empty($filters['search']), function (Builder $q, $search): void {
-                $q->whereHas('product', function (Builder $sub) use ($search): void {
-                    $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('barcode', 'like', "%{$search}%");
-                });
-            })
-            ->when(isset($filters['has_stock']) && $filters['has_stock'] !== '', function (Builder $q) use ($filters): void {
-                if ((bool) $filters['has_stock']) {
-                    $q->where('quantity', '>', 0);
-                } else {
-                    $q->where('quantity', '=', 0);
-                }
-            })
-            ->orderBy($filters['sort_by'] ?? 'warehouse_id', $filters['sort_order'] ?? 'asc')
-            ->paginate($perPage);
+        return $this->queryService->paginateWarehouseStocks($filters, $perPage);
     }
 
     /**
      * Paginated audit log of historical stock movements.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginateMovements(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::query()
-            ->with([
-                'warehouse:id,code,name',
-                'product:id,name,barcode',
-                'inventoryDocument:id,document_number,document_type,document_date,status',
-                'creator:id,name',
-            ])
-            ->when(! empty($filters['warehouse_id']), function (Builder $q, $whId): void {
-                $q->where('warehouse_id', (int) $whId);
-            })
-            ->when(! empty($filters['product_id']), function (Builder $q, $prodId): void {
-                $q->where('product_id', (int) $prodId);
-            })
-            ->when(! empty($filters['direction']), function (Builder $q, $dir): void {
-                $q->where('direction', $dir);
-            })
-            ->when(! empty($filters['document_id']), function (Builder $q, $docId): void {
-                $q->where('inventory_document_id', (int) $docId);
-            })
-            ->when(! empty($filters['search']), function (Builder $q, $search): void {
-                $q->where(function (Builder $sub) use ($search): void {
-                    $sub->whereHas('inventoryDocument', function (Builder $d) use ($search): void {
-                        $d->where('document_number', 'like', "%{$search}%");
-                    })->orWhereHas('product', function (Builder $p) use ($search): void {
-                        $p->where('name', 'like', "%{$search}%")
-                            ->orWhere('barcode', 'like', "%{$search}%");
-                    });
-                });
-            })
-            ->when(! empty($filters['date_from']), function (Builder $q, $from): void {
-                $q->whereDate('movement_date', '>=', Carbon::parse($from)->toDateString());
-            })
-            ->when(! empty($filters['date_to']), function (Builder $q, $to): void {
-                $q->whereDate('movement_date', '<=', Carbon::parse($to)->toDateString());
-            })
-            ->orderBy('movement_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->paginate($perPage);
+        return $this->queryService->paginateMovements($filters, $perPage);
     }
 }

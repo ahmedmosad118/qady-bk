@@ -20,38 +20,37 @@ class ContactService
      * Create a new contact along with its dedicated receivable and payable accounts
      * within a single database transaction.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createContact(array $data): Contact
     {
         $data = $this->normalizeIndividualContactData($data);
 
         return DB::transaction(function () use ($data): Contact {
-            $contact = new Contact();
+            $contact = new Contact;
             $contact->fill($data);
             $contact->save();
 
             $this->contactAccountService->createAccountsForContact($contact);
 
             // If an initial address is provided with contact creation, save it.
-            if (!empty($data['address']) && is_array($data['address'])) {
+            if (! empty($data['address']) && is_array($data['address'])) {
                 $addressData = $data['address'];
                 $addressData['is_default'] = true; // First address defaults to true
-                $contact->addresses()->create($addressData);
+                $address = $contact->addresses()->create($addressData);
+                $contact->setRelation('addresses', $contact->newCollection([$address]));
+            } else {
+                $contact->setRelation('addresses', $contact->newCollection());
             }
 
-            return $contact->load([
-                'addresses',
-                'receivableAccount:id,code,name',
-                'payableAccount:id,code,name',
-            ]);
+            return $contact;
         });
     }
 
     /**
      * Update an existing contact.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateContact(Contact $contact, array $data): Contact
     {
@@ -67,7 +66,7 @@ class ContactService
     /**
      * Clear company-only and tax/register fields whenever a contact is an individual (customer or supplier).
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function normalizeIndividualContactData(array $data, ?Contact $existing = null): array
@@ -99,16 +98,16 @@ class ContactService
      * Add an address to a contact. If it is the contact's first address,
      * it is automatically designated as the default address.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function addAddress(Contact $contact, array $data): ContactAddress
     {
         return DB::transaction(function () use ($contact, $data) {
             $hasExistingAddresses = $contact->addresses()->exists();
 
-            if (!$hasExistingAddresses) {
+            if (! $hasExistingAddresses) {
                 $data['is_default'] = true;
-            } elseif (!empty($data['is_default'])) {
+            } elseif (! empty($data['is_default'])) {
                 $contact->addresses()->update(['is_default' => false]);
             }
 
@@ -119,12 +118,12 @@ class ContactService
     /**
      * Update a contact's address.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateAddress(ContactAddress $address, array $data): ContactAddress
     {
         return DB::transaction(function () use ($address, $data) {
-            if (!empty($data['is_default'])) {
+            if (! empty($data['is_default'])) {
                 ContactAddress::where('contact_id', $address->contact_id)
                     ->where('id', '!=', $address->id)
                     ->update(['is_default' => false]);

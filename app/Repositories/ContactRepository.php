@@ -6,14 +6,13 @@ namespace App\Repositories;
 
 use App\Models\Contact;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Builder;
 
 class ContactRepository
 {
     /**
      * Get paginated contacts with the default address eager-loaded.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
@@ -23,19 +22,19 @@ class ContactRepository
             'payableAccount:id,code,name',
         ]);
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $query->search((string) $filters['search']);
         }
 
-        if (!empty($filters['type'])) {
+        if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['is_customer'])) {
+        if (! empty($filters['is_customer'])) {
             $query->customers();
         }
 
-        if (!empty($filters['is_supplier'])) {
+        if (! empty($filters['is_supplier'])) {
             $query->suppliers();
         }
 
@@ -61,12 +60,22 @@ class ContactRepository
      */
     public function stats(): array
     {
+        $row = Contact::query()
+            ->selectRaw(
+                'COUNT(*) as total, '
+                .'COALESCE(SUM(CASE WHEN is_customer = 1 THEN 1 ELSE 0 END), 0) as customers, '
+                .'COALESCE(SUM(CASE WHEN is_supplier = 1 THEN 1 ELSE 0 END), 0) as suppliers, '
+                .'COALESCE(SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END), 0) as active, '
+                .'COALESCE(SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END), 0) as inactive'
+            )
+            ->first();
+
         return [
-            'total' => Contact::query()->count(),
-            'customers' => Contact::query()->where('is_customer', true)->count(),
-            'suppliers' => Contact::query()->where('is_supplier', true)->count(),
-            'active' => Contact::query()->where('is_active', true)->count(),
-            'inactive' => Contact::query()->where('is_active', false)->count(),
+            'total' => (int) ($row->total ?? 0),
+            'customers' => (int) ($row->customers ?? 0),
+            'suppliers' => (int) ($row->suppliers ?? 0),
+            'active' => (int) ($row->active ?? 0),
+            'inactive' => (int) ($row->inactive ?? 0),
         ];
     }
 }

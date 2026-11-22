@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Purchase;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Purchase\CancelPurchaseInvoiceRequest;
 use App\Http\Requests\Purchase\StorePurchaseInvoiceFromOrderRequest;
 use App\Http\Requests\Purchase\StorePurchaseInvoiceRequest;
 use App\Http\Requests\Purchase\UpdatePurchaseInvoiceRequest;
@@ -139,9 +140,9 @@ class PurchaseInvoiceController extends Controller
     /**
      * Cancel a draft purchase invoice and its linked unposted goods receipt.
      */
-    public function cancel(Request $request, PurchaseInvoice $purchase_invoice): JsonResponse
+    public function cancel(CancelPurchaseInvoiceRequest $request, PurchaseInvoice $purchase_invoice): JsonResponse
     {
-        $reason = $request->input('reason');
+        $reason = $request->validated('reason');
         $invoice = $this->purchaseInvoiceService->cancelInvoice(
             $purchase_invoice,
             $request->user(),

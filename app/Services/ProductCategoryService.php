@@ -19,9 +19,9 @@ class ProductCategoryService
         return ProductCategory::query()
             ->whereNull('parent_id')
             ->with([
-                'children' => fn ($q) => $q->orderBy('name'),
-                'products' => fn ($q) => $q->active(),
+                'children' => fn ($q) => $q->orderBy('name')->withCount(['products' => fn ($pq) => $pq->active()]),
             ])
+            ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('name')
             ->get();
     }
@@ -29,7 +29,7 @@ class ProductCategoryService
     /**
      * Create a category.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): ProductCategory
     {
@@ -39,7 +39,7 @@ class ProductCategoryService
     /**
      * Update a category.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(ProductCategory $category, array $data): ProductCategory
     {
@@ -53,7 +53,7 @@ class ProductCategoryService
     /**
      * Delete categories by IDs, refusing any category that still has subcategories.
      *
-     * @param array<int> $ids
+     * @param  array<int>  $ids
      */
     public function delete(array $ids): int
     {

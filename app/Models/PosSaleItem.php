@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Decimal;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -74,11 +75,16 @@ class PosSaleItem extends Model
     /**
      * Calculate remaining returnable quantity for this item.
      */
-    public function returnableQuantity(): float
+    public function returnableQuantity(): string
     {
-        $returned = (float) $this->returnItems()->sum('quantity');
+        $returned = Decimal::fromNumeric($this->returnItems()->sum('quantity') ?? 0, Decimal::QUANTITY_SCALE);
+        $remaining = Decimal::sub(
+            Decimal::fromNumeric($this->quantity, Decimal::QUANTITY_SCALE),
+            $returned,
+            Decimal::QUANTITY_SCALE
+        );
 
-        return max(0.0, (float) $this->quantity - $returned);
+        return Decimal::max($remaining, '0.000', Decimal::QUANTITY_SCALE);
     }
 
     protected static function booted(): void

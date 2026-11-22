@@ -347,6 +347,14 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { formatMoney } from '../../utils/format';
+import { formatDateOnly } from '../../utils/date';
+import {
+  discountBreakdownTitle as buildDiscountBreakdownTitle,
+  itemDiscountsAmount,
+  purchaseStatusBadgeClass as statusBadgeClass,
+  totalDiscountAmount,
+} from '../../utils/purchaseFormatters';
 import api from '../../services/api';
 import { confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
 import FilterChip from '../../components/ui/FilterChip.vue';
@@ -449,31 +457,8 @@ function changePage(page) {
   loadInvoices();
 }
 
-function formatMoney(amount) {
-  return (Number(amount) || 0).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function itemDiscountsAmount(invoice) {
-  if (invoice?.items_sum_discount_amount !== undefined && invoice?.items_sum_discount_amount !== null) {
-    return Number(invoice.items_sum_discount_amount) || 0;
-  }
-  return (invoice?.items || []).reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
-}
-
-function totalDiscountAmount(invoice) {
-  return itemDiscountsAmount(invoice) + (Number(invoice?.discount_amount) || 0);
-}
-
 function discountBreakdownTitle(invoice) {
-  const itemDisc = itemDiscountsAmount(invoice);
-  const invDisc = Number(invoice?.discount_amount) || 0;
-  const parts = [];
-  if (itemDisc > 0) parts.push(`${t('purchaseInvoices.itemDiscounts')}: ${formatMoney(itemDisc)}`);
-  if (invDisc > 0) parts.push(`${t('purchaseInvoices.invoiceDiscount')}: ${formatMoney(invDisc)}`);
-  return parts.join(' | ');
+  return buildDiscountBreakdownTitle(invoice, 'purchaseInvoices');
 }
 
 function goToPurchaseOrder(purchaseOrderId) {
@@ -481,25 +466,9 @@ function goToPurchaseOrder(purchaseOrderId) {
   router.push({ name: 'purchase-orders', query: { open: String(purchaseOrderId) } });
 }
 
-function formatDateOnly(val) {
-  if (!val) return '—';
-  return String(val).substring(0, 10);
-}
-
 function statusLabel(status) {
   if (!status) return '—';
   return t(`purchaseInvoices.statuses.${status}`) || status;
-}
-
-function statusBadgeClass(status) {
-  switch (status) {
-    case 'draft':
-      return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-400';
-    case 'cancelled':
-      return 'bg-rose-500/10 text-rose-700 border border-rose-500/20 dark:text-rose-400';
-    default:
-      return 'bg-gray-500/10 text-gray-700 border border-gray-500/20 dark:text-gray-400';
-  }
 }
 
 async function loadInvoices() {

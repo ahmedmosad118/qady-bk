@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
 import api from '../services/api.js';
+import posApi from '../services/posApi.js';
+import { extractApiError } from '../utils/apiError.js';
 import i18n from '../i18n/index.js';
 import { useAuthStore } from './auth.js';
 import { useNotificationStore } from './notification.js';
@@ -969,8 +971,7 @@ export const usePosStore = defineStore('pos', {
       if (!id) return null;
 
       try {
-        const resp = await api.get(`/pos/shifts/${id}`);
-        return resp.data.data;
+        return await posApi.getShiftSummary(id);
       } catch (err) {
         console.error('Failed to get shift summary:', err);
         return null;
@@ -985,17 +986,7 @@ export const usePosStore = defineStore('pos', {
       try {
         const params = { page, per_page: perPage };
         if (term) params.search = term;
-
-        const resp = await api.get('/pos/sales', { params });
-        const rows = Array.isArray(resp.data?.data) ? resp.data.data : [];
-        const meta = resp.data?.meta || {
-          current_page: page,
-          last_page: 1,
-          per_page: perPage,
-          total: rows.length,
-        };
-
-        return { data: rows, meta };
+        return await posApi.searchInvoices(params);
       } catch (err) {
         console.error('Failed to search invoices:', err);
         return {
@@ -1011,8 +1002,7 @@ export const usePosStore = defineStore('pos', {
     async getSaleDetails(saleId) {
       if (!saleId) return null;
       try {
-        const resp = await api.get(`/pos/sales/${saleId}`);
-        return resp.data?.data || null;
+        return await posApi.getSaleDetails(saleId);
       } catch (err) {
         console.error('Failed to fetch sale details:', err);
         return null;
@@ -1027,9 +1017,8 @@ export const usePosStore = defineStore('pos', {
       if (!term) return null;
 
       try {
-        const resp = await api.get(`/pos/sales/by-number/${term}`);
-        return resp.data.data;
-      } catch (err) {
+        return await posApi.lookupInvoice(term);
+      } catch {
         useNotificationStore().error(t('pos.store.invoiceNotFound', { number: term }));
         return null;
       }
@@ -1040,8 +1029,7 @@ export const usePosStore = defineStore('pos', {
      */
     async getReturnableItems(saleId) {
       try {
-        const resp = await api.get(`/pos/sales/${saleId}/returnable-items`);
-        return resp.data.data;
+        return await posApi.getReturnableItems(saleId);
       } catch (err) {
         console.error('Failed to fetch returnable items:', err);
         return null;
@@ -1064,10 +1052,10 @@ export const usePosStore = defineStore('pos', {
         : ('ret_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10)));
 
       try {
-        const resp = await api.post('/pos/returns', {
+        const ret = await posApi.submitReturn({
           client_uuid: clientUuid,
           shift_id: this.activeShift.id,
-          pos_sale_id: pos_sale_id,
+          pos_sale_id,
           warehouse_id: this.currentWarehouse?.id,
           notes: notes.trim() || null,
           items: items.map((it) => ({
@@ -1076,11 +1064,10 @@ export const usePosStore = defineStore('pos', {
           })),
         });
 
-        const ret = resp.data.data;
         notify.success(t('pos.store.returnCreatedSuccess', { number: ret.return_number }));
         return { success: true, return: ret };
       } catch (err) {
-        const msg = err.response?.data?.message || t('pos.store.returnCreateFailed');
+        const msg = extractApiError(err, t('pos.store.returnCreateFailed'));
         notify.error(msg);
         return { success: false, message: msg };
       }
@@ -1092,20 +1079,19 @@ export const usePosStore = defineStore('pos', {
     async createCustomer({ name, mobile = '', type = 'individual' }) {
       const notify = useNotificationStore();
       try {
-        const resp = await api.post('/contacts', {
+        const created = await posApi.createCustomer({
           name: name.trim(),
           mobile: mobile.trim(),
           type: type || 'individual',
           is_customer: true,
         });
 
-        const created = resp.data.data;
         this.setCustomer(created);
         notify.success(t('pos.store.customerCreatedSuccess', { name: created.name }));
         return { success: true, customer: created };
       } catch (err) {
         const errors = err.response?.data?.errors || {};
-        const msg = err.response?.data?.message || t('pos.store.customerCreateFailed');
+        const msg = extractApiError(err, t('pos.store.customerCreateFailed'));
         notify.error(msg);
         return { success: false, message: msg, errors };
       }

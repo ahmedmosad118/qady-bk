@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\RejectInventoryDocumentRequest;
+use App\Http\Requests\Inventory\ReverseInventoryDocumentRequest;
 use App\Http\Requests\Inventory\StoreInventoryDocumentRequest;
 use App\Http\Requests\Inventory\UpdateInventoryDocumentRequest;
 use App\Models\InventoryDocument;
@@ -146,16 +148,12 @@ class InventoryDocumentController extends Controller
     /**
      * Reject document.
      */
-    public function reject(Request $request, InventoryDocument $inventoryDocument): JsonResponse
+    public function reject(RejectInventoryDocumentRequest $request, InventoryDocument $inventoryDocument): JsonResponse
     {
-        $request->validate([
-            'rejection_reason' => ['required', 'string', 'min:3', 'max:2000'],
-        ]);
-
         $document = $this->workflowService->reject(
             $inventoryDocument,
             $request->user(),
-            (string) $request->input('rejection_reason')
+            (string) $request->validated('rejection_reason')
         );
 
         return response()->json([
@@ -196,16 +194,12 @@ class InventoryDocumentController extends Controller
     /**
      * Reverse document.
      */
-    public function reverse(Request $request, InventoryDocument $inventoryDocument): JsonResponse
+    public function reverse(ReverseInventoryDocumentRequest $request, InventoryDocument $inventoryDocument): JsonResponse
     {
-        $request->validate([
-            'reversal_reason' => ['required', 'string', 'min:3', 'max:2000'],
-        ]);
-
         $document = $this->workflowService->reverse(
             $inventoryDocument,
             $request->user(),
-            (string) $request->input('reversal_reason')
+            (string) $request->validated('reversal_reason')
         );
 
         return response()->json([

@@ -4,7 +4,7 @@
     <img
       v-if="!showText"
       :src="asset('symbol.svg')"
-      :alt="brand.name"
+      :alt="brandName"
       :class="sizeClasses.icon"
       class="w-auto object-contain"
     />
@@ -14,20 +14,20 @@
       <img
         v-if="textColor === 'light'"
         :src="asset('logo-white.svg')"
-        :alt="brand.name"
+        :alt="brandName"
         :class="sizeClasses.logo"
         class="w-auto object-contain"
       />
       <template v-else>
         <img
           :src="asset('logo-ink.svg')"
-          :alt="brand.name"
+          :alt="brandName"
           :class="[sizeClasses.logo, 'dark:hidden']"
           class="w-auto object-contain"
         />
         <img
           :src="asset('logo-white.svg')"
-          :alt="brand.name"
+          :alt="brandName"
           :class="[sizeClasses.logo, 'hidden dark:block']"
           class="w-auto object-contain"
         />
@@ -38,7 +38,11 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import brand from '../../config/brand';
+
+const { locale } = useI18n();
+const brandName = computed(() => (locale.value === 'ar' ? brand.name : brand.nameEn));
 
 const props = defineProps({
   size: {

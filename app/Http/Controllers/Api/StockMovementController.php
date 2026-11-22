@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\StockCardRequest;
 use App\Services\Inventory\StockMovementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,15 +49,9 @@ class StockMovementController extends Controller
     /**
      * Product Stock Card / running movement ledger in a specific warehouse.
      */
-    public function stockCard(Request $request): JsonResponse
+    public function stockCard(StockCardRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'product_id' => ['required', 'integer', 'exists:products,id'],
-            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-            'direction' => ['nullable', 'in:inbound,outbound'],
-        ]);
+        $validated = $request->validated();
 
         $card = $this->stockMovementService->getStockCard(
             (int) $validated['product_id'],

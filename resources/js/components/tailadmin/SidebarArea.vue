@@ -309,15 +309,19 @@ const flyoutStyle = ref({});
 
 let closeTimer = null;
 
+const allNavPaths = navigation.flatMap((g) =>
+  g.sections ? g.sections.flatMap((s) => s.items.map((i) => i.to).filter(Boolean)) : (g.to ? [g.to] : [])
+);
+
 function isItemActive(item) {
   if (!item?.to) return false;
-  if (item.to === '/' || item.to === '/inventory' || item.to === '/pos') {
-    return route.path === item.to;
-  }
-  if (item.to === '/invoices' && route.path === '/pos/sales') {
-    return true;
-  }
-  return route.path === item.to || route.path.startsWith(`${item.to}/`);
+  if (route.path === item.to) return true;
+  if (item.to === '/') return false;
+  if (!route.path.startsWith(`${item.to}/`)) return false;
+
+  return !allNavPaths.some(
+    (other) => other !== item.to && other.length > item.to.length && (route.path === other || route.path.startsWith(`${other}/`))
+  );
 }
 
 function isGroupActive(group) {

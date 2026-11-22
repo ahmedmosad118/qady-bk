@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\InventoryDocumentStatus;
 use App\Models\InventoryDocument;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -14,10 +15,26 @@ class InventoryDocumentRepository
     /**
      * Paginate inventory documents based on filter criteria.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters, int $perPage = 15): LengthAwarePaginator
     {
+        $allowedSortColumns = [
+            'id',
+            'document_number',
+            'document_type',
+            'document_date',
+            'status',
+            'created_at',
+            'updated_at',
+            'posted_at',
+            'approved_at',
+        ];
+        $sortBy = in_array($filters['sort_by'] ?? null, $allowedSortColumns, true)
+            ? (string) $filters['sort_by']
+            : 'id';
+        $sortOrder = strtolower((string) ($filters['sort_order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
         return $this->queryWithFilters($filters)
             ->with([
                 'sourceWarehouse:id,code,name',
@@ -28,14 +45,14 @@ class InventoryDocumentRepository
                 'referenceable',
             ])
             ->withCount('items')
-            ->orderBy($filters['sort_by'] ?? 'id', $filters['sort_order'] ?? 'desc')
+            ->orderBy($sortBy, $sortOrder)
             ->paginate($perPage);
     }
 
     /**
      * Summary statistics for dashboard cards or filter badges, scoped by filters (e.g. document_type).
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      * @return array<string, int>
      */
     public function stats(array $filters = []): array
@@ -51,16 +68,24 @@ class InventoryDocumentRepository
             $baseQuery->where('source_warehouse_id', (int) $filters['source_warehouse_id']);
         }
 
-        return [
-            'total' => (clone $baseQuery)->count(),
-            'draft' => (clone $baseQuery)->where('status', 'draft')->count(),
-            'pending_approval' => (clone $baseQuery)->where('status', 'pending_approval')->count(),
-            'approved' => (clone $baseQuery)->where('status', 'approved')->count(),
-            'posted' => (clone $baseQuery)->where('status', 'posted')->count(),
-            'rejected' => (clone $baseQuery)->where('status', 'rejected')->count(),
-            'cancelled' => (clone $baseQuery)->where('status', 'cancelled')->count(),
-            'reversed' => (clone $baseQuery)->where('status', 'reversed')->count(),
+        $rows = (clone $baseQuery)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $counts = [
+            'total' => 0,
+            'draft' => (int) ($rows[InventoryDocumentStatus::DRAFT->value] ?? 0),
+            'pending_approval' => (int) ($rows[InventoryDocumentStatus::PENDING_APPROVAL->value] ?? 0),
+            'approved' => (int) ($rows[InventoryDocumentStatus::APPROVED->value] ?? 0),
+            'posted' => (int) ($rows[InventoryDocumentStatus::POSTED->value] ?? 0),
+            'rejected' => (int) ($rows[InventoryDocumentStatus::REJECTED->value] ?? 0),
+            'cancelled' => (int) ($rows[InventoryDocumentStatus::CANCELLED->value] ?? 0),
+            'reversed' => (int) ($rows[InventoryDocumentStatus::REVERSED->value] ?? 0),
         ];
+        $counts['total'] = (int) $rows->sum();
+
+        return $counts;
     }
 
     /**
@@ -68,7 +93,7 @@ class InventoryDocumentRepository
      */
     public function findWithRelations(InventoryDocument $document): InventoryDocument
     {
-        return $document->load([
+        return $document->loadMissing([
             'sourceWarehouse',
             'destinationWarehouse',
             'creator:id,name,email',
@@ -86,7 +111,7 @@ class InventoryDocumentRepository
     /**
      * Build base query with filters.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     protected function queryWithFilters(array $filters): Builder
     {

@@ -13,7 +13,7 @@ class ProductRepository
     /**
      * Get paginated products with eager-loaded relations and applied filters.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
@@ -21,12 +21,12 @@ class ProductRepository
             ->with('category:id,name,parent_id')
             ->withSum('warehouseStocks', 'quantity');
 
-        if (!empty($filters['ids'])) {
+        if (! empty($filters['ids'])) {
             $ids = array_values(array_filter(array_map('intval', (array) $filters['ids'])));
             $query->whereIn('id', array_slice($ids, 0, 200));
         }
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function (Builder $q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -62,10 +62,18 @@ class ProductRepository
      */
     public function stats(): array
     {
+        $row = Product::query()
+            ->selectRaw(
+                'COUNT(*) as total, '
+                .'COALESCE(SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END), 0) as active, '
+                .'COALESCE(SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END), 0) as inactive'
+            )
+            ->first();
+
         return [
-            'total' => Product::query()->count(),
-            'active' => Product::query()->where('is_active', true)->count(),
-            'inactive' => Product::query()->where('is_active', false)->count(),
+            'total' => (int) ($row->total ?? 0),
+            'active' => (int) ($row->active ?? 0),
+            'inactive' => (int) ($row->inactive ?? 0),
         ];
     }
 

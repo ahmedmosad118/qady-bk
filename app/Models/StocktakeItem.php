@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\StocktakeItemStatus;
+use App\Enums\StocktakeVarianceDirection;
+use App\Support\Decimal;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -91,28 +93,28 @@ class StocktakeItem extends Model
             return null;
         }
 
-        return bcsub((string) $this->counted_quantity, (string) $this->system_quantity, 3);
+        return Decimal::sub((string) $this->counted_quantity, (string) $this->system_quantity, Decimal::QUANTITY_SCALE);
     }
 
     /**
      * Determine variance direction: increase, decrease, or exact.
      */
-    public function getVarianceDirection(): ?string
+    public function getVarianceDirection(): ?StocktakeVarianceDirection
     {
         $variance = $this->getVariance();
         if ($variance === null) {
             return null;
         }
 
-        $cmp = bccomp($variance, '0.000', 3);
+        $cmp = Decimal::comp($variance, '0.000', Decimal::QUANTITY_SCALE);
         if ($cmp > 0) {
-            return 'increase';
+            return StocktakeVarianceDirection::INCREASE;
         }
         if ($cmp < 0) {
-            return 'decrease';
+            return StocktakeVarianceDirection::DECREASE;
         }
 
-        return 'exact';
+        return StocktakeVarianceDirection::EXACT;
     }
 
     public function isPending(): bool

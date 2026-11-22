@@ -124,9 +124,7 @@ const routes = [
       },
       {
         path: 'pos/sales',
-        name: 'pos.sales',
-        component: PosSalesView,
-        meta: { titleKey: 'nav.invoices' },
+        redirect: '/invoices',
       },
       {
         path: 'pos/returns',

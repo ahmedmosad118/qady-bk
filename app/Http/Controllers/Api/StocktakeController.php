@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\StocktakeItemStatus;
 use App\Enums\StocktakeStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Stocktake\CancelCountRequest;
@@ -17,6 +16,7 @@ use App\Models\Stocktake;
 use App\Models\StocktakeItem;
 use App\Models\User;
 use App\Repositories\StocktakeRepository;
+use App\Services\Inventory\StocktakeQueryService;
 use App\Services\Inventory\StocktakeService;
 use App\Services\Inventory\StocktakeWorkflowService;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +28,7 @@ class StocktakeController extends Controller
         protected StocktakeRepository $repository,
         protected StocktakeService $stocktakeService,
         protected StocktakeWorkflowService $workflowService,
+        protected StocktakeQueryService $queryService,
     ) {}
 
     /**
@@ -50,16 +51,7 @@ class StocktakeController extends Controller
         $perPage = $request->integer('per_page', 15);
         $paginated = $this->repository->paginate($filters, $perPage);
 
-        return response()->json([
-            'success' => true,
-            'data' => $paginated->items(),
-            'meta' => [
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
-                'per_page' => $paginated->perPage(),
-                'total' => $paginated->total(),
-            ],
-        ]);
+        return $this->paginatedResponse($paginated);
     }
 
     /**
@@ -83,93 +75,9 @@ class StocktakeController extends Controller
      */
     public function show(Request $request, Stocktake $stocktake): JsonResponse
     {
-        /** @var User|null $user */
-        $user = $request->user();
-
-        $stocktake->load([
-            'warehouse',
-            'creator',
-            'starter',
-            'submitter',
-            'approver',
-            'rejecter',
-            'canceller',
-            'completer',
-            'inventoryDocuments' => function ($q) {
-                $q->with(['items.product', 'creator', 'poster']);
-            },
-            'items' => function ($q) {
-                $q->with(['product', 'countStartedBy', 'countedBy']);
-            },
-            'histories.user',
-        ]);
-
-        // User can review system quantities and variances if:
-        // 1. User is the creator/manager of the stocktake
-        // 2. User has permission 'review-stocktake-results' or role 'admin'
-        // 3. OR document is in review stages (pending_approval, approved, completed)
-        $canReviewResults = $user && (
-            $stocktake->created_by === $user->id
-            || (method_exists($user, 'hasRole') && $user->hasRole('admin'))
-            || (method_exists($user, 'can') && $user->can('review-stocktake-results'))
-            || in_array($stocktake->status, [StocktakeStatus::PENDING_APPROVAL, StocktakeStatus::APPROVED, StocktakeStatus::COMPLETED], true)
+        return $this->successResponse(
+            $this->queryService->getDetailsForDisplay($stocktake, $request->user())
         );
-
-        // Transform items strictly upholding Blind Count
-        $formattedItems = $stocktake->items->map(function (StocktakeItem $item) use ($canReviewResults): array {
-            $isCounted = $item->count_status === StocktakeItemStatus::COUNTED;
-
-            // Blind count protection: Never send system_quantity or variance before the item is COUNTED,
-            // or if the user is a standard counter without review permissions.
-            $revealMetrics = $isCounted && $canReviewResults;
-
-            return [
-                'id' => $item->id,
-                'stocktake_id' => $item->stocktake_id,
-                'product_id' => $item->product_id,
-                'product' => $item->product ? [
-                    'id' => $item->product->id,
-                    'name' => $item->product->name,
-                    'barcode' => $item->product->barcode,
-                    'author' => $item->product->author ?? null,
-                ] : null,
-                'system_quantity' => $revealMetrics ? (float) $item->system_quantity : null,
-                'counted_quantity' => $item->counted_quantity !== null ? (float) $item->counted_quantity : null,
-                'variance' => $revealMetrics ? (float) $item->getVariance() : null,
-                'variance_direction' => $revealMetrics ? $item->getVarianceDirection() : null,
-                'count_status' => $item->count_status->value,
-                'count_status_label' => $item->count_status->label(),
-                'count_started_by' => $item->countStartedBy?->name,
-                'count_started_at' => $item->count_started_at?->toIso8601String(),
-                'counted_by' => $item->countedBy?->name,
-                'counted_at' => $item->counted_at?->toIso8601String(),
-                'notes' => $item->notes,
-                'created_at' => $item->created_at?->toIso8601String(),
-            ];
-        });
-
-        $stocktakeArray = $stocktake->toArray();
-        $stocktakeArray['items'] = $formattedItems;
-        $stocktakeArray['can_review_results'] = $canReviewResults;
-
-        // Calculate counts
-        $stocktakeArray['total_items_count'] = $stocktake->items->count();
-        $stocktakeArray['counted_items_count'] = $stocktake->items->where('count_status', StocktakeItemStatus::COUNTED)->count();
-        $stocktakeArray['counting_items_count'] = $stocktake->items->where('count_status', StocktakeItemStatus::COUNTING)->count();
-        $stocktakeArray['pending_items_count'] = $stocktake->items->where('count_status', StocktakeItemStatus::PENDING)->count();
-
-        // Calculate variance counts if review is permitted
-        if ($canReviewResults) {
-            $countedItems = $stocktake->items->where('count_status', StocktakeItemStatus::COUNTED);
-            $stocktakeArray['increases_count'] = $countedItems->filter(fn ($i) => $i->getVarianceDirection() === 'increase')->count();
-            $stocktakeArray['decreases_count'] = $countedItems->filter(fn ($i) => $i->getVarianceDirection() === 'decrease')->count();
-            $stocktakeArray['exact_count'] = $countedItems->filter(fn ($i) => $i->getVarianceDirection() === 'exact')->count();
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $stocktakeArray,
-        ]);
     }
 
     /**

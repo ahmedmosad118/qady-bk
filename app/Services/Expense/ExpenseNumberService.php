@@ -5,40 +5,27 @@ declare(strict_types=1);
 namespace App\Services\Expense;
 
 use App\Models\Expense;
+use App\Services\Support\DocumentSequenceGenerator;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class ExpenseNumberService
 {
+    public function __construct(
+        protected DocumentSequenceGenerator $sequenceGenerator,
+    ) {}
+
     /**
      * Generate unique expense number: EXP-YYYYMMDD-XXXX
      */
     public function generateExpenseNumber(?Carbon $date = null): string
     {
         $dayStr = ($date ?? Carbon::now())->format('Ymd');
-        $prefix = "EXP-{$dayStr}-";
 
-        return DB::transaction(function () use ($prefix): string {
-            $lastNumber = Expense::query()
-                ->where('expense_number', 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value('expense_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $matches)) {
-                $next = (int) $matches[1] + 1;
-            }
-
-            do {
-                $candidate = sprintf('%s%04d', $prefix, $next);
-                $exists = Expense::query()
-                    ->where('expense_number', $candidate)
-                    ->exists();
-                $next++;
-            } while ($exists);
-
-            return $candidate;
-        });
+        return $this->sequenceGenerator->next(
+            Expense::class,
+            'expense_number',
+            "EXP-{$dayStr}-",
+            4
+        );
     }
 }

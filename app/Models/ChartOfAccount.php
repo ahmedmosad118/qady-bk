@@ -153,6 +153,7 @@ class ChartOfAccount extends Model
         $visited = [$this->id => true];
         $currentParentId = $this->parent_id;
         $current = $this;
+        $parentMap = null;
 
         while ($currentParentId !== null) {
             if (isset($visited[$currentParentId])) {
@@ -165,7 +166,8 @@ class ChartOfAccount extends Model
                 $current = $current->parent;
                 $currentParentId = $current->parent_id;
             } else {
-                $nextParentId = self::query()->whereKey($currentParentId)->value('parent_id');
+                $parentMap ??= self::query()->pluck('parent_id', 'id')->all();
+                $nextParentId = $parentMap[$currentParentId] ?? null;
                 $currentParentId = $nextParentId !== null ? (int) $nextParentId : null;
             }
         }

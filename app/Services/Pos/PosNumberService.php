@@ -7,33 +7,28 @@ namespace App\Services\Pos;
 use App\Models\PosReturn;
 use App\Models\PosSale;
 use App\Models\PosShift;
+use App\Services\Support\DocumentSequenceGenerator;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class PosNumberService
 {
+    public function __construct(
+        protected DocumentSequenceGenerator $sequenceGenerator,
+    ) {}
+
     /**
      * Generate unique shift number: SH-YYYYMMDD-XXXX
      */
     public function generateShiftNumber(?Carbon $date = null): string
     {
         $dayStr = ($date ?? Carbon::now())->format('Ymd');
-        $prefix = "SH-{$dayStr}-";
 
-        return DB::transaction(function () use ($prefix): string {
-            $lastNumber = PosShift::query()
-                ->where('shift_number', 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value('shift_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $m)) {
-                $next = (int) $m[1] + 1;
-            }
-
-            return sprintf('%s%04d', $prefix, $next);
-        });
+        return $this->sequenceGenerator->next(
+            PosShift::class,
+            'shift_number',
+            "SH-{$dayStr}-",
+            4
+        );
     }
 
     /**
@@ -42,22 +37,13 @@ class PosNumberService
     public function generateInvoiceNumber(?Carbon $date = null): string
     {
         $dayStr = ($date ?? Carbon::now())->format('Ymd');
-        $prefix = "INV-{$dayStr}-";
 
-        return DB::transaction(function () use ($prefix): string {
-            $lastNumber = PosSale::query()
-                ->where('invoice_number', 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value('invoice_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $m)) {
-                $next = (int) $m[1] + 1;
-            }
-
-            return sprintf('%s%05d', $prefix, $next);
-        });
+        return $this->sequenceGenerator->next(
+            PosSale::class,
+            'invoice_number',
+            "INV-{$dayStr}-",
+            5
+        );
     }
 
     /**
@@ -66,21 +52,12 @@ class PosNumberService
     public function generateReturnNumber(?Carbon $date = null): string
     {
         $dayStr = ($date ?? Carbon::now())->format('Ymd');
-        $prefix = "RET-{$dayStr}-";
 
-        return DB::transaction(function () use ($prefix): string {
-            $lastNumber = PosReturn::query()
-                ->where('return_number', 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value('return_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', $lastNumber, $m)) {
-                $next = (int) $m[1] + 1;
-            }
-
-            return sprintf('%s%05d', $prefix, $next);
-        });
+        return $this->sequenceGenerator->next(
+            PosReturn::class,
+            'return_number',
+            "RET-{$dayStr}-",
+            5
+        );
     }
 }

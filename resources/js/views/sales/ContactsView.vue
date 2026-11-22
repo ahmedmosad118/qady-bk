@@ -804,23 +804,39 @@ const deleteContact = async (contact) => {
 };
 
 const resetFilters = () => {
+  const hadImmediateFilters = statusFilter.value !== 'all' || roleFilter.value !== 'all' || typeFilter.value !== 'all';
+  const hadSearch = search.value !== '';
   search.value = '';
   statusFilter.value = 'all';
   roleFilter.value = 'all';
   typeFilter.value = 'all';
-  page.value = 1;
+  if (!hadImmediateFilters && !hadSearch && page.value !== 1) {
+    page.value = 1;
+  }
 };
 
 let searchDebounceTimer = null;
 watch(search, () => {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
-    page.value = 1;
-    loadContacts();
+    if (page.value !== 1) {
+      page.value = 1;
+    } else {
+      loadContacts();
+    }
   }, 300);
 });
 
-watch([statusFilter, roleFilter, typeFilter, page], () => {
+watch([statusFilter, roleFilter, typeFilter], () => {
+  clearTimeout(searchDebounceTimer);
+  if (page.value !== 1) {
+    page.value = 1;
+  } else {
+    loadContacts();
+  }
+});
+
+watch(page, () => {
   loadContacts();
 });
 
@@ -828,8 +844,12 @@ watch([statusFilter, roleFilter, typeFilter, page], () => {
 watch(
   () => [route.path, props.role],
   () => {
-    page.value = 1;
-    loadContacts();
+    clearTimeout(searchDebounceTimer);
+    if (page.value !== 1) {
+      page.value = 1;
+    } else {
+      loadContacts();
+    }
   }
 );
 

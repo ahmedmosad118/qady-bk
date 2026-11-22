@@ -21,8 +21,8 @@ class ExpenseAttachmentService
     /**
      * Store uploaded files for an expense item on the private disk and record metadata.
      *
-     * @param array<int, UploadedFile> $files
-     * @param array<int, array{disk: string, path: string}> $trackedPaths
+     * @param  array<int, UploadedFile>  $files
+     * @param  array<int, array{disk: string, path: string}>  $trackedPaths
      * @return array<int, ExpenseItemAttachment>
      */
     public function storeFiles(
@@ -32,7 +32,9 @@ class ExpenseAttachmentService
         User $user,
         array &$trackedPaths = []
     ): array {
-        $created = [];
+        $insertRows = [];
+        $insertedPaths = [];
+        $now = now();
 
         foreach ($files as $file) {
             if (! $file instanceof UploadedFile) {
@@ -41,7 +43,7 @@ class ExpenseAttachmentService
 
             $directory = "expenses/{$expense->id}/items/{$item->id}";
             $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
-            $filename = Str::uuid()->toString() . '.' . $extension;
+            $filename = Str::uuid()->toString().'.'.$extension;
             $path = $file->storeAs($directory, $filename, self::DISK);
 
             if ($path === false) {
@@ -52,6 +54,7 @@ class ExpenseAttachmentService
                 'disk' => self::DISK,
                 'path' => $path,
             ];
+            $insertedPaths[] = $path;
 
             $originalName = Str::limit(
                 basename((string) $file->getClientOriginalName()),
@@ -59,23 +62,36 @@ class ExpenseAttachmentService
                 ''
             );
 
-            $created[] = $item->attachments()->create([
+            $insertRows[] = [
+                'expense_item_id' => $item->id,
                 'disk' => self::DISK,
                 'path' => $path,
                 'original_name' => $originalName !== '' ? $originalName : $filename,
                 'mime_type' => (string) ($file->getMimeType() ?: $file->getClientMimeType() ?: 'application/octet-stream'),
                 'size' => (int) ($file->getSize() ?: 0),
                 'created_by' => $user->id,
-            ]);
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
 
-        return $created;
+        if ($insertRows === []) {
+            return [];
+        }
+
+        ExpenseItemAttachment::query()->insert($insertRows);
+
+        return $item->attachments()
+            ->whereIn('path', $insertedPaths)
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     /**
      * Clean up newly uploaded files if a database transaction rolls back.
      *
-     * @param array<int, array{disk: string, path: string}> $trackedPaths
+     * @param  array<int, array{disk: string, path: string}>  $trackedPaths
      */
     public function deleteStoredFiles(array $trackedPaths): void
     {
@@ -89,7 +105,7 @@ class ExpenseAttachmentService
     /**
      * Schedule physical deletion of attachment files after the active DB transaction commits.
      *
-     * @param iterable<int, ExpenseItemAttachment> $attachments
+     * @param  iterable<int, ExpenseItemAttachment>  $attachments
      */
     public function schedulePhysicalDeletion(iterable $attachments): void
     {

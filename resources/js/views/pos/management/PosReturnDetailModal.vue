@@ -460,7 +460,6 @@ function openLinkedDoc(doc) {
   const typeSlugMap = {
     goods_delivery: 'goods-delivery',
     goods_receipt: 'goods-receipt',
-    stock_issue: 'stock-issue',
     warehouse_transfer: 'warehouse-transfer',
     stock_adjustment: 'stock-adjustment',
     inventory_return: 'inventory-return',

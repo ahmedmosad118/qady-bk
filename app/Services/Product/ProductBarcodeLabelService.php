@@ -40,10 +40,31 @@ class ProductBarcodeLabelService
 
             if ($missing->isNotEmpty()) {
                 $codes = $this->generator->next($missing->count());
+                $cases = [];
+                $bindings = [];
+                $missingIds = [];
+
                 foreach ($missing->values() as $i => $product) {
-                    $product->forceFill(['barcode' => $codes[$i]])->save();
+                    $cases[] = 'WHEN ? THEN ?';
+                    $bindings[] = (int) $product->id;
+                    $bindings[] = $codes[$i];
+                    $missingIds[] = (int) $product->id;
+                    $product->barcode = $codes[$i];
                     $generated[$product->id] = true;
                 }
+
+                $bindings[] = now()->toDateTimeString();
+                foreach ($missingIds as $id) {
+                    $bindings[] = $id;
+                }
+
+                $inPlaceholders = implode(', ', array_fill(0, count($missingIds), '?'));
+                $caseSql = 'CASE id '.implode(' ', $cases).' END';
+
+                DB::update(
+                    "UPDATE products SET barcode = {$caseSql}, updated_at = ? WHERE id IN ({$inPlaceholders})",
+                    $bindings
+                );
             }
 
             $labels = [];

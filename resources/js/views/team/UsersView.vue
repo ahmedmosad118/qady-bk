@@ -541,11 +541,14 @@ const deleteSelected = async () => {
 
 let searchDebounce = null;
 watch([search, statusFilter, roleFilter], () => {
-  page.value = 1;
   selectedIds.value = [];
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(() => {
-    loadUsers();
+    if (page.value !== 1) {
+      page.value = 1;
+    } else {
+      loadUsers();
+    }
   }, 300);
 });
 

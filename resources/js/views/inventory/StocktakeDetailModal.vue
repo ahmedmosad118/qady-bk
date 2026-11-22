@@ -595,7 +595,13 @@ import {
 } from 'lucide-vue-next';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import api from '../../services/api';
-import { formatDateTime as formatAppDateTime } from '../../utils/date';
+import { confirmAction } from '../../services/alert';
+import { formatDateOnly as formatDate, formatDateTime as formatAppDateTime } from '../../utils/date';
+import { extractApiError } from '../../utils/apiError';
+import {
+  stocktakeStatusBadgeClass as statusBadgeClass,
+  stocktakeStatusLabel as statusLabel,
+} from '../../utils/stocktakeStatus';
 
 const { t, locale } = useI18n();
 
@@ -752,7 +758,11 @@ async function handleRejectStocktake() {
 }
 
 async function handleCancelStocktake() {
-  if (!confirm(t('stocktaking.detail.confirmCancel'))) return;
+  const confirmed = await confirmAction({
+    text: t('stocktaking.detail.confirmCancel'),
+    icon: 'warning',
+  });
+  if (!confirmed) return;
   actionInProgress.value = true;
   actionError.value = '';
   try {
@@ -768,13 +778,35 @@ async function handleCancelStocktake() {
   }
 }
 
+function patchStocktakeItem(itemId, updatedItem) {
+  if (!stocktake.value?.items || !updatedItem) return false;
+  const idx = stocktake.value.items.findIndex((i) => i.id === itemId);
+  if (idx === -1) return false;
+
+  const existing = stocktake.value.items[idx];
+  stocktake.value.items[idx] = {
+    ...existing,
+    ...updatedItem,
+    product: updatedItem.product || existing.product,
+  };
+
+  const items = stocktake.value.items;
+  stocktake.value.total_items_count = items.length;
+  stocktake.value.counted_items_count = items.filter((i) => i.count_status === 'counted').length;
+  stocktake.value.counting_items_count = items.filter((i) => i.count_status === 'counting').length;
+  stocktake.value.pending_items_count = items.filter((i) => i.count_status === 'pending').length;
+  return true;
+}
+
 async function handleStartCountItem(item) {
   actionError.value = '';
   try {
-    await api.post(`/stocktake-items/${item.id}/start-counting`);
-    await loadStocktake();
+    const res = await api.post(`/stocktake-items/${item.id}/start-counting`);
+    if (!patchStocktakeItem(item.id, res.data?.data)) {
+      await loadStocktake();
+    }
   } catch (err) {
-    actionError.value = err.response?.data?.message || t('stocktaking.detail.startCountError');
+    actionError.value = extractApiError(err, t('stocktaking.detail.startCountError'));
   }
 }
 
@@ -786,12 +818,14 @@ async function handleRecordCountItem(item) {
   }
   actionError.value = '';
   try {
-    await api.post(`/stocktake-items/${item.id}/record-count`, {
+    const res = await api.post(`/stocktake-items/${item.id}/record-count`, {
       counted_quantity: qty,
     });
-    await loadStocktake();
+    if (!patchStocktakeItem(item.id, res.data?.data)) {
+      await loadStocktake();
+    }
   } catch (err) {
-    actionError.value = err.response?.data?.message || t('stocktaking.detail.recordCountError');
+    actionError.value = extractApiError(err, t('stocktaking.detail.recordCountError'));
   }
 }
 
@@ -800,12 +834,14 @@ async function handleCancelCountItem(item) {
   if (!reason || !reason.trim()) return;
   actionError.value = '';
   try {
-    await api.post(`/stocktake-items/${item.id}/cancel-count`, {
+    const res = await api.post(`/stocktake-items/${item.id}/cancel-count`, {
       reason: reason.trim(),
     });
-    await loadStocktake();
+    if (!patchStocktakeItem(item.id, res.data?.data)) {
+      await loadStocktake();
+    }
   } catch (err) {
-    actionError.value = err.response?.data?.message || t('stocktaking.detail.cancelCountError');
+    actionError.value = extractApiError(err, t('stocktaking.detail.cancelCountError'));
   }
 }
 
@@ -814,12 +850,14 @@ async function handleRecountItem(item) {
   if (!reason || !reason.trim()) return;
   actionError.value = '';
   try {
-    await api.post(`/stocktake-items/${item.id}/recount`, {
+    const res = await api.post(`/stocktake-items/${item.id}/recount`, {
       reason: reason.trim(),
     });
-    await loadStocktake();
+    if (!patchStocktakeItem(item.id, res.data?.data)) {
+      await loadStocktake();
+    }
   } catch (err) {
-    actionError.value = err.response?.data?.message || t('stocktaking.detail.recountError');
+    actionError.value = extractApiError(err, t('stocktaking.detail.recountError'));
   }
 }
 
@@ -831,33 +869,6 @@ function copyStocktakeNumber() {
 }
 
 // Helpers & Formatters
-function statusLabel(status) {
-  if (!status) return '—';
-  const map = {
-    draft: t('stocktaking.statuses.draft'),
-    in_progress: t('stocktaking.statuses.in_progress'),
-    pending_approval: t('stocktaking.statuses.pending_approval'),
-    approved: t('stocktaking.statuses.approved'),
-    rejected: t('stocktaking.statuses.rejected'),
-    cancelled: t('stocktaking.statuses.cancelled'),
-    completed: t('stocktaking.statuses.completed'),
-  };
-  return map[status] || status;
-}
-
-function statusBadgeClass(status) {
-  switch (status) {
-    case 'draft': return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20';
-    case 'in_progress': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20';
-    case 'pending_approval': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20';
-    case 'approved': return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20';
-    case 'rejected': return 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20';
-    case 'cancelled': return 'bg-zinc-400/10 text-zinc-500 border border-zinc-400/20';
-    case 'completed': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
-    default: return 'bg-zinc-500/10 text-zinc-500';
-  }
-}
-
 function itemStatusFilterLabel(st) {
   const map = {
     all: t('stocktaking.itemStatuses.all'),
@@ -924,11 +935,6 @@ function historyActionLabel(action) {
     completed: t('stocktaking.detail.historyActions.completed'),
   };
   return map[action] || action;
-}
-
-function formatDate(val) {
-  if (!val) return '—';
-  return String(val).substring(0, 10);
 }
 
 function formatTime(val) {

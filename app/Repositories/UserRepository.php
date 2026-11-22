@@ -14,13 +14,13 @@ class UserRepository
     /**
      * Get paginated list of users with applied filters.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         $query = User::query();
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function (Builder $q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -52,10 +52,15 @@ class UserRepository
      */
     public function getStats(): array
     {
+        $rows = User::query()
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
         return [
-            'total' => User::count(),
-            'active' => User::where('status', UserStatus::ACTIVE)->count(),
-            'inactive' => User::where('status', UserStatus::INACTIVE)->count(),
+            'total' => (int) $rows->sum(),
+            'active' => (int) ($rows[UserStatus::ACTIVE->value] ?? 0),
+            'inactive' => (int) ($rows[UserStatus::INACTIVE->value] ?? 0),
         ];
     }
 

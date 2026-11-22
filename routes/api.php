@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\Accounting\ChartOfAccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\Expense\ExpenseAttachmentController;
+use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
+use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\InventoryDocumentController;
 use App\Http\Controllers\Api\Pos\PosDashboardController;
 use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
@@ -14,8 +17,6 @@ use App\Http\Controllers\Api\Pos\PosShiftController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Purchase\PurchaseInvoiceController;
-use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
-use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\Purchase\PurchaseOrderController;
 use App\Http\Controllers\Api\Purchase\PurchaseSettingController;
 use App\Http\Controllers\Api\StockMovementController;
@@ -41,7 +42,6 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
-    // Config-driven CRUD endpoint (App\Core\CRUD\CRUDController).
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
@@ -198,9 +198,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::put('/{expense}', [ExpenseController::class, 'update']);
         Route::delete('/{expense}', [ExpenseController::class, 'destroy']);
 
-        Route::post('/{expense}/items/{item}/attachments', [ExpenseController::class, 'uploadAttachments']);
-        Route::get('/{expense}/items/{item}/attachments/{attachment}/view', [ExpenseController::class, 'viewAttachment']);
-        Route::get('/{expense}/items/{item}/attachments/{attachment}/download', [ExpenseController::class, 'downloadAttachment']);
-        Route::delete('/{expense}/items/{item}/attachments/{attachment}', [ExpenseController::class, 'destroyAttachment']);
+        Route::post('/{expense}/items/{item}/attachments', [ExpenseAttachmentController::class, 'upload']);
+        Route::get('/{expense}/items/{item}/attachments/{attachment}/view', [ExpenseAttachmentController::class, 'view']);
+        Route::get('/{expense}/items/{item}/attachments/{attachment}/download', [ExpenseAttachmentController::class, 'download']);
+        Route::delete('/{expense}/items/{item}/attachments/{attachment}', [ExpenseAttachmentController::class, 'destroy']);
     });
 });

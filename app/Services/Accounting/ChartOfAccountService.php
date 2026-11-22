@@ -72,6 +72,7 @@ class ChartOfAccountService
                 ? (string) $data['account_type']
                 : null;
 
+            $parent = null;
             if ($parentId !== null) {
                 /** @var ChartOfAccount|null $parent */
                 $parent = ChartOfAccount::query()->lockForUpdate()->find($parentId);
@@ -117,7 +118,10 @@ class ChartOfAccountService
                     : null,
             ]);
 
-            return $account->load('parent:id,code,name')->loadCount('children');
+            $account->setRelation('parent', $parent);
+            $account->setAttribute('children_count', 0);
+
+            return $account;
         });
     }
 
@@ -304,6 +308,9 @@ class ChartOfAccountService
     {
         $cursorId = $candidateParent->parent_id;
         $visited = [$candidateParent->id => true];
+        $parentMap = $cursorId !== null
+            ? ChartOfAccount::query()->pluck('parent_id', 'id')->all()
+            : [];
 
         while ($cursorId !== null) {
             if ($cursorId === $accountId) {
@@ -317,7 +324,7 @@ class ChartOfAccountService
             }
             $visited[$cursorId] = true;
 
-            $next = ChartOfAccount::query()->whereKey($cursorId)->value('parent_id');
+            $next = $parentMap[$cursorId] ?? null;
             $cursorId = $next !== null ? (int) $next : null;
         }
     }

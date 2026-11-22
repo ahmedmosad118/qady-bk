@@ -6,14 +6,18 @@ namespace App\Repositories;
 
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
-use App\Models\Contact;
 use App\Models\Setting;
 use App\Services\Accounting\AccountingSettingRegistry;
+use App\Services\Accounting\AccountingSettingService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 class ChartOfAccountRepository
 {
+    public function __construct(
+        protected AccountingSettingService $accountingSettingService,
+    ) {}
+
     /**
      * Build the full or filtered hierarchical tree in constant SQL queries (zero N+1).
      *
@@ -322,23 +326,6 @@ class ChartOfAccountRepository
      */
     private function getLinkedContactAccountIdSet(): array
     {
-        $contacts = Contact::withTrashed()
-            ->where(function ($query): void {
-                $query->whereNotNull('receivable_account_id')
-                    ->orWhereNotNull('payable_account_id');
-            })
-            ->get(['receivable_account_id', 'payable_account_id']);
-
-        $set = [];
-        foreach ($contacts as $contact) {
-            if ($contact->receivable_account_id) {
-                $set[(int) $contact->receivable_account_id] = true;
-            }
-            if ($contact->payable_account_id) {
-                $set[(int) $contact->payable_account_id] = true;
-            }
-        }
-
-        return $set;
+        return $this->accountingSettingService->getContactAccountIdSet();
     }
 }

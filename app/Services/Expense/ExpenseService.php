@@ -24,12 +24,13 @@ class ExpenseService
         protected ExpenseRepository $repository,
         protected ExpenseNumberService $numberService,
         protected ExpenseAttachmentService $attachmentService,
+        protected ExpenseCalculator $calculator,
     ) {}
 
     /**
      * Validate items and calculate subtotal and total authoritatively on the backend.
      *
-     * @param array<int, array<string, mixed>> $rawItems
+     * @param  array<int, array<string, mixed>>  $rawItems
      * @return array{
      *     items: array<int, array<string, mixed>>,
      *     subtotal: string,
@@ -38,72 +39,13 @@ class ExpenseService
      */
     public function calculateTotals(array $rawItems): array
     {
-        if (empty($rawItems)) {
-            throw ValidationException::withMessages([
-                'items' => [__('expenses.errors.at_least_one_item')],
-            ]);
-        }
-
-        $processedItems = [];
-        $subtotal = '0.00';
-
-        foreach ($rawItems as $index => $item) {
-            $name = trim((string) ($item['name'] ?? ''));
-            if ($name === '') {
-                throw ValidationException::withMessages([
-                    "items.{$index}.name" => ['Item name is required.'],
-                ]);
-            }
-
-            $rawAmount = $item['amount'] ?? null;
-            if ($rawAmount === null || $rawAmount === '' || ! is_numeric($rawAmount)) {
-                throw ValidationException::withMessages([
-                    "items.{$index}.amount" => [__('expenses.errors.item_amount_positive')],
-                ]);
-            }
-
-            $amountStr = number_format((float) $rawAmount, 2, '.', '');
-            if (bccomp($amountStr, '0.00', 2) <= 0) {
-                throw ValidationException::withMessages([
-                    "items.{$index}.amount" => [__('expenses.errors.item_amount_positive')],
-                ]);
-            }
-
-            $description = isset($item['description']) && trim((string) $item['description']) !== ''
-                ? trim((string) $item['description'])
-                : null;
-
-            $subtotal = bcadd($subtotal, $amountStr, 2);
-
-            $processedItems[] = [
-                'id' => isset($item['id']) && $item['id'] !== '' ? (int) $item['id'] : null,
-                'name' => $name,
-                'description' => $description,
-                'amount' => $amountStr,
-                'attachments' => is_array($item['attachments'] ?? null) ? $item['attachments'] : [],
-                'remove_attachment_ids' => is_array($item['remove_attachment_ids'] ?? null)
-                    ? array_values(array_unique(array_map('intval', $item['remove_attachment_ids'])))
-                    : [],
-            ];
-        }
-
-        if (bccomp($subtotal, '0.00', 2) <= 0) {
-            throw ValidationException::withMessages([
-                'total' => [__('expenses.errors.total_positive')],
-            ]);
-        }
-
-        return [
-            'items' => $processedItems,
-            'subtotal' => $subtotal,
-            'total' => $subtotal,
-        ];
+        return $this->calculator->calculateTotals($rawItems);
     }
 
     /**
      * Create a new Draft expense with its items and optional item attachments atomically.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createExpense(array $data, User $user): Expense
     {
@@ -133,7 +75,23 @@ class ExpenseService
                     'created_by' => $user->id,
                 ]);
 
+                $now = Carbon::now();
+                $plainItemRows = [];
+
                 foreach ($calc['items'] as $itemRow) {
+                    if (empty($itemRow['attachments'])) {
+                        $plainItemRows[] = [
+                            'expense_id' => $expense->id,
+                            'name' => $itemRow['name'],
+                            'description' => $itemRow['description'],
+                            'amount' => $itemRow['amount'],
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+
+                        continue;
+                    }
+
                     /** @var ExpenseItem $createdItem */
                     $createdItem = $expense->items()->create([
                         'name' => $itemRow['name'],
@@ -141,15 +99,17 @@ class ExpenseService
                         'amount' => $itemRow['amount'],
                     ]);
 
-                    if (! empty($itemRow['attachments'])) {
-                        $this->attachmentService->storeFiles(
-                            $expense,
-                            $createdItem,
-                            $itemRow['attachments'],
-                            $user,
-                            $trackedFiles
-                        );
-                    }
+                    $this->attachmentService->storeFiles(
+                        $expense,
+                        $createdItem,
+                        $itemRow['attachments'],
+                        $user,
+                        $trackedFiles
+                    );
+                }
+
+                if ($plainItemRows !== []) {
+                    ExpenseItem::query()->insert($plainItemRows);
                 }
 
                 return $this->repository->findWithRelations($expense->id);
@@ -163,7 +123,7 @@ class ExpenseService
     /**
      * Update a Draft expense, synchronizing items and attachments without losing existing files.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateExpense(Expense $expense, array $data, User $user): Expense
     {
@@ -257,14 +217,17 @@ class ExpenseService
                 /** @var Collection<int, ExpenseItemAttachment> $attachmentsToDelete */
                 $attachmentsToDelete = collect();
 
-                // Delete items that were removed from the form, along with their attachments.
+                // Delete items that were removed from the form, along with their attachments in bulk.
                 $itemsToRemove = $existingItems->except($keptItemIds);
-                foreach ($itemsToRemove as $removedItem) {
-                    foreach ($removedItem->attachments as $att) {
-                        $attachmentsToDelete->push($att);
+                if ($itemsToRemove->isNotEmpty()) {
+                    foreach ($itemsToRemove as $removedItem) {
+                        foreach ($removedItem->attachments as $att) {
+                            $attachmentsToDelete->push($att);
+                        }
                     }
-                    $removedItem->attachments()->delete();
-                    $removedItem->delete();
+                    $removedItemIds = $itemsToRemove->pluck('id')->all();
+                    ExpenseItemAttachment::query()->whereIn('expense_item_id', $removedItemIds)->delete();
+                    ExpenseItem::query()->whereIn('id', $removedItemIds)->delete();
                 }
 
                 // Synchronize kept items and create new items.
@@ -354,10 +317,11 @@ class ExpenseService
             $attachments = $lockedExpense->items->flatMap(fn (ExpenseItem $item): Collection => $item->attachments);
             $this->attachmentService->schedulePhysicalDeletion($attachments);
 
-            foreach ($lockedExpense->items as $item) {
-                $item->attachments()->delete();
+            $itemIds = $lockedExpense->items->pluck('id')->all();
+            if ($itemIds !== []) {
+                ExpenseItemAttachment::query()->whereIn('expense_item_id', $itemIds)->delete();
+                ExpenseItem::query()->whereIn('id', $itemIds)->delete();
             }
-            $lockedExpense->items()->delete();
 
             return (bool) $lockedExpense->delete();
         });
@@ -366,7 +330,7 @@ class ExpenseService
     /**
      * Upload additional attachments directly to an item of a Draft expense.
      *
-     * @param array<int, UploadedFile> $files
+     * @param  array<int, UploadedFile>  $files
      * @return array<int, ExpenseItemAttachment>
      */
     public function uploadItemAttachments(Expense $expense, ExpenseItem $item, array $files, User $user): array

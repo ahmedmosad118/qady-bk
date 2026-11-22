@@ -117,17 +117,11 @@ class PosShiftController extends Controller
     /**
      * List all financial transactions recorded in this shift.
      */
-    public function transactions(PosShift $posShift): JsonResponse
+    public function transactions(Request $request, PosShift $posShift): JsonResponse
     {
-        $transactions = $posShift->transactions()
-            ->with(['creator', 'sale', 'return'])
-            ->orderBy('id', 'asc')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $transactions,
-        ]);
+        return $this->paginatedResponse(
+            $this->shiftService->paginateTransactions($posShift, $request->integer('per_page', 50))
+        );
     }
 
     /**
@@ -179,22 +173,8 @@ class PosShiftController extends Controller
      */
     public function sales(PosShift $posShift, Request $request): JsonResponse
     {
-        $perPage = $request->integer('per_page', 20);
-
-        $paginated = $posShift->sales()
-            ->with(['customer:id,name,phone', 'creator:id,name', 'paymentMethod:id,name'])
-            ->orderByDesc('id')
-            ->paginate($perPage);
-
-        return response()->json([
-            'success' => true,
-            'data' => $paginated->items(),
-            'meta' => [
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
-                'per_page' => $paginated->perPage(),
-                'total' => $paginated->total(),
-            ],
-        ]);
+        return $this->paginatedResponse(
+            $this->shiftService->paginateSales($posShift, $request->integer('per_page', 20))
+        );
     }
 }

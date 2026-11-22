@@ -7,54 +7,35 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehouse\UpdateWarehouseRequest;
 use App\Models\Warehouse;
+use App\Services\Inventory\WarehouseService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
+    public function __construct(
+        protected WarehouseService $warehouseService,
+    ) {}
+
     /**
      * Display a listing of active warehouses (for document select inputs).
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Warehouse::query()
-            ->when($request->boolean('active_only', true), function ($q): void {
-                $q->active();
-            })
-            ->when($request->filled('search'), function ($q) use ($request): void {
-                $search = (string) $request->input('search');
-                $q->where(function ($sub) use ($search): void {
-                    $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('code', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy('is_default', 'desc')
-            ->orderBy('name', 'asc');
+        $result = $this->warehouseService->list(
+            [
+                'active_only' => $request->input('active_only', true),
+                'search' => $request->input('search'),
+            ],
+            $request->filled('per_page') ? $request->integer('per_page', 10) : null
+        );
 
-        if ($request->filled('per_page')) {
-            $paginated = $query->paginate(
-                $request->integer('per_page', 10),
-                ['id', 'code', 'name', 'address', 'is_default', 'is_active']
-            );
-
-            return response()->json([
-                'success' => true,
-                'data' => $paginated->items(),
-                'meta' => [
-                    'current_page' => $paginated->currentPage(),
-                    'last_page' => $paginated->lastPage(),
-                    'per_page' => $paginated->perPage(),
-                    'total' => $paginated->total(),
-                ],
-            ]);
+        if ($result instanceof LengthAwarePaginator) {
+            return $this->paginatedResponse($result);
         }
 
-        $warehouses = $query->get(['id', 'code', 'name', 'address', 'is_default', 'is_active']);
-
-        return response()->json([
-            'success' => true,
-            'data' => $warehouses,
-        ]);
+        return $this->successResponse($result);
     }
 
     /**
@@ -62,23 +43,13 @@ class WarehouseController extends Controller
      */
     public function defaultWarehouse(): JsonResponse
     {
-        $warehouse = Warehouse::query()->where('is_default', true)->first();
+        $warehouse = $this->warehouseService->findDefaultOrFirst();
 
         if (! $warehouse) {
-            $warehouse = Warehouse::query()->first();
+            return $this->errorResponse((string) __('inventory.errors.warehouse_not_found'), 404);
         }
 
-        if (! $warehouse) {
-            return response()->json([
-                'success' => false,
-                'message' => __('inventory.errors.warehouse_not_found'),
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $warehouse,
-        ]);
+        return $this->successResponse($warehouse);
     }
 
     /**
@@ -86,10 +57,7 @@ class WarehouseController extends Controller
      */
     public function show(Warehouse $warehouse): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'data' => $warehouse,
-        ]);
+        return $this->successResponse($warehouse);
     }
 
     /**
@@ -97,22 +65,11 @@ class WarehouseController extends Controller
      */
     public function update(UpdateWarehouseRequest $request, Warehouse $warehouse): JsonResponse
     {
-        $validated = $request->validated();
+        $updated = $this->warehouseService->update($warehouse, $request->validated());
 
-        $warehouse->update([
-            'code' => $validated['code'],
-            'name' => $validated['name'],
-            'address' => $validated['address'],
-            'phone' => $validated['phone'] ?? null,
-            'manager_name' => $validated['manager_name'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : $warehouse->is_active,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => __('inventory.warehouse_updated_successfully'),
-            'data' => $warehouse->fresh(),
-        ]);
+        return $this->successResponse(
+            $updated,
+            (string) __('inventory.warehouse_updated_successfully')
+        );
     }
 }

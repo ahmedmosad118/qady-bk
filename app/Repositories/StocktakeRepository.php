@@ -15,7 +15,7 @@ class StocktakeRepository
     /**
      * Build filtered query for stocktakes.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function query(array $filters = []): Builder
     {
@@ -36,7 +36,7 @@ class StocktakeRepository
 
         // Search term (stocktake number or notes)
         if (! empty($filters['search'])) {
-            $term = '%' . trim((string) $filters['search']) . '%';
+            $term = '%'.trim((string) $filters['search']).'%';
             $query->where(function (Builder $q) use ($term): void {
                 $q->where('stocktake_number', 'like', $term)
                     ->orWhere('notes', 'like', $term);
@@ -83,7 +83,7 @@ class StocktakeRepository
     /**
      * Paginate filtered stocktakes.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
@@ -93,7 +93,7 @@ class StocktakeRepository
     /**
      * Calculate summary statistics for stocktakes.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      * @return array<string, int>
      */
     public function stats(array $filters = []): array
@@ -113,15 +113,20 @@ class StocktakeRepository
             $base->whereDate('stocktake_date', '<=', $filters['date_to']);
         }
 
+        $rows = (clone $base)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
         return [
-            'total' => (clone $base)->count(),
-            'draft' => (clone $base)->where('status', StocktakeStatus::DRAFT)->count(),
-            'in_progress' => (clone $base)->where('status', StocktakeStatus::IN_PROGRESS)->count(),
-            'pending_approval' => (clone $base)->where('status', StocktakeStatus::PENDING_APPROVAL)->count(),
-            'approved' => (clone $base)->where('status', StocktakeStatus::APPROVED)->count(),
-            'rejected' => (clone $base)->where('status', StocktakeStatus::REJECTED)->count(),
-            'cancelled' => (clone $base)->where('status', StocktakeStatus::CANCELLED)->count(),
-            'completed' => (clone $base)->where('status', StocktakeStatus::COMPLETED)->count(),
+            'total' => (int) $rows->sum(),
+            'draft' => (int) ($rows[StocktakeStatus::DRAFT->value] ?? 0),
+            'in_progress' => (int) ($rows[StocktakeStatus::IN_PROGRESS->value] ?? 0),
+            'pending_approval' => (int) ($rows[StocktakeStatus::PENDING_APPROVAL->value] ?? 0),
+            'approved' => (int) ($rows[StocktakeStatus::APPROVED->value] ?? 0),
+            'rejected' => (int) ($rows[StocktakeStatus::REJECTED->value] ?? 0),
+            'cancelled' => (int) ($rows[StocktakeStatus::CANCELLED->value] ?? 0),
+            'completed' => (int) ($rows[StocktakeStatus::COMPLETED->value] ?? 0),
         ];
     }
 }

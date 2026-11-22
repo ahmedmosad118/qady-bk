@@ -359,6 +359,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import api from '../../services/api';
 import { confirmAction, confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
+import { formatMoney } from '../../utils/format';
+import { formatDateOnly } from '../../utils/date';
+import {
+  discountBreakdownTitle as buildDiscountBreakdownTitle,
+  itemDiscountsAmount,
+  purchaseStatusBadgeClass as statusBadgeClass,
+  totalDiscountAmount,
+} from '../../utils/purchaseFormatters';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
@@ -449,52 +457,13 @@ function changePage(page) {
   loadOrders();
 }
 
-function formatMoney(amount) {
-  const num = Number(amount) || 0;
-  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function itemDiscountsAmount(order) {
-  if (order?.items_sum_discount_amount !== undefined && order?.items_sum_discount_amount !== null) {
-    return Number(order.items_sum_discount_amount) || 0;
-  }
-  return (order?.items || []).reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
-}
-
-function totalDiscountAmount(order) {
-  return itemDiscountsAmount(order) + (Number(order?.discount_amount) || 0);
-}
-
 function discountBreakdownTitle(order) {
-  const itemDisc = itemDiscountsAmount(order);
-  const orderDisc = Number(order?.discount_amount) || 0;
-  const parts = [];
-  if (itemDisc > 0) parts.push(`${t('purchaseOrders.itemDiscounts')}: ${formatMoney(itemDisc)}`);
-  if (orderDisc > 0) parts.push(`${t('purchaseOrders.orderDiscount')}: ${formatMoney(orderDisc)}`);
-  return parts.join(' | ');
-}
-
-function formatDateOnly(val) {
-  if (!val) return '—';
-  return String(val).substring(0, 10);
+  return buildDiscountBreakdownTitle(order, 'purchaseOrders');
 }
 
 function statusLabel(status) {
   if (!status) return '—';
   return t(`purchaseOrders.statuses.${status}`) || status;
-}
-
-function statusBadgeClass(status) {
-  switch (status) {
-    case 'draft':
-      return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-400';
-    case 'converted':
-      return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-400';
-    case 'cancelled':
-      return 'bg-rose-500/10 text-rose-700 border border-rose-500/20 dark:text-rose-400';
-    default:
-      return 'bg-gray-500/10 text-gray-700 border border-gray-500/20 dark:text-gray-400';
-  }
 }
 
 async function loadOrders() {

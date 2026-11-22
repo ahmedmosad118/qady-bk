@@ -72,20 +72,6 @@ class UserController extends Controller
     }
 
     /**
-     * Display the specified user.
-     */
-    public function show(int $id): JsonResponse
-    {
-        $user = User::findOrFail($id);
-
-        return response()->json([
-            'success' => true,
-            'data' => $user,
-            'schema' => $this->schemaProvider->getSchema(),
-        ]);
-    }
-
-    /**
      * Update the specified user.
      */
     public function update(UpdateUserRequest $request, int $id): JsonResponse

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\PosShiftTransactionType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,10 +26,13 @@ class PosShiftTransaction extends Model
 {
     use HasFactory;
 
-    public const TYPE_CASH_SALE = 'cash_sale';
-    public const TYPE_CASH_RETURN = 'cash_return';
-    public const TYPE_EXPENSE = 'expense';
-    public const TYPE_WITHDRAWAL = 'withdrawal';
+    public const TYPE_CASH_SALE = PosShiftTransactionType::CASH_SALE->value;
+
+    public const TYPE_CASH_RETURN = PosShiftTransactionType::CASH_RETURN->value;
+
+    public const TYPE_EXPENSE = PosShiftTransactionType::EXPENSE->value;
+
+    public const TYPE_WITHDRAWAL = PosShiftTransactionType::WITHDRAWAL->value;
 
     public $timestamps = false;
 
@@ -38,6 +42,7 @@ class PosShiftTransaction extends Model
     protected function casts(): array
     {
         return [
+            'type' => PosShiftTransactionType::class,
             'amount' => 'decimal:2',
             'created_at' => 'datetime',
         ];

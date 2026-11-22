@@ -703,19 +703,25 @@ const deleteSelected = async () => {
 };
 
 const resetFilters = () => {
+  const hadFilters = search.value !== '' || statusFilter.value !== 'all' || categoryFilter.value !== 'all';
   search.value = '';
   statusFilter.value = 'all';
   categoryFilter.value = 'all';
-  page.value = 1;
+  if (!hadFilters && page.value !== 1) {
+    page.value = 1;
+  }
 };
 
 let searchDebounce = null;
 watch([search, statusFilter, categoryFilter], () => {
-  page.value = 1;
   selectedIds.value = [];
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(() => {
-    loadProducts();
+    if (page.value !== 1) {
+      page.value = 1;
+    } else {
+      loadProducts();
+    }
   }, 300);
 });
 

@@ -20,10 +20,12 @@ class ContactAccountService
     /**
      * Provision independent receivable and payable sub-accounts for a contact.
      * Must be invoked inside an active database transaction.
+     *
+     * @param  array{0: ChartOfAccount, 1: ChartOfAccount}|null  $controlAccounts
      */
-    public function createAccountsForContact(Contact $contact): void
+    public function createAccountsForContact(Contact $contact, ?array $controlAccounts = null): void
     {
-        [$receivableParent, $payableParent] = $this->resolveControlAccounts();
+        [$receivableParent, $payableParent] = $controlAccounts ?? $this->resolveControlAccounts();
 
         $receivableAccount = $contact->receivable_account_id
             ? ChartOfAccount::query()->find($contact->receivable_account_id)
@@ -93,8 +95,10 @@ class ContactAccountService
             })
             ->orderBy('id')
             ->chunkById(100, function ($contacts) use (&$stats): void {
+                $controlAccounts = $this->resolveControlAccounts();
+
                 foreach ($contacts as $contact) {
-                    DB::transaction(function () use ($contact, &$stats): void {
+                    DB::transaction(function () use ($contact, $controlAccounts, &$stats): void {
                         /** @var Contact|null $locked */
                         $locked = Contact::withTrashed()->lockForUpdate()->find($contact->id);
                         if (! $locked) {
@@ -110,7 +114,7 @@ class ContactAccountService
                             return;
                         }
 
-                        $this->createAccountsForContact($locked);
+                        $this->createAccountsForContact($locked, $controlAccounts);
 
                         $stats['processed']++;
                         if (! $hadReceivable && $locked->receivable_account_id !== null) {

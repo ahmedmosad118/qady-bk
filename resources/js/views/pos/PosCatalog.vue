@@ -86,8 +86,8 @@
             class="aspect-[4/3] rounded-[10px_4px_4px_10px] p-2 text-center text-white font-extrabold text-xs leading-snug flex items-center justify-center relative overflow-hidden shadow-inner"
             :style="{ background: getCoverBackground(prod) }"
           >
-            <!-- Spine shadow simulation on left -->
-            <div class="absolute inset-y-0 left-0 w-2.5 bg-black/35 pointer-events-none"></div>
+            <!-- Spine shadow simulation on start -->
+            <div class="absolute inset-y-0 start-0 w-2.5 bg-black/35 pointer-events-none"></div>
             <!-- Gold accent band -->
             <span class="w-full py-1.5 px-1 border-y border-[#D7B26A] text-[11px] line-clamp-2 drop-shadow-sm">
               {{ prod.name }}

@@ -149,10 +149,26 @@ class AccountCodeGenerator
             ]);
         }
 
-        foreach ($plannedUpdates as $id => $updatedCode) {
-            ChartOfAccount::query()
-                ->whereKey($id)
-                ->update(['code' => $updatedCode]);
+        if ($plannedUpdates !== []) {
+            foreach (array_chunk($plannedUpdates, 500, true) as $chunk) {
+                $cases = [];
+                $bindings = [];
+                foreach ($chunk as $id => $updatedCode) {
+                    $cases[] = 'WHEN ? THEN ?';
+                    $bindings[] = (int) $id;
+                    $bindings[] = $updatedCode;
+                }
+                foreach (array_keys($chunk) as $id) {
+                    $bindings[] = (int) $id;
+                }
+                $inPlaceholders = implode(', ', array_fill(0, count($chunk), '?'));
+                $caseSql = 'CASE id '.implode(' ', $cases).' END';
+
+                DB::update(
+                    "UPDATE chart_of_accounts SET code = {$caseSql} WHERE id IN ({$inPlaceholders})",
+                    $bindings
+                );
+            }
         }
     }
 

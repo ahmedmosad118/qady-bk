@@ -68,26 +68,32 @@
             {{ $t('barcodePrint.emptySelection') }}
           </p>
           <ul v-else class="divide-y divide-[var(--border)]">
-            <li v-for="item in selected" :key="item.id" class="flex items-center gap-3 py-2">
+            <li v-for="item in selected" :key="item.id" class="flex items-center justify-between gap-3 py-2.5">
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-bold text-[var(--text)]">{{ item.name }}</p>
-                <p class="text-xs font-mono text-[var(--muted)]">
-                  {{ item.barcode || $t('barcodePrint.willGenerate') }}
-                </p>
               </div>
-              <label class="sr-only" :for="`copies-${item.id}`">{{ $t('barcodePrint.copies') }}</label>
-              <input
-                :id="`copies-${item.id}`"
-                v-model.number="item.copies"
-                type="number"
-                min="1"
-                max="500"
-                class="field !h-9 w-20 text-center"
-                @blur="item.copies = clampCopies(item.copies)"
-              />
-              <button type="button" class="btn-ghost" :aria-label="$t('common.delete')" @click="remove(item.id)">
-                <Trash2 class="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div class="flex shrink-0 items-center gap-2">
+                <label class="text-xs font-semibold text-[var(--muted)]" :for="`copies-${item.id}`">
+                  {{ $t('barcodePrint.copies') }}
+                </label>
+                <input
+                  :id="`copies-${item.id}`"
+                  v-model.number="item.copies"
+                  type="number"
+                  min="1"
+                  max="500"
+                  class="field !h-9 !w-20 shrink-0 text-center font-bold tabular-nums"
+                  @blur="item.copies = clampCopies(item.copies)"
+                />
+                <button
+                  type="button"
+                  class="btn-ghost shrink-0 hover:!border-rose-500/40 hover:!text-rose-600"
+                  :aria-label="$t('common.delete')"
+                  @click="remove(item.id)"
+                >
+                  <Trash2 class="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </li>
           </ul>
         </section>
@@ -266,9 +272,14 @@ async function loadResults() {
 }
 
 watch(search, () => {
-  page.value = 1;
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(loadResults, 300);
+  searchTimer = setTimeout(() => {
+    if (page.value !== 1) {
+      page.value = 1;
+    } else {
+      loadResults();
+    }
+  }, 300);
 });
 watch(page, loadResults);
 

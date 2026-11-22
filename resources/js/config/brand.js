@@ -7,6 +7,7 @@ export const brand = {
   name: 'مكتبة القاضي',
   nameEn: 'Al Qadi Library',
   shortName: 'القاضي',
+  shortNameEn: 'Al Qadi',
   tagline: 'للإصدارات القانونية',
   taglineEn: 'Legal Publications',
   edition: 'Library Edition',

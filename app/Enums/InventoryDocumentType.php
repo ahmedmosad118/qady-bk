@@ -23,4 +23,20 @@ enum InventoryDocumentType: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    /**
+     * Get the sequence number prefix for this document type.
+     */
+    public function prefix(): string
+    {
+        return match ($this) {
+            self::GOODS_RECEIPT => 'GR',
+            self::GOODS_DELIVERY => 'GD',
+            self::WAREHOUSE_TRANSFER => 'WT',
+            self::STOCK_ADJUSTMENT => 'SA',
+            self::INVENTORY_RETURN => 'IR',
+            self::STOCK_WRITE_OFF => 'SW',
+            self::OPENING_BALANCE => 'OB',
+        };
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Purchase;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Purchase\CancelPurchaseOrderRequest;
 use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
 use App\Http\Requests\Purchase\UpdatePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
@@ -133,9 +134,9 @@ class PurchaseOrderController extends Controller
     /**
      * Cancel the purchase order.
      */
-    public function cancel(Request $request, PurchaseOrder $purchase_order): JsonResponse
+    public function cancel(CancelPurchaseOrderRequest $request, PurchaseOrder $purchase_order): JsonResponse
     {
-        $reason = $request->input('reason');
+        $reason = $request->validated('reason');
         $order = $this->purchaseOrderService->cancelOrder(
             $purchase_order,
             $request->user(),

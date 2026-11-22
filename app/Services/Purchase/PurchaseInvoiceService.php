@@ -15,6 +15,7 @@ use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Repositories\PurchaseInvoiceRepository;
+use App\Services\Inventory\DefaultWarehouseResolver;
 use App\Services\InventoryDocumentService;
 use App\Services\InventoryDocumentWorkflowService;
 use Carbon\Carbon;
@@ -31,19 +32,19 @@ class PurchaseInvoiceService
 
     public function __construct(
         protected PurchaseInvoiceRepository $repository,
-        protected PurchaseDocumentNumberService $numberService,
         protected InventoryDocumentService $inventoryDocumentService,
         protected InventoryDocumentWorkflowService $inventoryDocumentWorkflowService,
         protected PurchaseDocumentCalculator $calculator,
         protected PurchaseSupplierResolver $supplierResolver,
         protected PurchaseLineWriter $lineWriter,
+        protected DefaultWarehouseResolver $defaultWarehouseResolver,
     ) {}
 
     /**
      * Calculate items, discounts, expenses and totals via the shared pure calculator.
      *
-     * @param array<int, array<string, mixed>> $rawItems
-     * @param array<int, array<string, mixed>> $rawExpenses
+     * @param  array<int, array<string, mixed>>  $rawItems
+     * @param  array<int, array<string, mixed>>  $rawExpenses
      * @return array<string, mixed>
      */
     protected function calculate(array $rawItems, ?string $discountType, mixed $discountValue, array $rawExpenses): array
@@ -67,7 +68,7 @@ class PurchaseInvoiceService
      * Create a new draft Purchase Invoice (direct or from a confirmed Purchase Order)
      * and automatically create its linked Draft Goods Receipt inside one transaction.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createInvoice(array $data, User $user): PurchaseInvoice
     {
@@ -99,22 +100,21 @@ class PurchaseInvoiceService
                 ]);
             }
 
-
             /** @var PurchaseInvoice $invoice */
             $invoice = PurchaseInvoice::query()->create([
-                'supplier_id'               => $supplier->id,
-                'purchase_order_id'         => $purchaseOrderId,
-                'invoice_date'              => $invoiceDate->toDateString(),
-                'due_date'                  => $dueDate->toDateString(),
-                'subtotal'                  => $calc['subtotal'],
-                'discount_type'             => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value'            => $calc['discount_value'],
-                'discount_amount'           => $calc['discount_amount'],
+                'supplier_id' => $supplier->id,
+                'purchase_order_id' => $purchaseOrderId,
+                'invoice_date' => $invoiceDate->toDateString(),
+                'due_date' => $dueDate->toDateString(),
+                'subtotal' => $calc['subtotal'],
+                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                'discount_value' => $calc['discount_value'],
+                'discount_amount' => $calc['discount_amount'],
                 'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total'                     => $calc['total'],
-                'notes'                     => $data['notes'] ?? null,
-                'status'                    => PurchaseInvoiceStatus::DRAFT,
-                'created_by'                => $user->id,
+                'total' => $calc['total'],
+                'notes' => $data['notes'] ?? null,
+                'status' => PurchaseInvoiceStatus::DRAFT,
+                'created_by' => $user->id,
             ]);
 
             $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
@@ -129,7 +129,7 @@ class PurchaseInvoiceService
     /**
      * Create a Purchase Invoice directly from an existing confirmed Purchase Order.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createFromPurchaseOrder(PurchaseOrder $purchaseOrder, array $data, User $user): PurchaseInvoice
     {
@@ -153,7 +153,7 @@ class PurchaseInvoiceService
     /**
      * Update an existing draft Purchase Invoice and synchronize its linked Draft Goods Receipt.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateInvoice(PurchaseInvoice $invoice, array $data, User $user): PurchaseInvoice
     {
@@ -204,16 +204,16 @@ class PurchaseInvoiceService
             }
 
             $lockedInvoice->update([
-                'supplier_id'               => $supplier->id,
-                'invoice_date'              => $invoiceDate->toDateString(),
-                'due_date'                  => $dueDate->toDateString(),
-                'subtotal'                  => $calc['subtotal'],
-                'discount_type'             => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value'            => $calc['discount_value'],
-                'discount_amount'           => $calc['discount_amount'],
+                'supplier_id' => $supplier->id,
+                'invoice_date' => $invoiceDate->toDateString(),
+                'due_date' => $dueDate->toDateString(),
+                'subtotal' => $calc['subtotal'],
+                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                'discount_value' => $calc['discount_value'],
+                'discount_amount' => $calc['discount_amount'],
                 'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total'                     => $calc['total'],
-                'notes'                     => $data['notes'] ?? null,
+                'total' => $calc['total'],
+                'notes' => $data['notes'] ?? null,
             ]);
 
             $lockedInvoice->items()->delete();
@@ -269,8 +269,8 @@ class PurchaseInvoiceService
 
             if ($reason !== null && trim($reason) !== '') {
                 $trimmed = trim($reason);
-                $prefix = $lockedInvoice->notes ? $lockedInvoice->notes . "\n" : '';
-                $lockedInvoice->notes = $prefix . __('purchases.messages.cancellation_reason_note', ['reason' => $trimmed]);
+                $prefix = $lockedInvoice->notes ? $lockedInvoice->notes."\n" : '';
+                $lockedInvoice->notes = $prefix.__('purchases.messages.cancellation_reason_note', ['reason' => $trimmed]);
             }
 
             $lockedInvoice->status = PurchaseInvoiceStatus::CANCELLED;
@@ -327,7 +327,7 @@ class PurchaseInvoiceService
     /**
      * Copy supplier, items, and discounts from a confirmed Purchase Order when creating an invoice.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function hydrateFromPurchaseOrder(int $purchaseOrderId, array $data): array
@@ -394,7 +394,7 @@ class PurchaseInvoiceService
     /**
      * Goods receipt lines built from the already-calculated invoice lines (no re-read from the DB).
      *
-     * @param array<int, array<string, mixed>> $calcItems
+     * @param  array<int, array<string, mixed>>  $calcItems
      * @return array<int, array{product_id: int, quantity: string, notes: null}>
      */
     protected function goodsReceiptItems(array $calcItems): array
@@ -409,20 +409,20 @@ class PurchaseInvoiceService
     /**
      * Create the automatic Draft Goods Receipt linked to a Purchase Invoice.
      *
-     * @param array<int, array<string, mixed>> $calcItems
+     * @param  array<int, array<string, mixed>>  $calcItems
      */
     protected function createLinkedGoodsReceipt(PurchaseInvoice $invoice, Warehouse $warehouse, User $user, array $calcItems): InventoryDocument
     {
         $itemsPayload = $this->goodsReceiptItems($calcItems);
 
         return $this->inventoryDocumentService->create([
-            'document_type'            => InventoryDocumentType::GOODS_RECEIPT->value,
-            'document_date'            => Carbon::parse($invoice->invoice_date)->toDateString(),
+            'document_type' => InventoryDocumentType::GOODS_RECEIPT->value,
+            'document_date' => Carbon::parse($invoice->invoice_date)->toDateString(),
             'destination_warehouse_id' => $warehouse->id,
-            'referenceable_type'       => $invoice->getMorphClass(),
-            'referenceable_id'         => $invoice->id,
-            'notes'                    => __('purchases.messages.auto_goods_receipt_notes', ['number' => $invoice->invoice_number]),
-            'items'                    => $itemsPayload,
+            'referenceable_type' => $invoice->getMorphClass(),
+            'referenceable_id' => $invoice->id,
+            'notes' => __('purchases.messages.auto_goods_receipt_notes', ['number' => $invoice->invoice_number]),
+            'items' => $itemsPayload,
         ], $user);
     }
 
@@ -431,18 +431,6 @@ class PurchaseInvoiceService
      */
     protected function resolveDefaultActiveWarehouse(): Warehouse
     {
-        /** @var Warehouse|null $warehouse */
-        $warehouse = Warehouse::query()
-            ->where('is_default', true)
-            ->where('is_active', true)
-            ->first();
-
-        if (! $warehouse) {
-            throw ValidationException::withMessages([
-                'warehouse' => [(string) __('purchases.errors.no_default_warehouse')],
-            ]);
-        }
-
-        return $warehouse;
+        return $this->defaultWarehouseResolver->resolveOrFail('purchases.errors.no_default_warehouse', requireActive: true);
     }
 }

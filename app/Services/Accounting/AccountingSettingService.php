@@ -305,7 +305,7 @@ class AccountingSettingService
      * @param  array<int, int>|null  $filterIds
      * @return array<int, true>
      */
-    private function getContactAccountIdSet(?array $filterIds = null): array
+    public function getContactAccountIdSet(?array $filterIds = null): array
     {
         $query = Contact::withTrashed()->where(function ($q) use ($filterIds): void {
             if ($filterIds !== null) {
@@ -337,22 +337,18 @@ class AccountingSettingService
      */
     private function assertValidControlAccountChildren(ChartOfAccount $account, string $key, string $label, array &$errors): void
     {
-        $childIds = ChartOfAccount::query()
-            ->where('parent_id', $account->id)
-            ->pluck('id')
-            ->all();
-
-        if ($childIds === []) {
-            return;
-        }
-
         $contactColumn = $key === 'accounts_receivable' ? 'receivable_account_id' : 'payable_account_id';
 
-        $matchedCount = Contact::withTrashed()
-            ->whereIn($contactColumn, $childIds)
-            ->count();
+        $hasUnlinkedChild = ChartOfAccount::query()
+            ->where('parent_id', $account->id)
+            ->whereNotExists(function ($query) use ($contactColumn): void {
+                $query->selectRaw('1')
+                    ->from('contacts')
+                    ->whereColumn("contacts.{$contactColumn}", 'chart_of_accounts.id');
+            })
+            ->exists();
 
-        if ($matchedCount !== count($childIds)) {
+        if ($hasUnlinkedChild) {
             $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_control_account_invalid', ['label' => $label])];
         }
     }
