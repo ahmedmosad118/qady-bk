@@ -32,7 +32,7 @@ class ChartOfAccountController extends Controller implements HasMiddleware
     }
 
     /**
-     * Display a paginated flat listing of accounts with server-side filters and stats.
+     * Display a paginated listing of single-level accounts with server-side filters and stats.
      */
     public function index(Request $request): JsonResponse
     {
@@ -41,8 +41,8 @@ class ChartOfAccountController extends Controller implements HasMiddleware
         $filters = [
             'search' => $request->input('search'),
             'account_type' => $request->input('account_type'),
-            'parent_id' => $request->input('parent_id'),
-            'postable_only' => $request->boolean('postable_only'),
+            'account_purpose' => $request->input('account_purpose'),
+            'exclude_contact_accounts' => $request->boolean('exclude_contact_accounts'),
             'sort_by' => $request->input('sort_by'),
             'sort_order' => $request->input('sort_order'),
         ];
@@ -59,26 +59,6 @@ class ChartOfAccountController extends Controller implements HasMiddleware
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
-            'stats' => $this->accountService->stats(),
-        ]);
-    }
-
-    /**
-     * Display the hierarchical Chart of Accounts tree.
-     */
-    public function tree(Request $request): JsonResponse
-    {
-        $this->authorize('tree', ChartOfAccount::class);
-
-        $filters = [
-            'search' => $request->input('search'),
-            'account_type' => $request->input('account_type'),
-            'parent_id' => $request->input('parent_id'),
-        ];
-
-        return response()->json([
-            'success' => true,
-            'data' => $this->accountService->getTree($filters),
             'stats' => $this->accountService->stats(),
         ]);
     }
@@ -125,7 +105,7 @@ class ChartOfAccountController extends Controller implements HasMiddleware
     }
 
     /**
-     * Delete an unused leaf account.
+     * Delete an unused account.
      */
     public function destroy(ChartOfAccount $account): JsonResponse
     {

@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use LogicException;
 
 #[Fillable([
-    'parent_id',
     'code',
     'name',
     'account_type',
+    'account_purpose',
     'description',
 ])]
 class ChartOfAccount extends Model
@@ -32,27 +31,12 @@ class ChartOfAccount extends Model
     {
         return [
             'account_type' => AccountType::class,
+            'account_purpose' => AccountPurpose::class,
         ];
     }
 
     /**
-     * Parent account in the chart hierarchy.
-     */
-    public function parent(): BelongsTo
-    {
-        return $this->belongsTo(self::class, 'parent_id');
-    }
-
-    /**
-     * Direct child accounts in the chart hierarchy.
-     */
-    public function children(): HasMany
-    {
-        return $this->hasMany(self::class, 'parent_id')->orderBy('code');
-    }
-
-    /**
-     * Contact that owns this account as its receivable sub-account, if any.
+     * Contact that owns this account as its receivable account, if any.
      */
     public function receivableContact(): HasOne
     {
@@ -60,7 +44,7 @@ class ChartOfAccount extends Model
     }
 
     /**
-     * Contact that owns this account as its payable sub-account, if any.
+     * Contact that owns this account as its payable account, if any.
      */
     public function payableContact(): HasOne
     {
@@ -68,11 +52,11 @@ class ChartOfAccount extends Model
     }
 
     /**
-     * Scope to root (top-level) accounts.
+     * Payment methods linked to this account.
      */
-    public function scopeRoots(Builder $query): Builder
+    public function paymentMethods(): HasMany
     {
-        return $query->whereNull('parent_id');
+        return $this->hasMany(PaymentMethod::class, 'chart_of_account_id');
     }
 
     /**
@@ -86,11 +70,13 @@ class ChartOfAccount extends Model
     }
 
     /**
-     * Scope to detail (leaf / postable) accounts that have no children.
+     * Scope by account purpose.
      */
-    public function scopePostable(Builder $query): Builder
+    public function scopeOfPurpose(Builder $query, AccountPurpose|string $purpose): Builder
     {
-        return $query->whereDoesntHave('children');
+        $value = $purpose instanceof AccountPurpose ? $purpose->value : $purpose;
+
+        return $query->where('account_purpose', $value);
     }
 
     /**
@@ -109,69 +95,23 @@ class ChartOfAccount extends Model
         });
     }
 
-    /**
-     * Determine whether this account is a group (parent) account.
-     * Accounts with one or more children are group accounts.
-     */
-    public function isGroup(): bool
+    public function isAsset(): bool
     {
-        if (array_key_exists('children_count', $this->attributes)) {
-            return (int) $this->attributes['children_count'] > 0;
-        }
-
-        if ($this->relationLoaded('children')) {
-            return $this->children->isNotEmpty();
-        }
-
-        return $this->children()->exists();
+        return $this->account_type === AccountType::ASSET;
     }
 
-    /**
-     * Determine whether this account is a detail (leaf) account eligible for direct posting.
-     */
-    public function isPostable(): bool
+    public function isCash(): bool
     {
-        return ! $this->isGroup();
+        return $this->account_purpose === AccountPurpose::CASH;
     }
 
-    /**
-     * Guard against posting transactions to a group account.
-     */
-    public function assertPostable(): void
+    public function isBank(): bool
     {
-        if ($this->isGroup()) {
-            throw new LogicException((string) __('accounting.errors.cannot_post_to_group_account'));
-        }
+        return $this->account_purpose === AccountPurpose::BANK;
     }
 
-    /**
-     * Dynamically compute the 1-based depth level of this account in the tree.
-     */
-    public function calculateLevel(): int
+    public function isGeneral(): bool
     {
-        $level = 1;
-        $visited = [$this->id => true];
-        $currentParentId = $this->parent_id;
-        $current = $this;
-        $parentMap = null;
-
-        while ($currentParentId !== null) {
-            if (isset($visited[$currentParentId])) {
-                break;
-            }
-            $visited[$currentParentId] = true;
-            $level++;
-
-            if ($current->relationLoaded('parent') && $current->parent !== null) {
-                $current = $current->parent;
-                $currentParentId = $current->parent_id;
-            } else {
-                $parentMap ??= self::query()->pluck('parent_id', 'id')->all();
-                $nextParentId = $parentMap[$currentParentId] ?? null;
-                $currentParentId = $nextParentId !== null ? (int) $nextParentId : null;
-            }
-        }
-
-        return $level;
+        return $this->account_purpose === AccountPurpose::GENERAL;
     }
 }

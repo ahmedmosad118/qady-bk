@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Accounting;
 
+use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,8 +29,8 @@ class UpdateChartOfAccountRequest extends FormRequest
             $merged['code'] = trim($this->input('code'));
         }
 
-        if ($this->has('parent_id') && $this->input('parent_id') === '') {
-            $merged['parent_id'] = null;
+        if ($this->has('account_purpose') && $this->input('account_purpose') === '') {
+            $merged['account_purpose'] = AccountPurpose::GENERAL->value;
         }
 
         if ($merged !== []) {
@@ -46,7 +47,6 @@ class UpdateChartOfAccountRequest extends FormRequest
         $accountId = $account instanceof ChartOfAccount ? $account->id : (int) $account;
 
         return [
-            'parent_id' => ['sometimes', 'nullable', 'integer', Rule::exists('chart_of_accounts', 'id')],
             'code' => [
                 'sometimes',
                 'required',
@@ -56,6 +56,7 @@ class UpdateChartOfAccountRequest extends FormRequest
             ],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'account_type' => ['sometimes', 'required', Rule::enum(AccountType::class)],
+            'account_purpose' => ['sometimes', 'required', Rule::enum(AccountPurpose::class)],
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ];
     }

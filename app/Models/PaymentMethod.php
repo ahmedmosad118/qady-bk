@@ -8,11 +8,14 @@ use App\Enums\PaymentMethodType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'name',
     'type',
+    'chart_of_account_id',
+    'is_active',
 ])]
 class PaymentMethod extends Model
 {
@@ -25,7 +28,16 @@ class PaymentMethod extends Model
     {
         return [
             'type' => PaymentMethodType::class,
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Linked Asset account in the Chart of Accounts.
+     */
+    public function chartOfAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
     }
 
     /**

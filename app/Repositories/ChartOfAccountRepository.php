@@ -4,168 +4,26 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
+use App\Models\Contact;
+use App\Models\PaymentMethod;
 use App\Models\Setting;
 use App\Services\Accounting\AccountingSettingRegistry;
-use App\Services\Accounting\AccountingSettingService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 class ChartOfAccountRepository
 {
-    public function __construct(
-        protected AccountingSettingService $accountingSettingService,
-    ) {}
-
     /**
-     * Build the full or filtered hierarchical tree in constant SQL queries (zero N+1).
-     *
-     * @param  array<string, mixed>  $filters
-     * @return array<int, array<string, mixed>>
-     */
-    public function getTree(array $filters = []): array
-    {
-        /** @var Collection<int, ChartOfAccount> $all */
-        $all = ChartOfAccount::query()
-            ->withCount('children')
-            ->orderBy('code')
-            ->get(['id', 'parent_id', 'code', 'name', 'account_type', 'description', 'created_at', 'updated_at']);
-
-        if ($all->isEmpty()) {
-            return [];
-        }
-
-        $linkedSettingIds = $this->getLinkedSettingAccountIdSet();
-        $linkedContactIds = $this->getLinkedContactAccountIdSet();
-
-        $byId = [];
-        $childrenMap = [];
-
-        foreach ($all as $account) {
-            $byId[$account->id] = $account;
-            $parentKey = $account->parent_id ?? 0;
-            $childrenMap[$parentKey][] = $account->id;
-        }
-
-        $search = isset($filters['search']) ? mb_strtolower(trim((string) $filters['search'])) : '';
-        $accountType = isset($filters['account_type']) && $filters['account_type'] !== ''
-            ? (string) $filters['account_type']
-            : null;
-        $rootFilterId = isset($filters['parent_id']) && $filters['parent_id'] !== '' && $filters['parent_id'] !== null
-            ? (int) $filters['parent_id']
-            : null;
-
-        $hasFilter = $search !== '' || $accountType !== null || $rootFilterId !== null;
-        $includedSet = null;
-        $matchedSet = [];
-
-        if ($hasFilter) {
-            $subtreeSet = null;
-            if ($rootFilterId !== null) {
-                $subtreeSet = isset($byId[$rootFilterId])
-                    ? $this->collectSubtreeIds($rootFilterId, $childrenMap)
-                    : [];
-            }
-
-            foreach ($all as $account) {
-                if ($subtreeSet !== null && ! isset($subtreeSet[$account->id])) {
-                    continue;
-                }
-
-                if ($accountType !== null && $account->account_type->value !== $accountType) {
-                    continue;
-                }
-
-                if ($search !== '') {
-                    $haystack = mb_strtolower($account->code.' '.$account->name.' '.($account->description ?? ''));
-                    if (! str_contains($haystack, $search)) {
-                        continue;
-                    }
-                }
-
-                $matchedSet[$account->id] = true;
-            }
-
-            $includedSet = [];
-            foreach (array_keys($matchedSet) as $matchedId) {
-                $cursor = $matchedId;
-                $guard = 0;
-                while ($cursor !== null && isset($byId[$cursor]) && $guard < 100) {
-                    if (isset($includedSet[$cursor])) {
-                        break;
-                    }
-                    $includedSet[$cursor] = true;
-                    $cursor = $byId[$cursor]->parent_id;
-                    $guard++;
-                }
-            }
-        }
-
-        $buildNode = function (int $accountId, int $level) use (
-            &$buildNode,
-            $byId,
-            $childrenMap,
-            $linkedSettingIds,
-            $linkedContactIds,
-            $includedSet,
-            $matchedSet,
-            $hasFilter
-        ): array {
-            $account = $byId[$accountId];
-            $isGroup = (int) ($account->children_count ?? 0) > 0;
-            $isLinkedSetting = isset($linkedSettingIds[$account->id]);
-            $isLinkedContact = isset($linkedContactIds[$account->id]);
-
-            $childNodes = [];
-            foreach ($childrenMap[$accountId] ?? [] as $childId) {
-                if ($includedSet !== null && ! isset($includedSet[$childId])) {
-                    continue;
-                }
-                $childNodes[] = $buildNode($childId, $level + 1);
-            }
-
-            return [
-                'id' => $account->id,
-                'parent_id' => $account->parent_id,
-                'code' => $account->code,
-                'name' => $account->name,
-                'account_type' => $account->account_type->value,
-                'account_type_label' => $account->account_type->label(),
-                'description' => $account->description,
-                'level' => $level,
-                'children_count' => (int) ($account->children_count ?? 0),
-                'is_group' => $isGroup,
-                'is_postable' => ! $isGroup,
-                'is_linked_to_settings' => $isLinkedSetting,
-                'is_linked_to_contact' => $isLinkedContact,
-                'can_delete' => ! $isGroup && ! $isLinkedSetting && ! $isLinkedContact,
-                'matches_filter' => ! $hasFilter || isset($matchedSet[$account->id]),
-                'children' => $childNodes,
-            ];
-        };
-
-        $tree = [];
-        foreach ($childrenMap[0] ?? [] as $rootId) {
-            if ($includedSet !== null && ! isset($includedSet[$rootId])) {
-                continue;
-            }
-            $tree[] = $buildNode($rootId, 1);
-        }
-
-        return $tree;
-    }
-
-    /**
-     * Paginated flat listing of chart accounts with server-side filters.
+     * Paginated flat listing of chart accounts with server-side filters and usage flags.
      *
      * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $query = ChartOfAccount::query()
-            ->with(['parent:id,code,name'])
-            ->withCount('children');
+        $query = ChartOfAccount::query();
 
         if (! empty($filters['search'])) {
             $query->search((string) $filters['search']);
@@ -175,75 +33,112 @@ class ChartOfAccountRepository
             $query->ofType((string) $filters['account_type']);
         }
 
-        if (array_key_exists('parent_id', $filters) && $filters['parent_id'] !== null && $filters['parent_id'] !== '') {
-            if ($filters['parent_id'] === 'root') {
-                $query->roots();
-            } else {
-                $query->where('parent_id', (int) $filters['parent_id']);
-            }
+        if (! empty($filters['account_purpose'])) {
+            $query->ofPurpose((string) $filters['account_purpose']);
         }
 
-        if (! empty($filters['postable_only'])) {
-            $query->postable();
+        if (! empty($filters['exclude_contact_accounts'])) {
+            $query->whereNotIn('id', Contact::withTrashed()->select('receivable_account_id')->whereNotNull('receivable_account_id'))
+                ->whereNotIn('id', Contact::withTrashed()->select('payable_account_id')->whereNotNull('payable_account_id'));
         }
 
-        $sortBy = in_array($filters['sort_by'] ?? null, ['code', 'name', 'account_type', 'created_at'], true)
+        $sortBy = in_array($filters['sort_by'] ?? null, ['code', 'name', 'account_type', 'account_purpose', 'created_at'], true)
             ? (string) $filters['sort_by']
             : 'code';
 
         $sortOrder = strtolower((string) ($filters['sort_order'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
         $limit = min(max($perPage, 1), 100);
 
-        return $query->orderBy($sortBy, $sortOrder)->paginate($limit);
+        $paginator = $query->orderBy($sortBy, $sortOrder)->paginate($limit);
+
+        $items = $paginator->getCollection();
+        if ($items->isEmpty()) {
+            return $paginator;
+        }
+
+        $accountIds = $items->pluck('id')->map(static fn (mixed $id): int => (int) $id)->all();
+        $linkedSettingIds = $this->getLinkedSettingAccountIdSet();
+        $linkedContactIds = $this->getLinkedContactAccountIdSet($accountIds);
+        $linkedPaymentMethodIds = $this->getLinkedPaymentMethodAccountIdSet($accountIds);
+
+        $paginator->setCollection($items->map(function (ChartOfAccount $account) use (
+            $linkedSettingIds,
+            $linkedContactIds,
+            $linkedPaymentMethodIds
+        ): array {
+            $isLinkedSetting = isset($linkedSettingIds[$account->id]);
+            $isLinkedContact = isset($linkedContactIds[$account->id]);
+            $isLinkedPaymentMethod = isset($linkedPaymentMethodIds[$account->id]);
+            $purpose = $account->account_purpose ?? AccountPurpose::GENERAL;
+
+            return [
+                'id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->name,
+                'account_type' => $account->account_type->value,
+                'account_type_label' => $account->account_type->label(),
+                'account_purpose' => $purpose->value,
+                'account_purpose_label' => $purpose->label(),
+                'description' => $account->description,
+                'is_postable' => true,
+                'is_linked_to_settings' => $isLinkedSetting,
+                'is_linked_to_contact' => $isLinkedContact,
+                'is_linked_to_payment_method' => $isLinkedPaymentMethod,
+                'can_delete' => ! $isLinkedSetting && ! $isLinkedContact && ! $isLinkedPaymentMethod,
+                'created_at' => $account->created_at,
+                'updated_at' => $account->updated_at,
+            ];
+        }));
+
+        return $paginator;
     }
 
     /**
-     * Load detailed view of a single account with usage flags and level.
+     * Load detailed view of a single account with usage flags and linked entities.
      *
      * @return array<string, mixed>
      */
     public function getDetails(ChartOfAccount $account): array
     {
         $account->load([
-            'parent:id,parent_id,code,name,account_type',
-            'children' => fn ($q) => $q->withCount('children')->orderBy('code'),
             'receivableContact:id,name',
             'payableContact:id,name',
-        ])->loadCount('children');
+            'paymentMethods:id,name,type,chart_of_account_id',
+        ]);
 
-        $isGroup = $account->isGroup();
         $linkedSettingIds = $this->getLinkedSettingAccountIdSet();
-        $linkedContactIds = $this->getLinkedContactAccountIdSet();
+        $linkedContactIds = $this->getLinkedContactAccountIdSet([$account->id]);
+        $linkedPaymentMethodIds = $this->getLinkedPaymentMethodAccountIdSet([$account->id]);
 
         $isLinkedSetting = isset($linkedSettingIds[$account->id]);
         $isLinkedContact = isset($linkedContactIds[$account->id]);
+        $isLinkedPaymentMethod = isset($linkedPaymentMethodIds[$account->id]);
+        $purpose = $account->account_purpose ?? AccountPurpose::GENERAL;
 
         return [
             'id' => $account->id,
-            'parent_id' => $account->parent_id,
             'code' => $account->code,
             'name' => $account->name,
             'account_type' => $account->account_type->value,
             'account_type_label' => $account->account_type->label(),
+            'account_purpose' => $purpose->value,
+            'account_purpose_label' => $purpose->label(),
             'description' => $account->description,
-            'level' => $account->calculateLevel(),
-            'children_count' => (int) ($account->children_count ?? 0),
-            'is_group' => $isGroup,
-            'is_postable' => ! $isGroup,
+            'is_postable' => true,
             'is_linked_to_settings' => $isLinkedSetting,
             'is_linked_to_contact' => $isLinkedContact,
-            'can_delete' => ! $isGroup && ! $isLinkedSetting && ! $isLinkedContact,
-            'parent' => $account->parent,
-            'children' => $account->children,
+            'is_linked_to_payment_method' => $isLinkedPaymentMethod,
+            'can_delete' => ! $isLinkedSetting && ! $isLinkedContact && ! $isLinkedPaymentMethod,
             'receivable_contact' => $account->receivableContact,
             'payable_contact' => $account->payableContact,
+            'payment_methods' => $account->paymentMethods,
             'created_at' => $account->created_at,
             'updated_at' => $account->updated_at,
         ];
     }
 
     /**
-     * Summary counters for Chart of Accounts overview cards.
+     * Summary counters by account type.
      *
      * @return array<string, int>
      */
@@ -259,42 +154,14 @@ class ChartOfAccountRepository
             $total += (int) $count;
         }
 
-        $groupCount = ChartOfAccount::query()->whereHas('children')->count();
-
         return [
             'total' => $total,
-            'groups' => $groupCount,
-            'postable' => $total - $groupCount,
             AccountType::ASSET->value => (int) ($byType[AccountType::ASSET->value] ?? 0),
             AccountType::LIABILITY->value => (int) ($byType[AccountType::LIABILITY->value] ?? 0),
             AccountType::EQUITY->value => (int) ($byType[AccountType::EQUITY->value] ?? 0),
             AccountType::REVENUE->value => (int) ($byType[AccountType::REVENUE->value] ?? 0),
             AccountType::EXPENSE->value => (int) ($byType[AccountType::EXPENSE->value] ?? 0),
         ];
-    }
-
-    /**
-     * Collect all descendant IDs including $rootId using in-memory adjacency map.
-     *
-     * @param  array<int, array<int, int>>  $childrenMap
-     * @return array<int, true>
-     */
-    private function collectSubtreeIds(int $rootId, array $childrenMap): array
-    {
-        $result = [$rootId => true];
-        $queue = [$rootId];
-
-        while ($queue !== []) {
-            $current = array_shift($queue);
-            foreach ($childrenMap[$current] ?? [] as $childId) {
-                if (! isset($result[$childId])) {
-                    $result[$childId] = true;
-                    $queue[] = $childId;
-                }
-            }
-        }
-
-        return $result;
     }
 
     /**
@@ -322,10 +189,48 @@ class ChartOfAccountRepository
     }
 
     /**
+     * @param  array<int, int>  $filterIds
      * @return array<int, true>
      */
-    private function getLinkedContactAccountIdSet(): array
+    private function getLinkedContactAccountIdSet(array $filterIds): array
     {
-        return $this->accountingSettingService->getContactAccountIdSet();
+        $rows = Contact::withTrashed()
+            ->where(function (Builder $query) use ($filterIds): void {
+                $query->whereIn('receivable_account_id', $filterIds)
+                    ->orWhereIn('payable_account_id', $filterIds);
+            })
+            ->get(['receivable_account_id', 'payable_account_id']);
+
+        $set = [];
+        foreach ($rows as $contact) {
+            if ($contact->receivable_account_id !== null) {
+                $set[(int) $contact->receivable_account_id] = true;
+            }
+            if ($contact->payable_account_id !== null) {
+                $set[(int) $contact->payable_account_id] = true;
+            }
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param  array<int, int>  $filterIds
+     * @return array<int, true>
+     */
+    private function getLinkedPaymentMethodAccountIdSet(array $filterIds): array
+    {
+        $ids = PaymentMethod::query()
+            ->whereIn('chart_of_account_id', $filterIds)
+            ->pluck('chart_of_account_id');
+
+        $set = [];
+        foreach ($ids as $id) {
+            if ($id !== null) {
+                $set[(int) $id] = true;
+            }
+        }
+
+        return $set;
     }
 }

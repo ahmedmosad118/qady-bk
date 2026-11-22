@@ -7,23 +7,6 @@
     @close="$emit('close')"
   >
     <form id="chart-account-form" class="space-y-4" @submit.prevent="handleSubmit">
-      <!-- Parent Account -->
-      <div>
-        <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">
-          {{ $t('chartOfAccounts.parentAccount') }}
-        </label>
-        <SearchableSelect
-          v-model="form.parent_id"
-          :options="parentSelectOptions"
-          :placeholder="$t('chartOfAccounts.rootAccountPlaceholder')"
-          :clearable="true"
-          :disabled="saving"
-        />
-        <p v-if="errors.parent_id" class="mt-1 text-xs font-semibold text-[var(--crimson)]">
-          {{ errors.parent_id[0] }}
-        </p>
-      </div>
-
       <!-- Account Type -->
       <div>
         <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">
@@ -38,11 +21,30 @@
             {{ typeOpt.label }}
           </option>
         </select>
-        <p v-if="selectedParent" class="mt-1 text-[11px] text-[var(--muted)]">
-          {{ $t('chartOfAccounts.typeInheritedFromParent') }}
-        </p>
         <p v-if="errors.account_type" class="mt-1 text-xs font-semibold text-[var(--crimson)]">
           {{ errors.account_type[0] }}
+        </p>
+      </div>
+
+      <!-- Account Purpose (Asset accounts only) -->
+      <div v-if="form.account_type === 'asset'">
+        <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">
+          {{ $t('chartOfAccounts.accountPurpose') }}
+        </label>
+        <select
+          v-model="form.account_purpose"
+          :disabled="isPurposeLocked || saving"
+          class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <option v-for="purposeOpt in accountPurposes" :key="purposeOpt.value" :value="purposeOpt.value">
+            {{ purposeOpt.label }}
+          </option>
+        </select>
+        <p class="mt-1 text-[11px] text-[var(--muted)]">
+          {{ $t('chartOfAccounts.purposeHint') }}
+        </p>
+        <p v-if="errors.account_purpose" class="mt-1 text-xs font-semibold text-[var(--crimson)]">
+          {{ errors.account_purpose[0] }}
         </p>
       </div>
 
@@ -133,7 +135,6 @@ import { useI18n } from 'vue-i18n';
 import api from '../../services/api';
 import { showError, showSuccess } from '../../services/alert';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
-import SearchableSelect from '../../components/common/SearchableSelect.vue';
 
 const props = defineProps({
   open: {
@@ -143,14 +144,6 @@ const props = defineProps({
   editingAccount: {
     type: Object,
     default: null,
-  },
-  presetParent: {
-    type: Object,
-    default: null,
-  },
-  flatAccounts: {
-    type: Array,
-    default: () => [],
   },
 });
 
@@ -162,10 +155,10 @@ const saving = ref(false);
 const errors = ref({});
 
 const form = reactive({
-  parent_id: null,
   code: '',
   name: '',
   account_type: 'asset',
+  account_purpose: 'general',
   description: '',
 });
 
@@ -179,66 +172,46 @@ const accountTypes = computed(() => [
   { value: 'expense', label: t('chartOfAccounts.types.expense') },
 ]);
 
-// Collect descendant IDs of the editing account so circular parents are hidden in UI.
-const excludedParentIds = computed(() => {
-  const excluded = new Set();
-  if (!props.editingAccount?.id) return excluded;
-
-  const walk = (node) => {
-    excluded.add(node.id);
-    if (Array.isArray(node.children)) {
-      node.children.forEach(walk);
-    }
-  };
-  walk(props.editingAccount);
-  return excluded;
-});
-
-const parentSelectOptions = computed(() => {
-  return props.flatAccounts
-    .filter((acc) => !excludedParentIds.value.has(acc.id) && !acc.is_linked_to_contact)
-    .map((acc) => ({
-      value: acc.id,
-      label: `${acc.code} — ${acc.name}`,
-    }));
-});
-
-const selectedParent = computed(() => {
-  if (!form.parent_id) return null;
-  return props.flatAccounts.find((acc) => acc.id === Number(form.parent_id)) || null;
-});
+const accountPurposes = computed(() => [
+  { value: 'general', label: t('chartOfAccounts.purposes.general') },
+  { value: 'cash', label: t('chartOfAccounts.purposes.cash') },
+  { value: 'bank', label: t('chartOfAccounts.purposes.bank') },
+]);
 
 const isTypeLocked = computed(() => {
-  if (selectedParent.value) return true;
-  if (isEditing.value && (props.editingAccount?.is_group || props.editingAccount?.is_linked_to_settings || props.editingAccount?.is_linked_to_contact)) {
-    return true;
-  }
-  return false;
+  if (!isEditing.value) return false;
+  return Boolean(
+    props.editingAccount?.is_linked_to_settings
+    || props.editingAccount?.is_linked_to_contact
+    || props.editingAccount?.is_linked_to_payment_method
+  );
+});
+
+const isPurposeLocked = computed(() => {
+  if (!isEditing.value) return false;
+  return Boolean(
+    props.editingAccount?.is_linked_to_contact
+    || props.editingAccount?.is_linked_to_payment_method
+  );
 });
 
 watch(
-  () => [props.open, props.editingAccount, props.presetParent],
+  () => [props.open, props.editingAccount],
   () => {
     errors.value = {};
     if (!props.open) return;
 
     if (props.editingAccount) {
-      form.parent_id = props.editingAccount.parent_id ?? null;
       form.code = props.editingAccount.code ?? '';
       form.name = props.editingAccount.name ?? '';
       form.account_type = props.editingAccount.account_type ?? 'asset';
+      form.account_purpose = props.editingAccount.account_purpose ?? 'general';
       form.description = props.editingAccount.description ?? '';
-    } else if (props.presetParent) {
-      form.parent_id = props.presetParent.id;
-      form.code = '';
-      form.name = '';
-      form.account_type = props.presetParent.account_type ?? 'asset';
-      form.description = '';
     } else {
-      form.parent_id = null;
       form.code = '';
       form.name = '';
       form.account_type = 'asset';
+      form.account_purpose = 'general';
       form.description = '';
     }
   },
@@ -246,12 +219,10 @@ watch(
 );
 
 watch(
-  () => form.parent_id,
-  (newParentId) => {
-    if (!newParentId) return;
-    const parent = props.flatAccounts.find((acc) => acc.id === Number(newParentId));
-    if (parent) {
-      form.account_type = parent.account_type;
+  () => form.account_type,
+  (newType) => {
+    if (newType !== 'asset') {
+      form.account_purpose = 'general';
     }
   }
 );
@@ -261,9 +232,9 @@ async function handleSubmit() {
   errors.value = {};
 
   const payload = {
-    parent_id: form.parent_id ? Number(form.parent_id) : null,
     name: form.name,
     account_type: form.account_type,
+    account_purpose: form.account_type === 'asset' ? form.account_purpose : 'general',
     description: form.description || null,
   };
 

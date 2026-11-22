@@ -17,7 +17,7 @@ class ContactService
     ) {}
 
     /**
-     * Create a new contact along with its dedicated receivable and payable accounts
+     * Create a new contact along with role-appropriate receivable/payable accounts
      * within a single database transaction.
      *
      * @param  array<string, mixed>  $data
@@ -31,7 +31,7 @@ class ContactService
             $contact->fill($data);
             $contact->save();
 
-            $this->contactAccountService->createAccountsForContact($contact);
+            $this->contactAccountService->syncAccountsForContact($contact);
 
             // If an initial address is provided with contact creation, save it.
             if (! empty($data['address']) && is_array($data['address'])) {
@@ -48,7 +48,8 @@ class ContactService
     }
 
     /**
-     * Update an existing contact.
+     * Update an existing contact and provision any newly required role accounts
+     * while preserving historical accounts if a role is removed.
      *
      * @param  array<string, mixed>  $data
      */
@@ -58,8 +59,13 @@ class ContactService
 
         return DB::transaction(function () use ($contact, $data) {
             $contact->update($data);
+            $this->contactAccountService->syncAccountsForContact($contact);
 
-            return $contact->fresh(['addresses']);
+            return $contact->fresh([
+                'addresses',
+                'receivableAccount:id,code,name',
+                'payableAccount:id,code,name',
+            ]);
         });
     }
 

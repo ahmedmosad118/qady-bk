@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Accounting;
 
+use App\Enums\AccountPurpose;
 use App\Enums\AccountType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,8 +29,8 @@ class StoreChartOfAccountRequest extends FormRequest
             $merged['code'] = $code === '' ? null : $code;
         }
 
-        if ($this->has('parent_id') && $this->input('parent_id') === '') {
-            $merged['parent_id'] = null;
+        if ($this->has('account_purpose') && $this->input('account_purpose') === '') {
+            $merged['account_purpose'] = AccountPurpose::GENERAL->value;
         }
 
         if ($merged !== []) {
@@ -43,10 +44,10 @@ class StoreChartOfAccountRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'parent_id' => ['nullable', 'integer', Rule::exists('chart_of_accounts', 'id')],
             'code' => ['nullable', 'string', 'max:100', Rule::unique('chart_of_accounts', 'code')],
             'name' => ['required', 'string', 'max:255'],
-            'account_type' => ['required_without:parent_id', 'nullable', Rule::enum(AccountType::class)],
+            'account_type' => ['required', Rule::enum(AccountType::class)],
+            'account_purpose' => ['nullable', Rule::enum(AccountPurpose::class)],
             'description' => ['nullable', 'string', 'max:2000'],
         ];
     }

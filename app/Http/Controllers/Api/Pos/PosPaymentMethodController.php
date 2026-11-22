@@ -18,8 +18,9 @@ class PosPaymentMethodController extends Controller
         $this->authorize('viewAny', PaymentMethod::class);
 
         $methods = PaymentMethod::query()
+            ->with('chartOfAccount:id,code,name,account_type,account_purpose')
             ->orderBy('id', 'asc')
-            ->get(['id', 'name', 'type']);
+            ->get(['id', 'name', 'type', 'chart_of_account_id']);
 
         return response()->json([
             'success' => true,

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Models\User;
-
 class ChartOfAccountPolicy extends BasePolicy
 {
     protected string $module = 'accounting.accounts';
@@ -17,9 +15,4 @@ class ChartOfAccountPolicy extends BasePolicy
         'contacts.create',
         'contacts.update',
     ];
-
-    public function tree(User $user): bool
-    {
-        return $this->canAny($user, ['accounting.accounts.view']);
-    }
 }

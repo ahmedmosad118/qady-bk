@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Expense\ExpenseAttachmentController;
 use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
 use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\InventoryDocumentController;
+use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosDashboardController;
 use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosReturnController;
@@ -111,12 +112,19 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Chart of Accounts
     Route::prefix('accounting/accounts')->group(function () {
-        Route::get('/tree', [ChartOfAccountController::class, 'tree']);
         Route::get('/', [ChartOfAccountController::class, 'index']);
         Route::post('/', [ChartOfAccountController::class, 'store']);
         Route::get('/{account}', [ChartOfAccountController::class, 'show']);
         Route::put('/{account}', [ChartOfAccountController::class, 'update']);
         Route::delete('/{account}', [ChartOfAccountController::class, 'destroy']);
+    });
+
+    // Payment Methods (Management & Account Linking)
+    Route::prefix('payment-methods')->group(function () {
+        Route::get('/', [PaymentMethodController::class, 'index']);
+        Route::post('/', [PaymentMethodController::class, 'store']);
+        Route::get('/{paymentMethod}', [PaymentMethodController::class, 'show']);
+        Route::put('/{paymentMethod}', [PaymentMethodController::class, 'update']);
     });
 
     // Warehouses (Strictly view & update only; no create, no delete)

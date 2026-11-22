@@ -31,4 +31,15 @@ enum PaymentMethodType: string
             self::BANK_TRANSFER => 'تحويل بنكي',
         };
     }
+
+    /**
+     * Required Chart of Accounts purpose for Asset accounts linked to this method type.
+     */
+    public function requiredAccountPurpose(): AccountPurpose
+    {
+        return match ($this) {
+            self::CASH => AccountPurpose::CASH,
+            self::VISA, self::BANK_TRANSFER => AccountPurpose::BANK,
+        };
+    }
 }

@@ -17,8 +17,8 @@ class DatabaseSeeder extends Seeder
             RolesTableSeeder::class,
             WarehouseSeeder::class,
             cateSeeder::class,
-            PaymentMethodSeeder::class,
             ChartOfAccountSeeder::class,
+            PaymentMethodSeeder::class,
         ]);
     }
 }
