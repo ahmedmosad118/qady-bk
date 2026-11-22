@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Purchase;
 
-use App\Enums\DiscountType;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\Contact;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Models\WarehouseStock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PurchaseOrderTest extends TestCase
@@ -20,10 +21,7 @@ class PurchaseOrderTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsSuperAdmin();
     }
 
     private function createSupplier(string $name = 'دار المعارف للطباعة'): Contact
@@ -178,7 +176,7 @@ class PurchaseOrderTest extends TestCase
         $products = [$this->createProduct('كتاب أ'), $this->createProduct('كتاب ب'), $this->createProduct('كتاب ج')];
 
         $queries = [];
-        \Illuminate\Support\Facades\DB::listen(function ($query) use (&$queries): void {
+        DB::listen(function ($query) use (&$queries): void {
             $queries[] = strtolower($query->sql);
         });
 
@@ -194,7 +192,7 @@ class PurchaseOrderTest extends TestCase
         $inserts = count(array_filter($queries, fn (string $sql): bool => str_contains($sql, 'insert into "purchase_order_items"')));
         $this->assertSame(3, $inserts, 'One bulk insert per order (3 orders x 3 lines).');
 
-        $item = \App\Models\PurchaseOrderItem::query()->firstOrFail();
+        $item = PurchaseOrderItem::query()->firstOrFail();
         $this->assertNotNull($item->created_at);
         $this->assertIsArray($item->product_snapshot);
         $this->assertStringStartsWith('كتاب', $item->product_snapshot['name']);

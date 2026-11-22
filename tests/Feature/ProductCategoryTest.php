@@ -14,10 +14,7 @@ class ProductCategoryTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsSuperAdmin();
     }
 
     public function test_top_level_and_child_categories_can_be_created(): void

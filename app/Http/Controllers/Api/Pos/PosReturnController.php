@@ -11,18 +11,32 @@ use App\Models\PosSale;
 use App\Services\Pos\PosReturnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PosReturnController extends Controller
+class PosReturnController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected PosReturnService $returnService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.PosReturn::class, only: ['store']),
+        ];
+    }
+
+    /**
      * Paginated list of POS returns.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', PosReturn::class);
+
         $filters = [
             'search' => $request->input('search'),
             'shift_id' => $request->input('shift_id'),
@@ -52,6 +66,8 @@ class PosReturnController extends Controller
      */
     public function returnableItems(PosSale $posSale): JsonResponse
     {
+        $this->authorize('viewReturnableItems', PosReturn::class);
+
         $details = $this->returnService->getReturnableItems($posSale);
 
         return response()->json([
@@ -82,6 +98,8 @@ class PosReturnController extends Controller
      */
     public function show(PosReturn $posReturn): JsonResponse
     {
+        $this->authorize('view', $posReturn);
+
         return response()->json([
             'success' => true,
             'data' => $this->returnService->getReturnDetails($posReturn),

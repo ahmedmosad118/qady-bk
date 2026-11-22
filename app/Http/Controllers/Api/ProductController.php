@@ -14,8 +14,10 @@ use App\Services\Product\ProductBarcodeLabelService;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ProductController extends Controller
+class ProductController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ProductRepository $productRepository,
@@ -24,10 +26,24 @@ class ProductController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.Product::class, only: ['store']),
+            new Middleware('can:update,product', only: ['update']),
+            new Middleware('can:printBarcodes,'.Product::class, only: ['barcodeLabels']),
+        ];
+    }
+
+    /**
      * Display a paginated listing of products.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Product::class);
+
         $filters = [
             'search' => $request->input('search'),
             'ids' => $request->filled('ids') ? explode(',', (string) $request->input('ids')) : null,
@@ -57,6 +73,8 @@ class ProductController extends Controller
      */
     public function lookupBarcode(string $barcode): JsonResponse
     {
+        $this->authorize('lookupBarcode', Product::class);
+
         $product = Product::query()
             ->with('category:id,name,parent_id')
             ->where('barcode', trim($barcode))
@@ -97,6 +115,8 @@ class ProductController extends Controller
      */
     public function show(Product $product): JsonResponse
     {
+        $this->authorize('view', $product);
+
         return response()->json([
             'success' => true,
             'data' => $product->load('category:id,name,parent_id'),
@@ -136,6 +156,8 @@ class ProductController extends Controller
      */
     public function destroy(string $ids): JsonResponse
     {
+        $this->authorize('delete', Product::class);
+
         $idArray = array_values(array_filter(array_map('intval', explode(',', $ids))));
 
         if ($idArray === []) {

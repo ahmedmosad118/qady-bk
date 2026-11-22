@@ -7,35 +7,28 @@ namespace App\Policies;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
 
-class PurchaseInvoicePolicy
+class PurchaseInvoicePolicy extends BasePolicy
 {
-    public function viewAny(User $user): bool
+    protected string $module = 'purchase_invoices';
+
+    /** @var list<string> */
+    protected array $excludeFromBefore = ['update', 'cancel', 'delete'];
+
+    public function update(User $user, mixed $model = null): bool
     {
-        return true;
+        return $this->canAny($user, ['purchase_invoices.update'])
+            && (! $model instanceof PurchaseInvoice || $model->isEditable());
     }
 
-    public function view(User $user, PurchaseInvoice $invoice): bool
+    public function cancel(User $user, mixed $model = null): bool
     {
-        return true;
+        return $this->canAny($user, ['purchase_invoices.cancel'])
+            && (! $model instanceof PurchaseInvoice || $model->isEditable());
     }
 
-    public function create(User $user): bool
+    public function delete(User $user, mixed $model = null): bool
     {
-        return true;
-    }
-
-    public function update(User $user, PurchaseInvoice $invoice): bool
-    {
-        return $invoice->isEditable();
-    }
-
-    public function cancel(User $user, PurchaseInvoice $invoice): bool
-    {
-        return $invoice->isEditable();
-    }
-
-    public function delete(User $user, PurchaseInvoice $invoice): bool
-    {
-        return $invoice->isEditable();
+        return $this->canAny($user, ['purchase_invoices.delete'])
+            && (! $model instanceof PurchaseInvoice || $model->isEditable());
     }
 }

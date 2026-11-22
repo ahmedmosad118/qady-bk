@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Requests\Expense;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class StoreExpenseRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('expenses.create');
+        return true;
     }
 
     protected function prepareForValidation(): void

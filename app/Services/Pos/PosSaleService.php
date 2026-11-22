@@ -71,7 +71,7 @@ class PosSaleService
     /**
      * Create a sale. Idempotent on client_uuid: retries / concurrent duplicates return the original sale.
      *
-     * @param array<string, mixed> $data validated payload (StorePosSaleRequest / offline sync)
+     * @param  array<string, mixed>  $data  validated payload (StorePosSaleRequest / offline sync)
      */
     public function createSale(array $data, User $user): PosSale
     {
@@ -86,7 +86,7 @@ class PosSaleService
             return $existing;
         }
 
-        return Cache::lock('pos_sale_uuid_' . $clientUuid, self::CLIENT_UUID_LOCK_SECONDS)
+        return Cache::lock('pos_sale_uuid_'.$clientUuid, self::CLIENT_UUID_LOCK_SECONDS)
             ->block(self::CLIENT_UUID_LOCK_SECONDS, fn (): PosSale => $this->findSaleByClientUuid($clientUuid)
                 ?? $this->executeSaleCreation($data, $user, $clientUuid));
     }
@@ -94,7 +94,7 @@ class PosSaleService
     /**
      * Bulk load products in one query, keyed by id.
      *
-     * @param array<int, int> $productIds
+     * @param  array<int, int>  $productIds
      * @return Collection<int, Product>
      */
     public function loadProducts(array $productIds): Collection
@@ -109,8 +109,8 @@ class PosSaleService
      * Enforce POS selling, discount, and price-override permissions against server-side product data.
      * Uses the already bulk-loaded $products map so zero additional DB queries are executed.
      *
-     * @param array<string, mixed> $data
-     * @param Collection<int, Product> $products
+     * @param  array<string, mixed>  $data
+     * @param  Collection<int, Product>  $products
      *
      * @throws AuthorizationException
      */
@@ -124,7 +124,7 @@ class PosSaleService
 
         $invDiscVal = Decimal::parse($data['invoice_discount_value'] ?? null);
         if ($invDiscVal !== null && Decimal::isPositive($invDiscVal)) {
-            if (! $gate->allows('pos.discount') || ! $gate->allows('pos.apply_invoice_discount')) {
+            if (! $gate->allows('pos.apply_invoice_discount')) {
                 throw new AuthorizationException(__('This action is unauthorized.'));
             }
         }
@@ -137,7 +137,7 @@ class PosSaleService
 
             $itemDiscVal = Decimal::parse($item['discount_value'] ?? null);
             if ($itemDiscVal !== null && Decimal::isPositive($itemDiscVal)) {
-                if (! $gate->allows('pos.discount') || ! $gate->allows('pos.apply_item_discount')) {
+                if (! $gate->allows('pos.apply_item_discount')) {
                     throw new AuthorizationException(__('This action is unauthorized.'));
                 }
             }
@@ -150,7 +150,7 @@ class PosSaleService
                     $catalogPrice = Decimal::fromNumeric($product->selling_price, Decimal::MONEY_SCALE);
 
                     if (Decimal::comp($requestedPrice, $catalogPrice, Decimal::MONEY_SCALE) !== 0) {
-                        if (! $gate->allows('pos.price_override') || ! $gate->allows('pos.override_price')) {
+                        if (! $gate->allows('pos.override_price')) {
                             throw new AuthorizationException(__('This action is unauthorized.'));
                         }
                     }
@@ -162,7 +162,7 @@ class PosSaleService
     /**
      * Paginate POS sales invoices with filters via PosSaleQueryService.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginateSales(array $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -206,32 +206,32 @@ class PosSaleService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     protected function executeSaleCreation(array $data, User $user, ?string $clientUuid): PosSale
     {
         try {
             return DB::transaction(function () use ($data, $user, $clientUuid): PosSale {
-                # Lock the shift row for the whole transaction to serialize expected_cash updates per shift.
+                // Lock the shift row for the whole transaction to serialize expected_cash updates per shift.
                 $shift = $this->lockOpenShift((int) ($data['shift_id'] ?? 0), $user);
-                
-                # Resolve the payment method, customer, and default warehouse for stock movements.
+
+                // Resolve the payment method, customer, and default warehouse for stock movements.
                 $paymentMethod = $this->resolvePaymentMethod((int) ($data['payment_method_id'] ?? 0));
                 $customer = $this->resolveCustomer($data['customer_id'] ?? null);
 
-                # Resolve warehouse could be used in multi-warehouse scenarios.
+                // Resolve warehouse could be used in multi-warehouse scenarios.
                 $warehouse = $this->warehouseResolver->resolve();
 
-                # Normalize and consolidate items.
+                // Normalize and consolidate items.
                 $lines = $this->calculator->consolidateItems($data['items'] ?? []);
 
-                # Load the products for the sale in one bulk query.
+                // Load the products for the sale in one bulk query.
                 $products = $this->loadProducts(array_keys($lines));
 
-                # Verify permissions and price overrides against server-side product prices.
+                // Verify permissions and price overrides against server-side product prices.
                 $this->authorizeSalePayload($data, $products, $user);
 
-                # Calculate invoice totals and discount allocations.
+                // Calculate invoice totals and discount allocations.
                 $invoice = $this->calculator->calculate(
                     $lines,
                     $products,
@@ -239,7 +239,7 @@ class PosSaleService
                     $data['invoice_discount_value'] ?? null
                 );
 
-                # Insert the sale, items, cash transaction (if applicable), and post the delivery document.
+                // Insert the sale, items, cash transaction (if applicable), and post the delivery document.
                 $sale = $this->insertSale($shift, $paymentMethod, $customer, $invoice, $data['notes'] ?? null, $user, $clientUuid);
                 $this->insertSaleItems($sale, $invoice['items']);
 
@@ -322,7 +322,7 @@ class PosSaleService
     }
 
     /**
-     * @param array<string, mixed> $invoice output of PosSaleCalculator::calculate()
+     * @param  array<string, mixed>  $invoice  output of PosSaleCalculator::calculate()
      */
     protected function insertSale(
         PosShift $shift,
@@ -334,62 +334,62 @@ class PosSaleService
         ?string $clientUuid
     ): PosSale {
         return PosSale::query()->create([
-            'shift_id'                => $shift->id,
-            'customer_id'             => $customer?->id,
-            'payment_method_id'       => $paymentMethod->id,
-            'subtotal'                => $invoice['subtotal'],
-            'items_discount_total'    => $invoice['items_discount_total'],
-            'invoice_discount_type'   => $invoice['invoice_discount_type'],
-            'invoice_discount_value'  => $invoice['invoice_discount_value'],
+            'shift_id' => $shift->id,
+            'customer_id' => $customer?->id,
+            'payment_method_id' => $paymentMethod->id,
+            'subtotal' => $invoice['subtotal'],
+            'items_discount_total' => $invoice['items_discount_total'],
+            'invoice_discount_type' => $invoice['invoice_discount_type'],
+            'invoice_discount_value' => $invoice['invoice_discount_value'],
             'invoice_discount_amount' => $invoice['invoice_discount_amount'],
-            'grand_total'             => $invoice['grand_total'],
-            'notes'                   => $notes,
-            'created_by'              => $user->id,
-            'sold_at'                 => Carbon::now(),
-            'client_uuid'             => $clientUuid,
+            'grand_total' => $invoice['grand_total'],
+            'notes' => $notes,
+            'created_by' => $user->id,
+            'sold_at' => Carbon::now(),
+            'client_uuid' => $clientUuid,
         ]);
     }
 
     /**
      * One INSERT for all lines regardless of item count.
      *
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      */
     protected function insertSaleItems(PosSale $sale, array $items): void
     {
         $now = Carbon::now();
 
         PosSaleItem::query()->insert(array_map(static fn (array $item): array => [
-            'sale_id'                    => $sale->id,
-            'product_id'                 => $item['product_id'],
-            'product_snapshot'           => json_encode($item['product_snapshot'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
-            'quantity'                   => $item['quantity'],
-            'original_unit_price'        => $item['original_unit_price'],
-            'unit_price'                 => $item['unit_price'],
-            'discount_type'              => $item['discount_type'],
-            'discount_value'             => $item['discount_value'],
-            'discount_amount'            => $item['discount_amount'],
-            'subtotal'                   => $item['subtotal'],
-            'total'                      => $item['total'],
+            'sale_id' => $sale->id,
+            'product_id' => $item['product_id'],
+            'product_snapshot' => json_encode($item['product_snapshot'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'quantity' => $item['quantity'],
+            'original_unit_price' => $item['original_unit_price'],
+            'unit_price' => $item['unit_price'],
+            'discount_type' => $item['discount_type'],
+            'discount_value' => $item['discount_value'],
+            'discount_amount' => $item['discount_amount'],
+            'subtotal' => $item['subtotal'],
+            'total' => $item['total'],
             'allocated_invoice_discount' => $item['allocated_invoice_discount'],
-            'created_at'                 => $now,
-            'updated_at'                 => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ], $items));
     }
 
     protected function recordCashSale(PosShift $shift, PosSale $sale, string $amount, User $user): void
     {
-        # Attributes are assigned explicitly because PosShiftTransaction is immutable (no mass update path).
-        $transaction                = new PosShiftTransaction();
-        $transaction->shift_id      = $shift->id;
-        $transaction->type          = PosShiftTransaction::TYPE_CASH_SALE;
-        $transaction->amount        = $amount;
-        $transaction->pos_sale_id   = $sale->id;
+        // Attributes are assigned explicitly because PosShiftTransaction is immutable (no mass update path).
+        $transaction = new PosShiftTransaction;
+        $transaction->shift_id = $shift->id;
+        $transaction->type = PosShiftTransaction::TYPE_CASH_SALE;
+        $transaction->amount = $amount;
+        $transaction->pos_sale_id = $sale->id;
         $transaction->pos_return_id = null;
-        $transaction->name          = __('pos.messages.cash_sale_transaction', ['invoice_number' => $sale->invoice_number]);
-        $transaction->description   = null;
-        $transaction->created_by    = $user->id;
-        $transaction->created_at    = Carbon::now();
+        $transaction->name = __('pos.messages.cash_sale_transaction', ['invoice_number' => $sale->invoice_number]);
+        $transaction->description = null;
+        $transaction->created_by = $user->id;
+        $transaction->created_at = Carbon::now();
         $transaction->save();
 
         $shift->update(['expected_cash' => $this->shiftService->calculateExpectedCash($shift)]);
@@ -398,7 +398,7 @@ class PosSaleService
     /**
      * Create an approved goods-delivery document and post it (stock locks, movements, balances).
      *
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      */
     protected function postDeliveryDocument(PosSale $sale, Warehouse $warehouse, array $items, User $user): InventoryDocument
     {
@@ -437,7 +437,7 @@ class PosSaleService
      * Attach response relations from models already in memory instead of re-querying them.
      * Only sale items need a query (their ids come from the bulk insert).
      *
-     * @param Collection<int, Product> $products
+     * @param  Collection<int, Product>  $products
      */
     protected function hydrateSale(
         PosSale $sale,

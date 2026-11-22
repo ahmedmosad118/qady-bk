@@ -15,6 +15,8 @@ class PosPaymentMethodController extends Controller
      */
     public function index(): JsonResponse
     {
+        $this->authorize('viewAny', PaymentMethod::class);
+
         $methods = PaymentMethod::query()
             ->orderBy('id', 'asc')
             ->get(['id', 'name', 'type']);

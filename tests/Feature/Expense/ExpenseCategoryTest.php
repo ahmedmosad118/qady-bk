@@ -8,7 +8,6 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -21,7 +20,7 @@ class ExpenseCategoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->user = $this->createSuperAdmin();
     }
 
     public function test_unauthenticated_user_cannot_access_expense_categories(): void
@@ -127,13 +126,8 @@ class ExpenseCategoryTest extends TestCase
 
     public function test_unauthorized_user_receives_forbidden_for_category_actions(): void
     {
-        Sanctum::actingAs($this->user);
+        Sanctum::actingAs(User::factory()->create());
         $category = ExpenseCategory::factory()->create();
-
-        Gate::define('expense_categories.view', fn () => false);
-        Gate::define('expense_categories.create', fn () => false);
-        Gate::define('expense_categories.update', fn () => false);
-        Gate::define('expense_categories.delete', fn () => false);
 
         $this->getJson('/api/expense-categories')->assertForbidden();
         $this->getJson("/api/expense-categories/{$category->id}")->assertForbidden();

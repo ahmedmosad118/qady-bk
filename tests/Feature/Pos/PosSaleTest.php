@@ -30,9 +30,8 @@ use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use LogicException;
-use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class PosSaleTest extends TestCase
@@ -40,24 +39,32 @@ class PosSaleTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected PosShift $shift;
+
     protected PaymentMethod $cashMethod;
+
     protected PaymentMethod $visaMethod;
+
     protected PaymentMethod $bankTransferMethod;
+
     protected Product $product1;
+
     protected Product $product2;
+
     protected PosSaleService $saleService;
+
     protected PosSaleCalculator $calculator;
+
     protected PosShiftService $shiftService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(PaymentMethodSeeder::class);
         $this->seed(WarehouseSeeder::class);
@@ -644,7 +651,7 @@ class PosSaleTest extends TestCase
         }
 
         $this->user->load(['roles', 'permissions']);
-        app(\Spatie\Permission\PermissionRegistrar::class)->getPermissions();
+        app(PermissionRegistrar::class)->getPermissions();
         $saleQueryCounts = [];
 
         foreach ([1, 10, 50, 100] as $itemCount) {
@@ -976,7 +983,7 @@ class PosSaleTest extends TestCase
 
         // Partial invoice suffix (e.g. '001') matches sale1
         $suffix1 = substr($sale1->invoice_number, -3);
-        $partialResp = $this->getJson('/api/pos/sales?search=' . urlencode($suffix1));
+        $partialResp = $this->getJson('/api/pos/sales?search='.urlencode($suffix1));
         $partialResp->assertOk();
         $this->assertContains($sale1->id, collect($partialResp->json('data'))->pluck('id')->all());
 
@@ -992,7 +999,7 @@ class PosSaleTest extends TestCase
             '0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤',
             '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩',
         ]);
-        $arabicResp = $this->getJson('/api/pos/sales?search=' . urlencode($arabicSuffix));
+        $arabicResp = $this->getJson('/api/pos/sales?search='.urlencode($arabicSuffix));
         $arabicResp->assertOk();
         $this->assertContains($sale1->id, collect($arabicResp->json('data'))->pluck('id')->all());
 

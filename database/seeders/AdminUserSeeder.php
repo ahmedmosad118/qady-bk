@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Enums\UserStatus;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -35,9 +36,17 @@ class AdminUserSeeder extends Seeder
             ],
         );
 
+        $superAdminRole = Role::query()
+            ->where('name', 'Super Admin')
+            ->where('guard_name', 'web')
+            ->first();
+
+        if ($superAdminRole !== null && ! $admin->hasRole($superAdminRole)) {
+            $admin->assignRole($superAdminRole);
+        }
+
         if ($admin->wasRecentlyCreated && $generated) {
             $this->command?->warn("Generated initial admin password for admin@kady.sys: {$password}");
         }
     }
 }
-

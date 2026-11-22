@@ -4,6 +4,7 @@
     <PageHeader :title="$t('users.title')" :subtitle="$t('users.subtitle')">
       <template #actions>
         <button
+          v-if="canCreate"
           type="button"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="!schema"
@@ -72,8 +73,7 @@
                 :aria-label="$t('users.roleFilter')"
               >
                 <option value="all">{{ $t('users.allRoles') }}</option>
-                <option v-for="role in roleOptions" :key="role" :value="role">{{ role }}</option>
-                <option v-if="hasUnassignedRoles" value="__none">{{ $t('users.noRole') }}</option>
+                <option v-for="role in availableRoles" :key="role.id" :value="String(role.id)">{{ role.name }}</option>
               </select>
               <ChevronDown
                 class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
@@ -86,7 +86,7 @@
 
       <!-- Bulk actions -->
       <div
-        v-if="selectedIds.length"
+        v-if="selectedIds.length && canDelete"
         class="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--crimson-soft)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <p class="text-sm font-bold text-[var(--text)]">
@@ -119,6 +119,8 @@
         :selected-ids="selectedIds"
         :all-selected="allPageSelected"
         :some-selected="somePageSelected"
+        :can-edit="canUpdate"
+        :can-delete="canDelete"
         @toggle-all="toggleAllOnPage"
         @toggle-row="toggleRow"
         @edit="openEdit"
@@ -218,13 +220,64 @@
       @close="closeModal"
       @save="saveRecord"
     >
-      <CrudForm
-        v-if="activeSchema"
-        :schema="activeSchema"
-        :form-data="formData"
-        :errors="formErrors"
-        :related-options="{}"
-      />
+      <div v-if="activeSchema" class="space-y-6">
+        <CrudForm
+          :schema="activeSchema"
+          :form-data="formData"
+          :errors="formErrors"
+          :related-options="{}"
+        />
+
+        <!-- Multi-Role Assignment -->
+        <div class="border-t border-[var(--border)] pt-5">
+          <div class="mb-3">
+            <label class="block text-sm font-extrabold text-[var(--text)]">
+              {{ $t('roles.assignRolesLabel') }}
+            </label>
+            <p class="mt-0.5 text-xs text-[var(--muted)]">
+              {{ $t('roles.assignRolesHelp') }}
+            </p>
+          </div>
+
+          <div v-if="assignableRoles.length" class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <label
+              v-for="role in assignableRoles"
+              :key="role.id"
+              class="flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors"
+              :class="isRoleSelected(role.id)
+                ? 'border-[var(--crimson)]/40 bg-[var(--crimson-soft)]'
+                : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--crimson)]/30'"
+            >
+              <input
+                type="radio"
+                name="user_assigned_role"
+                class="mt-0.5 h-4 w-4 border-[var(--border)] accent-[var(--crimson)]"
+                :checked="isRoleSelected(role.id)"
+                @change="selectUserRole(role.id)"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="text-sm font-bold text-[var(--text)]">{{ role.name }}</span>
+                  <span
+                    v-if="role.is_super_admin"
+                    class="rounded-full bg-[var(--crimson)] px-2 py-0.5 text-[10px] font-bold text-white"
+                  >
+                    {{ $t('roles.superAdminBadge') }}
+                  </span>
+                </div>
+                <p v-if="role.description" class="mt-0.5 text-xs text-[var(--muted)]">
+                  {{ role.description }}
+                </p>
+              </div>
+            </label>
+          </div>
+          <p v-else class="text-xs text-[var(--muted)]">{{ $t('roles.noRolesAvailable') }}</p>
+
+          <p v-if="formErrors.roles" class="mt-2 text-xs font-semibold text-[var(--crimson)]">
+            {{ Array.isArray(formErrors.roles) ? formErrors.roles[0] : formErrors.roles }}
+          </p>
+        </div>
+      </div>
       <div v-else class="flex flex-col items-center justify-center gap-3 py-12 text-[var(--muted)]">
         <span class="h-8 w-8 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
         <p class="text-sm font-semibold">{{ $t('common.loading') }}</p>
@@ -263,10 +316,21 @@ const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 
 const users = ref([]);
+const availableRoles = ref([]);
 const schema = ref(null);
 const stats = ref({ total: 0, active: 0, inactive: 0 });
 const loading = ref(true);
 const loadError = ref('');
+
+const canCreate = computed(() => authStore.hasPermission('users.create'));
+const canUpdate = computed(() => authStore.hasPermission('users.update'));
+const canDelete = computed(() => authStore.hasPermission('users.delete'));
+
+const assignableRoles = computed(() =>
+  authStore.isSuperAdmin
+    ? availableRoles.value
+    : availableRoles.value.filter((role) => !role.is_super_admin)
+);
 
 const search = ref('');
 const statusFilter = ref('all');
@@ -290,27 +354,21 @@ const activeRecordId = ref(null);
 const formData = ref({});
 const formErrors = ref({});
 
-const roleLabel = (user) => {
-  const roles = user.roles ?? user.roles_list;
-  const first = Array.isArray(roles) && roles.length ? roles[0] : user.role;
+const isRoleSelected = (roleId) =>
+  Array.isArray(formData.value.roles) && formData.value.roles[0] === roleId;
 
-  if (!first) return '';
-  if (typeof first === 'string') return first;
-  return first.display_name || first.name || '';
+const selectUserRole = (roleId) => {
+  formData.value = { ...formData.value, roles: [roleId] };
 };
 
-const roleOptions = computed(() => {
-  const set = new Set();
-
-  users.value.forEach((user) => {
-    const role = roleLabel(user);
-    if (role) set.add(role);
-  });
-
-  return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-});
-
-const hasUnassignedRoles = computed(() => users.value.some((user) => !roleLabel(user)));
+const loadAvailableRoles = async () => {
+  try {
+    const response = await api.get('/roles', { params: { all: 1 } });
+    availableRoles.value = response.data.data || [];
+  } catch {
+    availableRoles.value = [];
+  }
+};
 
 const totalRecords = ref(0);
 const lastPage = ref(1);
@@ -374,6 +432,7 @@ const loadUsers = async () => {
         per_page: perPage,
         search: search.value.trim() || undefined,
         status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
+        role_id: roleFilter.value !== 'all' ? Number(roleFilter.value) : undefined,
       },
     });
 
@@ -388,10 +447,6 @@ const loadUsers = async () => {
 
     if (payload.schema) {
       schema.value = payload.schema;
-    }
-
-    if (roleFilter.value !== 'all' && roleFilter.value !== '__none' && !roleOptions.value.includes(roleFilter.value)) {
-      roleFilter.value = 'all';
     }
 
     if (page.value > pageCount.value) {
@@ -442,6 +497,7 @@ const openCreate = () => {
   schema.value.fields?.forEach((field) => {
     initial[field.name] = field.default !== undefined ? field.default : null;
   });
+  initial.roles = [];
 
   formData.value = initial;
   showModal.value = true;
@@ -451,7 +507,10 @@ const openEdit = (user) => {
   modalMode.value = 'edit';
   activeRecordId.value = user.id;
   formErrors.value = {};
-  formData.value = { ...user };
+  formData.value = {
+    ...user,
+    roles: Array.isArray(user.roles) && user.roles.length ? [user.roles[0].id] : [],
+  };
   showModal.value = true;
 };
 
@@ -471,8 +530,12 @@ const saveRecord = async () => {
         : await api.put(`/users/${activeRecordId.value}`, formData.value);
 
     notificationStore.success(response.data.message || t('common.successSave'), t('common.successTitle'));
+    const editedSelf = modalMode.value === 'edit' && activeRecordId.value === authStore.user?.id;
     closeModal();
     await loadUsers();
+    if (editedSelf) {
+      await authStore.fetchMe();
+    }
   } catch (err) {
     if (err.response?.status === 422 && err.response?.data?.errors) {
       formErrors.value = err.response.data.errors;
@@ -560,5 +623,8 @@ watch(pageCount, (count) => {
   if (page.value > count) page.value = count;
 });
 
-onMounted(loadUsers);
+onMounted(() => {
+  loadAvailableRoles();
+  loadUsers();
+});
 </script>

@@ -13,8 +13,8 @@ use App\Models\User;
 use App\Services\Expense\ExpenseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -23,13 +23,14 @@ class ExpenseTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private ExpenseCategory $category;
 
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake('local');
-        $this->user = User::factory()->create();
+        $this->user = $this->createSuperAdmin();
         $this->category = ExpenseCategory::factory()->create(['name' => 'Operations']);
     }
 
@@ -307,7 +308,7 @@ class ExpenseTest extends TestCase
         $service = app(ExpenseService::class);
         $file = UploadedFile::fake()->image('receipt.png');
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         try {
             $service->createExpense([
@@ -330,16 +331,11 @@ class ExpenseTest extends TestCase
 
     public function test_unauthorized_user_receives_forbidden_for_expense_actions(): void
     {
-        Sanctum::actingAs($this->user);
+        Sanctum::actingAs(User::factory()->create());
         $expense = Expense::factory()->create([
             'expense_category_id' => $this->category->id,
             'created_by' => $this->user->id,
         ]);
-
-        Gate::define('expenses.view', fn () => false);
-        Gate::define('expenses.create', fn () => false);
-        Gate::define('expenses.update', fn () => false);
-        Gate::define('expenses.delete', fn () => false);
 
         $this->getJson('/api/expenses')->assertForbidden();
         $this->getJson("/api/expenses/{$expense->id}")->assertForbidden();

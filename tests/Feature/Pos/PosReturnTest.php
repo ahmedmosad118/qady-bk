@@ -26,9 +26,7 @@ use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use LogicException;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosReturnTest extends TestCase
@@ -36,22 +34,28 @@ class PosReturnTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected PosShift $shift;
+
     protected PaymentMethod $cashMethod;
+
     protected PaymentMethod $visaMethod;
+
     protected Product $product;
+
     protected PosSaleService $saleService;
+
     protected PosShiftService $shiftService;
+
     protected PosReturnService $returnService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(PaymentMethodSeeder::class);
         $this->seed(WarehouseSeeder::class);
@@ -302,7 +306,7 @@ class PosReturnTest extends TestCase
             ],
         ], $this->user);
 
-        $response = $this->getJson('/api/pos/returns?search=' . urlencode($return->return_number));
+        $response = $this->getJson('/api/pos/returns?search='.urlencode($return->return_number));
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('meta.total', 1)
@@ -310,7 +314,7 @@ class PosReturnTest extends TestCase
             ->assertJsonPath('data.0.sale.invoice_number', $sale->invoice_number)
             ->assertJsonPath('data.0.items_count', 1);
 
-        $filteredByPayment = $this->getJson('/api/pos/returns?payment_method_id=' . $this->visaMethod->id);
+        $filteredByPayment = $this->getJson('/api/pos/returns?payment_method_id='.$this->visaMethod->id);
         $filteredByPayment->assertOk()
             ->assertJsonPath('meta.total', 0);
     }
@@ -367,7 +371,7 @@ class PosReturnTest extends TestCase
             ],
         ], $this->user);
 
-        $indexResponse = $this->getJson('/api/pos/sales?search=' . urlencode($sale->invoice_number));
+        $indexResponse = $this->getJson('/api/pos/sales?search='.urlencode($sale->invoice_number));
         $indexResponse->assertOk()
             ->assertJsonPath('data.0.returns_count', 1);
         $this->assertEquals(250.0, (float) $indexResponse->json('data.0.returns_total_amount'));

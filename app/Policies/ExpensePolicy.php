@@ -6,42 +6,34 @@ namespace App\Policies;
 
 use App\Models\Expense;
 use App\Models\User;
-use Illuminate\Support\Facades\Gate;
 
-class ExpensePolicy
+class ExpensePolicy extends BasePolicy
 {
-    public function viewAny(User $user): bool
+    protected string $module = 'expenses';
+
+    /** @var list<string> */
+    protected array $excludeFromBefore = ['update', 'delete', 'manageAttachments'];
+
+    public function update(User $user, mixed $model = null): bool
     {
-        return Gate::forUser($user)->allows('expenses.view');
+        return $this->canAny($user, ['expenses.update'])
+            && (! $model instanceof Expense || $model->isEditable());
     }
 
-    public function view(User $user, Expense $expense): bool
+    public function delete(User $user, mixed $model = null): bool
     {
-        return Gate::forUser($user)->allows('expenses.view');
+        return $this->canAny($user, ['expenses.delete'])
+            && (! $model instanceof Expense || $model->isEditable());
     }
 
-    public function create(User $user): bool
+    public function viewAttachment(User $user, mixed $model = null): bool
     {
-        return Gate::forUser($user)->allows('expenses.create');
+        return $this->canAny($user, ['expenses.view']);
     }
 
-    public function update(User $user, Expense $expense): bool
+    public function manageAttachments(User $user, mixed $model = null): bool
     {
-        return Gate::forUser($user)->allows('expenses.update') && $expense->isEditable();
-    }
-
-    public function delete(User $user, Expense $expense): bool
-    {
-        return Gate::forUser($user)->allows('expenses.delete') && $expense->isEditable();
-    }
-
-    public function viewAttachment(User $user, Expense $expense): bool
-    {
-        return Gate::forUser($user)->allows('expenses.view');
-    }
-
-    public function manageAttachments(User $user, Expense $expense): bool
-    {
-        return Gate::forUser($user)->allows('expenses.update') && $expense->isEditable();
+        return $this->canAny($user, ['expenses.update'])
+            && (! $model instanceof Expense || $model->isEditable());
     }
 }

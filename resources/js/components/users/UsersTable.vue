@@ -37,10 +37,14 @@
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge :active="user.status === 'active'" />
               <span
-                v-if="roleLabel(user)"
-                class="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-sm font-medium text-[var(--muted)]"
+                v-for="role in userRoles(user)"
+                :key="role.id"
+                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                :class="role.is_super_admin
+                  ? 'border-[var(--crimson)]/25 bg-[var(--crimson-soft)] text-[var(--crimson)]'
+                  : 'border-[var(--border)] bg-[var(--bg)] text-[var(--muted)]'"
               >
-                {{ roleLabel(user) }}
+                {{ role.name }}
               </span>
               <span v-if="user.phone" class="text-sm font-mono tabular-nums text-[var(--muted)]">
                 {{ user.phone }}
@@ -55,6 +59,7 @@
 
           <div class="flex shrink-0 flex-col gap-1">
             <button
+              v-if="canEdit"
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
               :aria-label="$t('users.editMember', { name: user.name })"
@@ -64,6 +69,7 @@
               <Pencil class="h-4 w-4" aria-hidden="true" />
             </button>
             <button
+              v-if="canDelete"
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]"
               :aria-label="$t('users.deleteMember', { name: user.name })"
@@ -151,12 +157,18 @@
             </td>
 
             <td class="hidden px-4 py-3.5 xl:table-cell">
-              <span
-                v-if="roleLabel(user)"
-                class="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-sm font-medium text-[var(--muted)]"
-              >
-                {{ roleLabel(user) }}
-              </span>
+              <div v-if="userRoles(user).length" class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="role in userRoles(user)"
+                  :key="role.id"
+                  class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                  :class="role.is_super_admin
+                    ? 'border-[var(--crimson)]/25 bg-[var(--crimson-soft)] text-[var(--crimson)]'
+                    : 'border-[var(--border)] bg-[var(--bg)] text-[var(--muted)]'"
+                >
+                  {{ role.name }}
+                </span>
+              </div>
               <span v-else class="text-sm text-[var(--muted)]">—</span>
             </td>
 
@@ -185,6 +197,7 @@
             <td class="px-4 py-3.5 text-end">
               <div class="flex items-center justify-end gap-1.5">
                 <button
+                  v-if="canEdit"
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
                   :aria-label="$t('users.editMember', { name: user.name })"
@@ -194,6 +207,7 @@
                   <Pencil class="h-4 w-4" aria-hidden="true" />
                 </button>
                 <button
+                  v-if="canDelete"
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]"
                   :aria-label="$t('users.deleteMember', { name: user.name })"
@@ -239,6 +253,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  canEdit: {
+    type: Boolean,
+    default: true,
+  },
+  canDelete: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 defineEmits(['toggle-all', 'toggle-row', 'edit', 'delete']);
@@ -247,13 +269,22 @@ const { locale } = useI18n();
 
 const isSelected = (user) => props.selectedIds.includes(user.id);
 
-const roleLabel = (user) => {
-  const roles = user.roles ?? user.roles_list;
-  const first = Array.isArray(roles) && roles.length ? roles[0] : user.role;
+const userRoles = (user) => {
+  const list = user.roles ?? user.roles_list ?? [];
+  if (!Array.isArray(list)) return [];
 
-  if (!first) return '';
-  if (typeof first === 'string') return first;
-  return first.display_name || first.name || '';
+  return list
+    .map((role, idx) => {
+      if (typeof role === 'string') {
+        return { id: idx, name: role, is_super_admin: false };
+      }
+      return {
+        id: role.id ?? idx,
+        name: role.display_name || role.name || '',
+        is_super_admin: Boolean(role.is_super_admin),
+      };
+    })
+    .filter((r) => r.name);
 };
 
 const lastLogin = (user) => {

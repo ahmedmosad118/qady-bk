@@ -24,6 +24,11 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     /**
+     * Default Spatie permission guard for user roles and permissions.
+     */
+    protected string $guard_name = 'web';
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -42,6 +47,18 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === UserStatus::ACTIVE;
+    }
+
+    /**
+     * Determine whether the user holds a Super Admin role.
+     */
+    public function isSuperAdmin(): bool
+    {
+        $this->loadMissing('roles');
+
+        return $this->roles->contains(
+            static fn (mixed $role): bool => $role instanceof Role && $role->isSuperAdmin()
+        );
     }
 
     public function getAvatarUrlAttribute(): string

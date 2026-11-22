@@ -9,18 +9,32 @@ use App\Models\Contact;
 use App\Models\ContactAddress;
 use App\Services\ContactService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ContactAddressController extends Controller
+class ContactAddressController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ContactService $contactService
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:update,contact', only: ['store', 'update']),
+        ];
+    }
+
+    /**
      * List all addresses for a given contact.
      */
     public function index(Contact $contact): JsonResponse
     {
+        $this->authorize('view', $contact);
+
         return response()->json([
             'success' => true,
             'data' => $contact->addresses()->orderByDesc('is_default')->get(),
@@ -67,6 +81,8 @@ class ContactAddressController extends Controller
      */
     public function setDefault(Contact $contact, ContactAddress $address): JsonResponse
     {
+        $this->authorize('update', $contact);
+
         if ($address->contact_id !== $contact->id) {
             abort(404);
         }
@@ -85,6 +101,8 @@ class ContactAddressController extends Controller
      */
     public function destroy(Contact $contact, ContactAddress $address): JsonResponse
     {
+        $this->authorize('update', $contact);
+
         if ($address->contact_id !== $contact->id) {
             abort(404);
         }

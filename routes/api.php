@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Access\PermissionController;
+use App\Http\Controllers\Api\Access\RoleController;
 use App\Http\Controllers\Api\Accounting\AccountingSettingController;
 use App\Http\Controllers\Api\Accounting\ChartOfAccountController;
 use App\Http\Controllers\Api\AuthController;
@@ -42,10 +44,19 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
+    // Users Management
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{ids}', [UserController::class, 'destroy']);
+
+    // Roles & Permissions Management
+    Route::get('/permissions', [PermissionController::class, 'index']);
+    Route::get('/roles', [RoleController::class, 'index']);
+    Route::post('/roles', [RoleController::class, 'store']);
+    Route::get('/roles/{role}', [RoleController::class, 'show']);
+    Route::put('/roles/{role}', [RoleController::class, 'update']);
+    Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
 
     // Books (products) and their categories.
     Route::get('/products', [ProductController::class, 'index']);

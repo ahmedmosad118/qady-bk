@@ -14,7 +14,7 @@ import {
  * Sidebar navigation definition for compact category rail + floating flyout menu.
  *
  * - Direct entries have `to` (e.g. Dashboard, Reports).
- * - Grouped categories have `sections: [{ label?, items: [{ label, to }] }]`.
+ * - Grouped categories have `sections: [{ label?, items: [{ label, to, permission? }] }]`.
  *
  * Note: To add a new module, register its route in `resources/js/router/routes.js`
  * and add its link here.
@@ -33,11 +33,11 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.pos', to: '/pos' },
-          { label: 'nav.invoices', to: '/invoices' },
-          { label: 'nav.posReturns', to: '/pos/returns' },
-          { label: 'nav.posShifts', to: '/pos/shifts' },
-          { label: 'nav.customers', to: '/customers' },
+          { label: 'nav.pos', to: '/pos', permission: 'pos.sell' },
+          { label: 'nav.invoices', to: '/invoices', permission: ['pos_sales.view', 'pos.sell'] },
+          { label: 'nav.posReturns', to: '/pos/returns', permission: ['pos_returns.view', 'pos_returns.create'] },
+          { label: 'nav.posShifts', to: '/pos/shifts', permission: ['pos_shifts.view', 'pos_shifts.manage'] },
+          { label: 'nav.customers', to: '/customers', permission: 'contacts.view' },
         ],
       },
     ],
@@ -49,9 +49,9 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.purchaseOrders', to: '/purchase-orders' },
-          { label: 'nav.purchaseInvoices', to: '/purchase-invoices' },
-          { label: 'nav.suppliers', to: '/suppliers' },
+          { label: 'nav.purchaseOrders', to: '/purchase-orders', permission: 'purchase_orders.view' },
+          { label: 'nav.purchaseInvoices', to: '/purchase-invoices', permission: 'purchase_invoices.view' },
+          { label: 'nav.suppliers', to: '/suppliers', permission: 'contacts.view' },
         ],
       },
     ],
@@ -63,9 +63,9 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.products', to: '/products' },
-          { label: 'nav.productCategories', to: '/product-categories' },
-          { label: 'nav.barcodePrint', to: '/products/barcodes' },
+          { label: 'nav.products', to: '/products', permission: 'products.view' },
+          { label: 'nav.productCategories', to: '/product-categories', permission: 'product_categories.view' },
+          { label: 'nav.barcodePrint', to: '/products/barcodes', permission: 'products.print_barcodes' },
         ],
       },
     ],
@@ -78,20 +78,20 @@ export const navigation = [
       {
         label: 'nav.inventoryDocsSection',
         items: [
-          { label: 'nav.allInventoryDocs', to: '/inventory' },
-          { label: 'nav.goodsReceipt', to: '/inventory/goods-receipt' },
-          { label: 'nav.goodsDelivery', to: '/inventory/goods-delivery' },
-          { label: 'nav.stockAdjustment', to: '/inventory/stock-adjustment' },
-          { label: 'nav.inventoryReturn', to: '/inventory/inventory-return' },
-          { label: 'nav.stockWriteOff', to: '/inventory/stock-write-off' },
+          { label: 'nav.allInventoryDocs', to: '/inventory', permission: 'inventory_documents.view' },
+          { label: 'nav.goodsReceipt', to: '/inventory/goods-receipt', permission: 'inventory_documents.view' },
+          { label: 'nav.goodsDelivery', to: '/inventory/goods-delivery', permission: 'inventory_documents.view' },
+          { label: 'nav.stockAdjustment', to: '/inventory/stock-adjustment', permission: 'inventory_documents.view' },
+          { label: 'nav.inventoryReturn', to: '/inventory/inventory-return', permission: 'inventory_documents.view' },
+          { label: 'nav.stockWriteOff', to: '/inventory/stock-write-off', permission: 'inventory_documents.view' },
         ],
       },
       {
         label: 'nav.inventoryTransfersSection',
         items: [
-          { label: 'nav.openingBalance', to: '/inventory/opening-balance' },
-          { label: 'nav.warehouseStocks', to: '/inventory/stocks' },
-          { label: 'nav.stocktaking', to: '/inventory/stocktakes' },
+          { label: 'nav.openingBalance', to: '/inventory/opening-balance', permission: 'inventory_documents.view' },
+          { label: 'nav.warehouseStocks', to: '/inventory/stocks', permission: 'warehouse_stocks.view' },
+          { label: 'nav.stocktaking', to: '/inventory/stocktakes', permission: 'stocktakes.view' },
         ],
       },
     ],
@@ -103,8 +103,8 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.expenseCategories', to: '/expense-categories' },
-          { label: 'nav.expenses', to: '/expenses' },
+          { label: 'nav.expenseCategories', to: '/expense-categories', permission: 'expense_categories.view' },
+          { label: 'nav.expenses', to: '/expenses', permission: 'expenses.view' },
         ],
       },
     ],
@@ -116,8 +116,8 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.chartOfAccounts', to: '/accounting/accounts' },
-          { label: 'nav.accountingSettings', to: '/accounting/settings' },
+          { label: 'nav.chartOfAccounts', to: '/accounting/accounts', permission: 'accounting.accounts.view' },
+          { label: 'nav.accountingSettings', to: '/accounting/settings', permission: 'accounting.settings.view' },
         ],
       },
     ],
@@ -135,8 +135,9 @@ export const navigation = [
     sections: [
       {
         items: [
-          { label: 'nav.users', to: '/users' },
-          { label: 'nav.settings', to: '/settings' },
+          { label: 'nav.users', to: '/users', permission: 'users.view' },
+          { label: 'nav.roles', to: '/roles', permission: 'roles.view' },
+          { label: 'nav.settings', to: '/settings', permission: ['purchase_settings.view', 'accounting.settings.view'] },
         ],
       },
     ],

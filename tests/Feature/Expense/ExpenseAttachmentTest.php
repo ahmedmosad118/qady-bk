@@ -12,7 +12,6 @@ use App\Models\ExpenseItemAttachment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -22,13 +21,14 @@ class ExpenseAttachmentTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private ExpenseCategory $category;
 
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake('local');
-        $this->user = User::factory()->create();
+        $this->user = $this->createSuperAdmin();
         $this->category = ExpenseCategory::factory()->create();
     }
 
@@ -261,7 +261,7 @@ class ExpenseAttachmentTest extends TestCase
             ->assertJsonValidationErrors(['status']);
 
         // Unauthorized user cannot view or download
-        Gate::define('expenses.view', fn () => false);
+        Sanctum::actingAs(User::factory()->create());
         $this->getJson("/api/expenses/{$expenseAId}/items/{$itemAId}/attachments/{$attAId}/view")
             ->assertForbidden();
         $this->getJson("/api/expenses/{$expenseAId}/items/{$itemAId}/attachments/{$attAId}/download")

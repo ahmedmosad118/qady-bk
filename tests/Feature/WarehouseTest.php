@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class WarehouseTest extends TestCase
@@ -20,8 +19,7 @@ class WarehouseTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
     }
 
     public function test_seeder_creates_default_warehouse_and_is_idempotent(): void

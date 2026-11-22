@@ -1,9 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Http\Middleware\EnsureUserIsActive;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Spatie\Permission\Exceptions\UnauthorizedException;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,8 +24,24 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $renderForbidden = static function (Request $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => (string) __('auth.unauthorized'),
+            ], 403);
+        };
+
+        $exceptions->render(static fn (UnauthorizedException $e, Request $request) => $renderForbidden($request));
+        $exceptions->render(static fn (AccessDeniedHttpException $e, Request $request) => $renderForbidden($request));
+        $exceptions->render(static fn (AuthorizationException $e, Request $request) => $renderForbidden($request));
     })->create();

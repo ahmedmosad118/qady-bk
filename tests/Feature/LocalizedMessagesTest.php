@@ -6,10 +6,8 @@ namespace Tests\Feature;
 
 use App\Models\Contact;
 use App\Models\Product;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Arr;
-use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -53,7 +51,7 @@ class LocalizedMessagesTest extends TestCase
 
     public function test_purchase_request_validation_messages_follow_app_locale(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
         $supplier = Contact::factory()->create(['is_supplier' => true, 'is_customer' => false, 'is_active' => true]);
         $product = Product::factory()->create(['is_active' => true]);
 
@@ -87,7 +85,7 @@ class LocalizedMessagesTest extends TestCase
 
     public function test_invoice_discount_requires_type_when_value_is_sent_and_orders_do_not_in_request_layer(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
         $supplier = Contact::factory()->create(['is_supplier' => true, 'is_customer' => false, 'is_active' => true]);
         $product = Product::factory()->create(['is_active' => true]);
         $today = now()->toDateString();

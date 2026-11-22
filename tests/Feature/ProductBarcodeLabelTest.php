@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
-use App\Models\User;
 use App\Services\Product\ProductBarcodeGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,12 +13,12 @@ class ProductBarcodeLabelTest extends TestCase
 
     private function login(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
     }
 
     public function test_generator_builds_valid_ean13_with_internal_prefix(): void
     {
-        $generator = new ProductBarcodeGenerator();
+        $generator = new ProductBarcodeGenerator;
 
         $this->assertSame('2000000000015', $generator->fromSequence(1));
         $code = $generator->fromSequence(123456);
@@ -52,7 +51,7 @@ class ProductBarcodeLabelTest extends TestCase
     public function test_existing_barcode_is_kept_and_sequence_continues(): void
     {
         $this->login();
-        $generator = new ProductBarcodeGenerator();
+        $generator = new ProductBarcodeGenerator;
         $existing = Product::factory()->withBarcode('6221000000017')->create();
         $internal = Product::factory()->withBarcode($generator->fromSequence(5))->create();
         $new = Product::factory()->create();
@@ -74,7 +73,7 @@ class ProductBarcodeLabelTest extends TestCase
     public function test_sequence_accounts_for_soft_deleted_products(): void
     {
         $this->login();
-        $generator = new ProductBarcodeGenerator();
+        $generator = new ProductBarcodeGenerator;
         Product::factory()->withBarcode($generator->fromSequence(9))->create()->delete();
         $new = Product::factory()->create();
 

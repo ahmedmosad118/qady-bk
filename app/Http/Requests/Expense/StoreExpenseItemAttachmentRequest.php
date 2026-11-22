@@ -7,14 +7,13 @@ namespace App\Http\Requests\Expense;
 use App\Models\Expense;
 use App\Models\ExpenseItem;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Validator;
 
 class StoreExpenseItemAttachmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('expenses.update');
+        return true;
     }
 
     /**

@@ -21,6 +21,8 @@ class WarehouseStockController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', WarehouseStock::class);
+
         $filters = [
             'warehouse_id' => $request->input('warehouse_id'),
             'product_id' => $request->input('product_id'),

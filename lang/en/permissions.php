@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'categories' => [
+        // Enum lowercase keys
+        'pos' => 'Sales & POS',
+        'catalog' => 'Catalog & Products',
+        'contacts' => 'Customers & Suppliers',
+        'purchases' => 'Purchases',
+        'inventory' => 'Inventory & Warehouses',
+        'expenses' => 'Expenses',
+        'accounting' => 'Accounting',
+        'administration' => 'Administration & Access',
+
+        // resources/permissions.php English keys
+        'Sales & POS' => 'Sales & POS',
+        'Contacts' => 'Contacts',
+        'Purchases' => 'Purchases',
+        'Catalog' => 'Catalog',
+        'Inventory' => 'Inventory',
+        'Expenses' => 'Expenses',
+        'Accounting' => 'Accounting',
+        'Administration' => 'Administration',
+    ],
+
+    'modules' => [
+        'POS Terminal' => 'POS Terminal',
+        'Sales Invoices' => 'Sales Invoices',
+        'POS Returns' => 'POS Returns',
+        'POS Shifts' => 'POS Shifts',
+        'Contacts' => 'Contacts',
+        'Purchase Orders' => 'Purchase Orders',
+        'Purchase Invoices' => 'Purchase Invoices',
+        'Purchase Settings' => 'Purchase Settings',
+        'Products' => 'Products',
+        'Product Categories' => 'Product Categories',
+        'Warehouses' => 'Warehouses',
+        'Inventory Documents' => 'Inventory Documents',
+        'Warehouse Stocks' => 'Warehouse Stocks',
+        'Stocktaking' => 'Stocktaking',
+        'Expense Categories' => 'Expense Categories',
+        'General Expenses' => 'General Expenses',
+        'Chart of Accounts' => 'Chart of Accounts',
+        'Accounting Settings' => 'Accounting Settings',
+        'Users' => 'Users',
+        'Roles' => 'Roles',
+    ],
+
+    'actions' => [
+        'view' => 'View',
+        'create' => 'Create',
+        'update' => 'Update',
+        'delete' => 'Delete',
+        'sell' => 'Complete Sale',
+        'apply_item_discount' => 'Apply Item Discount',
+        'apply_invoice_discount' => 'Apply Invoice Discount',
+        'override_price' => 'Override Selling Price',
+        'view_dashboard' => 'View POS Dashboard',
+        'manage' => 'Open & Close Shifts',
+        'manage_cash' => 'Manage Shift Cash',
+        'confirm' => 'Confirm',
+        'cancel' => 'Cancel',
+        'print_barcodes' => 'Print Barcodes',
+        'submit' => 'Submit for Approval',
+        'approve' => 'Approve',
+        'reject' => 'Reject',
+        'post' => 'Post to Stock',
+        'reverse' => 'Reverse Document',
+        'view_movements' => 'View Stock Movements',
+        'start' => 'Start Stocktake',
+        'count' => 'Record Counts',
+        'review_results' => 'Review Variances & Results',
+    ],
+];

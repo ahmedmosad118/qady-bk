@@ -15,8 +15,10 @@ use App\Services\InventoryDocumentService;
 use App\Services\InventoryDocumentWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class InventoryDocumentController extends Controller
+class InventoryDocumentController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected InventoryDocumentRepository $repository,
@@ -25,10 +27,25 @@ class InventoryDocumentController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.InventoryDocument::class, only: ['store']),
+            new Middleware('can:update,inventory_document', only: ['update']),
+            new Middleware('can:reject,inventory_document', only: ['reject']),
+            new Middleware('can:reverse,inventory_document', only: ['reverse']),
+        ];
+    }
+
+    /**
      * Display a listing of inventory documents.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', InventoryDocument::class);
+
         $filters = [
             'search' => $request->input('search'),
             'document_type' => $request->input('document_type'),
@@ -63,6 +80,8 @@ class InventoryDocumentController extends Controller
      */
     public function show(InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('view', $inventoryDocument);
+
         return response()->json([
             'success' => true,
             'data' => $this->repository->findWithRelations($inventoryDocument),
@@ -109,6 +128,8 @@ class InventoryDocumentController extends Controller
      */
     public function destroy(InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('delete', $inventoryDocument);
+
         $this->documentService->delete($inventoryDocument);
 
         return response()->json([
@@ -122,6 +143,8 @@ class InventoryDocumentController extends Controller
      */
     public function submit(Request $request, InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('submit', $inventoryDocument);
+
         $document = $this->workflowService->submit($inventoryDocument, $request->user());
 
         return response()->json([
@@ -136,6 +159,8 @@ class InventoryDocumentController extends Controller
      */
     public function approve(Request $request, InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('approve', $inventoryDocument);
+
         $document = $this->workflowService->approve($inventoryDocument, $request->user());
 
         return response()->json([
@@ -168,6 +193,8 @@ class InventoryDocumentController extends Controller
      */
     public function cancel(Request $request, InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('cancel', $inventoryDocument);
+
         $document = $this->workflowService->cancel($inventoryDocument, $request->user());
 
         return response()->json([
@@ -182,6 +209,8 @@ class InventoryDocumentController extends Controller
      */
     public function post(Request $request, InventoryDocument $inventoryDocument): JsonResponse
     {
+        $this->authorize('post', $inventoryDocument);
+
         $document = $this->workflowService->post($inventoryDocument, $request->user());
 
         return response()->json([

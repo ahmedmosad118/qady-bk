@@ -10,7 +10,6 @@ use App\Enums\InventoryReturnDirection;
 use App\Enums\StockAdjustmentDirection;
 use App\Enums\StockMovementDirection;
 use App\Models\InventoryDocument;
-use App\Models\InventoryDocumentItem;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\User;
@@ -19,10 +18,10 @@ use App\Models\WarehouseStock;
 use App\Services\Inventory\StockMovementService;
 use App\Services\InventoryDocumentWorkflowService;
 use Database\Seeders\WarehouseSeeder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Tests\TestCase;
 
@@ -31,19 +30,24 @@ class StockMovementTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected Warehouse $destinationWarehouse;
+
     protected Product $product;
+
     protected Product $secondProduct;
+
     protected StockMovementService $stockMovementService;
+
     protected InventoryDocumentWorkflowService $workflowService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(WarehouseSeeder::class);
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
@@ -75,7 +79,7 @@ class StockMovementTest extends TestCase
         ?string $writeOffReason = null
     ): InventoryDocument {
         $doc = InventoryDocument::query()->create([
-            'document_number' => 'DOC-TEST-' . uniqid(),
+            'document_number' => 'DOC-TEST-'.uniqid(),
             'document_type' => $type,
             'status' => InventoryDocumentStatus::DRAFT,
             'document_date' => '2026-11-14',
@@ -96,6 +100,7 @@ class StockMovementTest extends TestCase
         }
 
         $this->workflowService->submit($doc, $this->user);
+
         return $this->workflowService->approve($doc, $this->user);
     }
 
@@ -580,7 +585,7 @@ class StockMovementTest extends TestCase
         );
 
         // Spoof in-memory relation without DB movements -> observer must still block POSTED update
-        $doc->setRelation('stockMovements', new \Illuminate\Database\Eloquent\Collection([new \App\Models\StockMovement()]));
+        $doc->setRelation('stockMovements', new Collection([new StockMovement]));
         try {
             $doc->update(['status' => InventoryDocumentStatus::POSTED]);
             $this->fail('Expected LogicException when relationLoaded is spoofed.');
@@ -607,7 +612,7 @@ class StockMovementTest extends TestCase
 
         // Direct creation as POSTED is blocked by observer
         $this->expectException(LogicException::class);
-        \App\Models\InventoryDocument::query()->create([
+        InventoryDocument::query()->create([
             'document_number' => 'DOC-SPOOF-001',
             'document_type' => InventoryDocumentType::GOODS_RECEIPT,
             'destination_warehouse_id' => $this->warehouse->id,
@@ -631,7 +636,7 @@ class StockMovementTest extends TestCase
         try {
             $this->workflowService->post($posted->fresh(), $this->user);
             $this->fail('Expected ValidationException on double post.');
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             // Expected
         }
 
@@ -641,7 +646,7 @@ class StockMovementTest extends TestCase
         try {
             $this->workflowService->reverse($reversed->fresh(), $this->user, 'عكس ثان');
             $this->fail('Expected ValidationException on double reversal.');
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             // Expected
         }
 

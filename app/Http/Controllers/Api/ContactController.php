@@ -10,8 +10,10 @@ use App\Repositories\ContactRepository;
 use App\Services\ContactService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ContactController extends Controller
+class ContactController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ContactService $contactService,
@@ -19,10 +21,23 @@ class ContactController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.Contact::class, only: ['store']),
+            new Middleware('can:update,contact', only: ['update']),
+        ];
+    }
+
+    /**
      * Display a paginated listing of contacts.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Contact::class);
+
         $filters = [
             'search' => $request->input('search'),
             'type' => $request->input('type'),
@@ -67,6 +82,8 @@ class ContactController extends Controller
      */
     public function show(Contact $contact): JsonResponse
     {
+        $this->authorize('view', $contact);
+
         return response()->json([
             'success' => true,
             'data' => $contact->load([
@@ -96,6 +113,8 @@ class ContactController extends Controller
      */
     public function destroy(Contact $contact): JsonResponse
     {
+        $this->authorize('delete', $contact);
+
         $this->contactService->deleteContact($contact);
 
         return response()->json([

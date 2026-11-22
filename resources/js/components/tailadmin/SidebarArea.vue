@@ -86,7 +86,7 @@
       class="no-scrollbar flex flex-1 flex-col gap-0.5 overflow-y-auto py-1"
       @mouseleave="scheduleCloseFlyout"
     >
-      <template v-for="group in navigation" :key="group.key">
+      <template v-for="group in visibleNavigation" :key="group.key">
         <!-- Direct Route (e.g., Dashboard, Reports) -->
         <router-link
           v-if="!group.sections"
@@ -275,6 +275,7 @@ import BrandLogo from '../common/BrandLogo.vue';
 import { ChevronLeft, PanelRight, Search, X } from 'lucide-vue-next';
 import { navigation } from '../../config/navigation';
 import brand from '../../config/brand';
+import { useAuthStore } from '../../stores/auth';
 
 const props = defineProps({
   sidebarOpen: {
@@ -288,6 +289,7 @@ const emit = defineEmits(['close-sidebar']);
 const route = useRoute();
 const router = useRouter();
 const { locale, t } = useI18n();
+const authStore = useAuthStore();
 const isRtl = computed(() => locale.value === 'ar');
 
 const RAIL_STORAGE_KEY = 'sidebar_rail_collapsed';
@@ -309,8 +311,29 @@ const flyoutStyle = ref({});
 
 let closeTimer = null;
 
-const allNavPaths = navigation.flatMap((g) =>
-  g.sections ? g.sections.flatMap((s) => s.items.map((i) => i.to).filter(Boolean)) : (g.to ? [g.to] : [])
+const visibleNavigation = computed(() =>
+  navigation
+    .map((group) => {
+      if (!group.sections) {
+        return authStore.hasPermission(group.permission) ? group : null;
+      }
+
+      const sections = group.sections
+        .map((sec) => ({
+          ...sec,
+          items: sec.items.filter((item) => authStore.hasPermission(item.permission)),
+        }))
+        .filter((sec) => sec.items.length > 0);
+
+      return sections.length > 0 ? { ...group, sections } : null;
+    })
+    .filter(Boolean)
+);
+
+const allNavPaths = computed(() =>
+  visibleNavigation.value.flatMap((g) =>
+    g.sections ? g.sections.flatMap((s) => s.items.map((i) => i.to).filter(Boolean)) : (g.to ? [g.to] : [])
+  )
 );
 
 function isItemActive(item) {
@@ -319,7 +342,7 @@ function isItemActive(item) {
   if (item.to === '/') return false;
   if (!route.path.startsWith(`${item.to}/`)) return false;
 
-  return !allNavPaths.some(
+  return !allNavPaths.value.some(
     (other) => other !== item.to && other.length > item.to.length && (route.path === other || route.path.startsWith(`${other}/`))
   );
 }
@@ -338,7 +361,7 @@ const activeGroupItemsCount = computed(() => {
 
 const allSearchableItems = computed(() => {
   const list = [];
-  navigation.forEach((group) => {
+  visibleNavigation.value.forEach((group) => {
     if (!group.sections) {
       list.push({
         label: group.label,

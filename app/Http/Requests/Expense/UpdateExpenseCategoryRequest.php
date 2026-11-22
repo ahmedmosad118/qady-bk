@@ -6,14 +6,13 @@ namespace App\Http\Requests\Expense;
 
 use App\Models\ExpenseCategory;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class UpdateExpenseCategoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('expense_categories.update');
+        return true;
     }
 
     protected function prepareForValidation(): void

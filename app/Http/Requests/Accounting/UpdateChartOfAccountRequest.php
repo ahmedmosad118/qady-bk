@@ -7,14 +7,13 @@ namespace App\Http\Requests\Accounting;
 use App\Enums\AccountType;
 use App\Models\ChartOfAccount;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class UpdateChartOfAccountRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('accounting.accounts.update');
+        return true;
     }
 
     protected function prepareForValidation(): void

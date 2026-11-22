@@ -22,6 +22,7 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules(): array
     {
+        $rolesTable = (string) config('permission.table_names.roles', 'roles');
         $userId = $this->route('id') ?? $this->route('user');
 
         return [
@@ -35,6 +36,8 @@ class UpdateUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'status' => ['required', 'string', Rule::enum(UserStatus::class)],
             'password' => ['nullable', 'string', Password::min(8)->letters()->numbers()],
+            'roles' => ['nullable', 'array', 'max:1'],
+            'roles.*' => ['integer', Rule::exists($rolesTable, 'id')->where('guard_name', 'web')],
         ];
     }
 }

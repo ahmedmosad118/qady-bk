@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class InventoryDocumentWorkflowTest extends TestCase
@@ -20,15 +19,16 @@ class InventoryDocumentWorkflowTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected Product $product;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(WarehouseSeeder::class);
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
@@ -47,6 +47,7 @@ class InventoryDocumentWorkflowTest extends TestCase
         ]);
 
         $response->assertStatus(201);
+
         return InventoryDocument::query()->findOrFail($response->json('data.id'));
     }
 

@@ -6,9 +6,7 @@ namespace Tests\Feature\Purchase;
 
 use App\Enums\PurchaseExpensesTreatment;
 use App\Models\Setting;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class PurchaseSettingTest extends TestCase
@@ -19,7 +17,7 @@ class PurchaseSettingTest extends TestCase
     {
         parent::setUp();
 
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
     }
 
     public function test_can_get_and_update_purchase_expenses_treatment_setting(): void

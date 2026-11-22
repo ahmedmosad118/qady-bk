@@ -13,18 +13,33 @@ use App\Models\PosShift;
 use App\Services\Pos\PosShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PosShiftController extends Controller
+class PosShiftController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected PosShiftService $shiftService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:manage,'.PosShift::class, only: ['store', 'close']),
+            new Middleware('can:manageCash,'.PosShift::class, only: ['recordExpense', 'recordWithdrawal']),
+        ];
+    }
+
+    /**
      * Paginated list of all POS shifts.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', PosShift::class);
+
         $filters = [
             'status' => $request->input('status'),
             'search' => $request->input('search'),
@@ -52,6 +67,8 @@ class PosShiftController extends Controller
      */
     public function openShifts(Request $request): JsonResponse
     {
+        $this->authorize('viewOpen', PosShift::class);
+
         $shifts = $this->shiftService->listOpenShifts($request->user());
 
         return response()->json([
@@ -85,6 +102,8 @@ class PosShiftController extends Controller
      */
     public function show(PosShift $posShift): JsonResponse
     {
+        $this->authorize('view', $posShift);
+
         $summary = $this->shiftService->getShiftSummary($posShift);
 
         return response()->json([
@@ -119,6 +138,8 @@ class PosShiftController extends Controller
      */
     public function transactions(Request $request, PosShift $posShift): JsonResponse
     {
+        $this->authorize('view', $posShift);
+
         return $this->paginatedResponse(
             $this->shiftService->paginateTransactions($posShift, $request->integer('per_page', 50))
         );
@@ -173,6 +194,8 @@ class PosShiftController extends Controller
      */
     public function sales(PosShift $posShift, Request $request): JsonResponse
     {
+        $this->authorize('view', $posShift);
+
         return $this->paginatedResponse(
             $this->shiftService->paginateSales($posShift, $request->integer('per_page', 20))
         );

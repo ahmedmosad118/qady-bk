@@ -11,18 +11,32 @@ use App\Services\Pos\PosProductCatalogService;
 use App\Services\Pos\PosSaleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PosSaleController extends Controller
+class PosSaleController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected PosSaleService $saleService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:sell,'.PosSale::class, only: ['store']),
+        ];
+    }
+
+    /**
      * Paginated list of finalized POS sales invoices.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', PosSale::class);
+
         $paginated = $this->saleService->paginateSales(
             $request->only(['search', 'shift_id', 'payment_method_id', 'date_from', 'date_to']),
             $request->integer('per_page', 12)
@@ -45,6 +59,8 @@ class PosSaleController extends Controller
      */
     public function products(Request $request): JsonResponse
     {
+        $this->authorize('sell', PosSale::class);
+
         $paginated = $this->saleService->paginateProducts(
             (string) $request->input('search', ''),
             null,
@@ -71,6 +87,8 @@ class PosSaleController extends Controller
      */
     public function lookup(Request $request): JsonResponse
     {
+        $this->authorize('sell', PosSale::class);
+
         $barcode = trim((string) $request->input('barcode', ''));
 
         if ($barcode === '') {
@@ -114,6 +132,8 @@ class PosSaleController extends Controller
      */
     public function byNumber(string $invoiceNumber): JsonResponse
     {
+        $this->authorize('view', PosSale::class);
+
         return response()->json([
             'success' => true,
             'data' => $this->saleService->getSaleByInvoiceNumber($invoiceNumber),
@@ -125,6 +145,8 @@ class PosSaleController extends Controller
      */
     public function show(PosSale $posSale): JsonResponse
     {
+        $this->authorize('view', PosSale::class);
+
         return response()->json([
             'success' => true,
             'data' => $this->saleService->getSaleDetails($posSale),

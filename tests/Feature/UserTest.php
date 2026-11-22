@@ -16,10 +16,7 @@ class UserTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsSuperAdmin();
     }
 
     public function test_can_list_users_with_pagination_stats_and_schema(): void

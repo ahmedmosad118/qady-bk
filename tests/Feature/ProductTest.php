@@ -17,10 +17,7 @@ class ProductTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsSuperAdmin();
     }
 
     private function validPayload(array $overrides = []): array

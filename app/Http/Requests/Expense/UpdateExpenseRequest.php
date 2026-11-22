@@ -6,7 +6,6 @@ namespace App\Http\Requests\Expense;
 
 use App\Models\Expense;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -14,7 +13,7 @@ class UpdateExpenseRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('expenses.update');
+        return true;
     }
 
     protected function prepareForValidation(): void

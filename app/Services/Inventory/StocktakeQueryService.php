@@ -10,6 +10,7 @@ use App\Enums\StocktakeVarianceDirection;
 use App\Models\Stocktake;
 use App\Models\StocktakeItem;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 
 class StocktakeQueryService
 {
@@ -95,8 +96,8 @@ class StocktakeQueryService
         }
 
         return $stocktake->created_by === $user->id
-            || (method_exists($user, 'hasRole') && $user->hasRole('admin'))
-            || (method_exists($user, 'can') && $user->can('review-stocktake-results'))
+            || $user->isSuperAdmin()
+            || Gate::forUser($user)->allows('stocktakes.review_results')
             || in_array($stocktake->status, [StocktakeStatus::PENDING_APPROVAL, StocktakeStatus::APPROVED, StocktakeStatus::COMPLETED], true);
     }
 }

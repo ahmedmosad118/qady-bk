@@ -14,7 +14,6 @@ use App\Services\ContactService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Tests\TestCase;
@@ -29,8 +28,7 @@ class ChartOfAccountTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
     }
 
     public function test_unauthenticated_user_cannot_access_chart_of_accounts(): void
@@ -44,8 +42,7 @@ class ChartOfAccountTest extends TestCase
 
     public function test_unauthorized_user_receives_forbidden(): void
     {
-        Gate::define('accounting.accounts.view', fn () => false);
-        Gate::define('accounting.accounts.create', fn () => false);
+        Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/accounting/accounts/tree')->assertForbidden();
         $this->postJson('/api/accounting/accounts', [

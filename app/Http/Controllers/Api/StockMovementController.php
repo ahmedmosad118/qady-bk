@@ -6,21 +6,36 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StockCardRequest;
+use App\Models\WarehouseStock;
 use App\Services\Inventory\StockMovementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class StockMovementController extends Controller
+class StockMovementController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected StockMovementService $stockMovementService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:viewMovements,'.WarehouseStock::class, only: ['stockCard']),
+        ];
+    }
+
+    /**
      * Read-only historical ledger of stock movements.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewMovements', WarehouseStock::class);
+
         $filters = [
             'warehouse_id' => $request->input('warehouse_id'),
             'product_id' => $request->input('product_id'),

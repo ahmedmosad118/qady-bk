@@ -11,19 +11,34 @@ use App\Models\ProductCategory;
 use App\Services\ProductCategoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Validation\ValidationException;
 
-class ProductCategoryController extends Controller
+class ProductCategoryController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ProductCategoryService $categoryService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.ProductCategory::class, only: ['store']),
+            new Middleware('can:update,category', only: ['update']),
+        ];
+    }
+
+    /**
      * Display the category tree.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ProductCategory::class);
+
         if ($request->filled('per_page')) {
             $paginated = ProductCategory::query()
                 ->when($request->filled('search'), function ($q) use ($request): void {
@@ -84,6 +99,8 @@ class ProductCategoryController extends Controller
      */
     public function destroy(string $ids): JsonResponse
     {
+        $this->authorize('delete', ProductCategory::class);
+
         $idArray = array_values(array_filter(array_map('intval', explode(',', $ids))));
 
         if ($idArray === []) {

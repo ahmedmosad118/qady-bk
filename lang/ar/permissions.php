@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'categories' => [
+        // Enum lowercase keys
+        'pos' => 'المبيعات ونقطة البيع',
+        'catalog' => 'المنتجات',
+        'contacts' => 'العملاء والموردون',
+        'purchases' => 'المشتريات',
+        'inventory' => 'المخزون والمخازن',
+        'expenses' => 'المصروفات',
+        'accounting' => 'المحاسبة',
+        'administration' => 'الإدارة والصلاحيات',
+
+        // resources/permissions.php English keys
+        'Sales & POS' => 'المبيعات ونقطة البيع',
+        'Contacts' => 'العملاء والموردون',
+        'Purchases' => 'المشتريات',
+        'Catalog' => 'المنتجات',
+        'Inventory' => 'المخزون والمخازن',
+        'Expenses' => 'المصروفات',
+        'Accounting' => 'المحاسبة',
+        'Administration' => 'الإدارة والصلاحيات',
+    ],
+
+    'modules' => [
+        'POS Terminal' => 'نقطة البيع (الكاشير)',
+        'Sales Invoices' => 'فواتير المبيعات',
+        'POS Returns' => 'مرتجعات نقطة البيع',
+        'POS Shifts' => 'ورديات نقطة البيع',
+        'Contacts' => 'جهات الاتصال (العملاء والموردون)',
+        'Purchase Orders' => 'أوامر الشراء',
+        'Purchase Invoices' => 'فواتير المشتريات',
+        'Purchase Settings' => 'إعدادات المشتريات',
+        'Products' => 'المنتجات والكتب',
+        'Product Categories' => 'أقسام المنتجات',
+        'Warehouses' => 'المخازن',
+        'Inventory Documents' => 'المستندات المخزنية',
+        'Warehouse Stocks' => 'أرصدة وحركات المخزون',
+        'Stocktaking' => 'الجرد المخزني',
+        'Expense Categories' => 'فئات المصروفات',
+        'General Expenses' => 'المصروفات العامة',
+        'Chart of Accounts' => 'دليل الحسابات',
+        'Accounting Settings' => 'إعدادات الحسابات',
+        'Users' => 'المستخدمون',
+        'Roles' => 'الأدوار والصلاحيات',
+    ],
+
+    'actions' => [
+        'view' => 'عرض',
+        'create' => 'إنشاء',
+        'update' => 'تعديل',
+        'delete' => 'حذف',
+        'sell' => 'إتمام البيع',
+        'apply_item_discount' => 'خصم على الصنف',
+        'apply_invoice_discount' => 'خصم على الفاتورة',
+        'override_price' => 'تعديل سعر البيع',
+        'view_dashboard' => 'عرض لوحة نقطة البيع',
+        'manage' => 'فتح وإغلاق الورديات',
+        'manage_cash' => 'مصروفات وسحوبات الوردية',
+        'confirm' => 'تأكيد',
+        'cancel' => 'إلغاء',
+        'print_barcodes' => 'طباعة الباركود',
+        'submit' => 'إرسال للاعتماد',
+        'approve' => 'اعتماد',
+        'reject' => 'رفض',
+        'post' => 'ترحيل للمخزون',
+        'reverse' => 'عكس الترحيل',
+        'view_movements' => 'عرض حركات المخزون',
+        'start' => 'بدء الجرد',
+        'count' => 'تنفيذ العد',
+        'review_results' => 'مراجعة الفروقات والنتائج',
+    ],
+];

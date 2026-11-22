@@ -6,14 +6,12 @@ namespace Tests\Feature\Purchase;
 
 use App\Models\Contact;
 use App\Models\Product;
-use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Purchase\PurchaseDocumentCalculator;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class PurchaseDocumentCalculatorTest extends TestCase
@@ -25,7 +23,7 @@ class PurchaseDocumentCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calculator = new PurchaseDocumentCalculator();
+        $this->calculator = new PurchaseDocumentCalculator;
     }
 
     /**
@@ -93,7 +91,7 @@ class PurchaseDocumentCalculatorTest extends TestCase
                     [['product_id' => 1, 'quantity' => $case['quantity'], 'unit_price' => $case['unit_price']]],
                     $this->products()
                 );
-                $this->fail('Expected ValidationException for ' . $case['key']);
+                $this->fail('Expected ValidationException for '.$case['key']);
             } catch (ValidationException $e) {
                 $this->assertArrayHasKey($case['key'], $e->errors());
             }
@@ -128,7 +126,7 @@ class PurchaseDocumentCalculatorTest extends TestCase
 
     public function test_purchase_order_and_invoice_produce_identical_amounts_for_same_input(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
         $this->seed(WarehouseSeeder::class);
         Warehouse::query()->where('is_default', true)->firstOrFail();
 
@@ -173,7 +171,7 @@ class PurchaseDocumentCalculatorTest extends TestCase
 
     public function test_purchase_order_rejects_excess_decimals_and_excess_fixed_discount(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsSuperAdmin();
         $supplier = Contact::factory()->create(['is_supplier' => true, 'is_customer' => false, 'is_active' => true]);
         $product = Product::factory()->create(['is_active' => true]);
 

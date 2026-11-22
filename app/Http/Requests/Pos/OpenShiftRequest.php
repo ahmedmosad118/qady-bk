@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Requests\Pos;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 
 class OpenShiftRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::allows('pos.shift', $this->user()) && Gate::allows('pos.manage_shifts', $this->user());
+        return true;
     }
 
     /**

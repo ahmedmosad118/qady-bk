@@ -6,9 +6,7 @@ namespace Tests\Feature\Pos;
 
 use App\Enums\PaymentMethodType;
 use App\Models\PaymentMethod;
-use App\Models\PosSale;
 use App\Models\PosShift;
-use App\Models\PosShiftTransaction;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -21,7 +19,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosShiftTest extends TestCase
@@ -29,15 +26,14 @@ class PosShiftTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected PosShiftService $shiftService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(PaymentMethodSeeder::class);
         $this->seed(WarehouseSeeder::class);
@@ -78,8 +74,7 @@ class PosShiftTest extends TestCase
             ->assertJsonValidationErrors(['shift']);
 
         // Another user can open their own shift simultaneously
-        $otherUser = User::factory()->create();
-        $otherUser->assignRole(Role::findOrCreate('admin', 'web'));
+        $otherUser = $this->createSuperAdmin();
 
         Sanctum::actingAs($otherUser);
         $otherShiftResp = $this->postJson('/api/pos/shifts', [
@@ -122,8 +117,7 @@ class PosShiftTest extends TestCase
             'quantity' => '10.000',
         ]);
 
-        $otherUser = User::factory()->create();
-        $otherUser->assignRole(Role::findOrCreate('admin', 'web'));
+        $otherUser = $this->createSuperAdmin();
         Sanctum::actingAs($otherUser);
 
         // Other user cannot sell on shiftA

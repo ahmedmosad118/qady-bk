@@ -15,8 +15,10 @@ use App\Repositories\PurchaseInvoiceRepository;
 use App\Services\Purchase\PurchaseInvoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PurchaseInvoiceController extends Controller
+class PurchaseInvoiceController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected PurchaseInvoiceRepository $repository,
@@ -24,10 +26,24 @@ class PurchaseInvoiceController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.PurchaseInvoice::class, only: ['store', 'storeFromPurchaseOrder']),
+            new Middleware('can:update,'.PurchaseInvoice::class, only: ['update']),
+            new Middleware('can:cancel,'.PurchaseInvoice::class, only: ['cancel']),
+        ];
+    }
+
+    /**
      * Display a paginated listing of purchase invoices.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', PurchaseInvoice::class);
+
         $filters = [
             'search' => $request->input('search'),
             'supplier_id' => $request->input('supplier_id'),
@@ -98,6 +114,8 @@ class PurchaseInvoiceController extends Controller
      */
     public function show(PurchaseInvoice $purchase_invoice): JsonResponse
     {
+        $this->authorize('view', $purchase_invoice);
+
         $invoice = $this->repository->findWithRelations($purchase_invoice->id);
 
         return response()->json([
@@ -129,6 +147,8 @@ class PurchaseInvoiceController extends Controller
      */
     public function destroy(PurchaseInvoice $purchase_invoice): JsonResponse
     {
+        $this->authorize('delete', PurchaseInvoice::class);
+
         $this->purchaseInvoiceService->deleteInvoice($purchase_invoice);
 
         return response()->json([

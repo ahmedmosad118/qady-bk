@@ -12,7 +12,6 @@ use App\Services\Accounting\AccountingSettingRegistry;
 use App\Services\ContactService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -26,8 +25,7 @@ class AccountingSettingTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
         $this->seed(ChartOfAccountSeeder::class);
     }
 
@@ -51,8 +49,7 @@ class AccountingSettingTest extends TestCase
 
     public function test_unauthorized_user_cannot_view_or_update_accounting_settings(): void
     {
-        Gate::define('accounting.settings.view', fn () => false);
-        Gate::define('accounting.settings.update', fn () => false);
+        Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/settings/accounting')->assertForbidden();
         $this->putJson('/api/settings/accounting', ['settings' => ['cash' => 1]])->assertForbidden();

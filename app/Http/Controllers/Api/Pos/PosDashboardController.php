@@ -9,6 +9,7 @@ use App\Services\Pos\PosDashboardService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class PosDashboardController extends Controller
 {
@@ -21,6 +22,8 @@ class PosDashboardController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
+        Gate::authorize('pos.view_dashboard');
+
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::now();
         $stats = $this->dashboardService->getTodayStats($date);
 

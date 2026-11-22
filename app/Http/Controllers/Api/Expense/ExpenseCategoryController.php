@@ -12,9 +12,10 @@ use App\Repositories\ExpenseCategoryRepository;
 use App\Services\Expense\ExpenseCategoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ExpenseCategoryController extends Controller
+class ExpenseCategoryController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ExpenseCategoryRepository $repository,
@@ -22,11 +23,22 @@ class ExpenseCategoryController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.ExpenseCategory::class, only: ['store']),
+            new Middleware('can:update,expenseCategory', only: ['update']),
+        ];
+    }
+
+    /**
      * List expense categories (paginated or full dropdown list when all=1).
      */
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('expense_categories.view');
+        $this->authorize('viewAny', ExpenseCategory::class);
 
         if ($request->boolean('all')) {
             return response()->json([
@@ -75,7 +87,7 @@ class ExpenseCategoryController extends Controller
      */
     public function show(ExpenseCategory $expenseCategory): JsonResponse
     {
-        Gate::authorize('expense_categories.view');
+        $this->authorize('view', $expenseCategory);
 
         return response()->json([
             'success' => true,
@@ -102,7 +114,7 @@ class ExpenseCategoryController extends Controller
      */
     public function destroy(ExpenseCategory $expenseCategory): JsonResponse
     {
-        Gate::authorize('expense_categories.delete');
+        $this->authorize('delete', $expenseCategory);
 
         $this->categoryService->delete($expenseCategory);
 

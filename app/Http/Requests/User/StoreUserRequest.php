@@ -22,12 +22,16 @@ class StoreUserRequest extends FormRequest
      */
     public function rules(): array
     {
+        $rolesTable = (string) config('permission.table_names.roles', 'roles');
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique(User::class, 'email')],
             'phone' => ['nullable', 'string', 'max:30'],
             'status' => ['required', 'string', Rule::enum(UserStatus::class)],
             'password' => ['required', 'string', Password::min(8)->letters()->numbers()],
+            'roles' => ['nullable', 'array', 'max:1'],
+            'roles.*' => ['integer', Rule::exists($rolesTable, 'id')->where('guard_name', 'web')],
         ];
     }
 }

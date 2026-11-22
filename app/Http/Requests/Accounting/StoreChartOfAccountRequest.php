@@ -6,14 +6,13 @@ namespace App\Http\Requests\Accounting;
 
 use App\Enums\AccountType;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class StoreChartOfAccountRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('accounting.accounts.create');
+        return true;
     }
 
     protected function prepareForValidation(): void

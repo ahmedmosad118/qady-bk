@@ -18,7 +18,7 @@ class UserRepository
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $query = User::query();
+        $query = User::query()->with('roles:id,name,is_super_admin,is_system');
 
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
@@ -32,6 +32,13 @@ class UserRepository
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $status = UserStatus::tryFrom((string) $filters['status']);
             $query->where('status', $status ? $status->value : (string) $filters['status']);
+        }
+
+        if (! empty($filters['role_id'])) {
+            $roleId = (int) $filters['role_id'];
+            $query->whereHas('roles', static function (Builder $q) use ($roleId): void {
+                $q->where('roles.id', $roleId);
+            });
         }
 
         $sortBy = in_array($filters['sort_by'] ?? null, ['name', 'email', 'status', 'created_at'], true)

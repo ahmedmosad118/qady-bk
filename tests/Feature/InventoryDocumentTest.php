@@ -6,7 +6,6 @@ namespace Tests\Feature;
 
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
-use App\Enums\InventoryReturnDirection;
 use App\Enums\StockAdjustmentDirection;
 use App\Models\Contact;
 use App\Models\InventoryDocument;
@@ -15,7 +14,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class InventoryDocumentTest extends TestCase
@@ -23,17 +21,20 @@ class InventoryDocumentTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected Warehouse $secondWarehouse;
+
     protected Product $product1;
+
     protected Product $product2;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(WarehouseSeeder::class);
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();

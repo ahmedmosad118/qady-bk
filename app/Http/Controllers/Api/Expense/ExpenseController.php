@@ -12,9 +12,10 @@ use App\Repositories\ExpenseRepository;
 use App\Services\Expense\ExpenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ExpenseController extends Controller
+class ExpenseController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ExpenseRepository $repository,
@@ -22,11 +23,22 @@ class ExpenseController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.Expense::class, only: ['store']),
+            new Middleware('can:update,'.Expense::class, only: ['update']),
+        ];
+    }
+
+    /**
      * Display a paginated listing of expenses with filters and sorting.
      */
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('expenses.view');
+        $this->authorize('viewAny', Expense::class);
 
         $filters = [
             'search' => $request->input('search'),
@@ -76,7 +88,7 @@ class ExpenseController extends Controller
      */
     public function show(Expense $expense): JsonResponse
     {
-        Gate::authorize('expenses.view');
+        $this->authorize('view', $expense);
 
         return response()->json([
             'success' => true,
@@ -107,7 +119,7 @@ class ExpenseController extends Controller
      */
     public function destroy(Expense $expense): JsonResponse
     {
-        Gate::authorize('expenses.delete');
+        $this->authorize('delete', Expense::class);
 
         $this->expenseService->deleteExpense($expense);
 

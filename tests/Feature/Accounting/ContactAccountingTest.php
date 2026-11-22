@@ -15,7 +15,6 @@ use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ContactAccountingTest extends TestCase
@@ -28,8 +27,7 @@ class ContactAccountingTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
     }
 
     public function test_creating_customer_only_or_supplier_only_creates_both_independent_detail_accounts(): void

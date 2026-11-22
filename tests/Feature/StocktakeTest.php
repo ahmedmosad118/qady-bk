@@ -7,15 +7,14 @@ namespace Tests\Feature;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\StockAdjustmentDirection;
-use App\Enums\StockMovementDirection;
 use App\Enums\StocktakeItemStatus;
 use App\Enums\StocktakeScope;
 use App\Enums\StocktakeStatus;
 use App\Models\InventoryDocument;
 use App\Models\InventoryDocumentItem;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Stocktake;
-use App\Models\StocktakeItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
@@ -34,25 +33,38 @@ class StocktakeTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected User $counterUser;
+
     protected Warehouse $warehouse;
+
     protected Warehouse $secondWarehouse;
+
     protected Product $activeProduct1;
+
     protected Product $activeProduct2;
+
     protected Product $inactiveProductWithStock;
+
     protected Product $inactiveProductZeroStock;
+
     protected StocktakeService $stocktakeService;
+
     protected StocktakeWorkflowService $workflowService;
+
     protected StockMovementService $movementService;
+
     protected InventoryDocumentWorkflowService $docWorkflowService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
+        $this->user = $this->actingAsSuperAdmin();
         $this->counterUser = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        Permission::findOrCreate('stocktakes.view', 'web');
+        Permission::findOrCreate('stocktakes.count', 'web');
+        $this->counterUser->givePermissionTo(['stocktakes.view', 'stocktakes.count']);
 
         $this->seed(WarehouseSeeder::class);
         $this->warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();

@@ -13,8 +13,10 @@ use App\Repositories\PurchaseOrderRepository;
 use App\Services\Purchase\PurchaseOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class PurchaseOrderController extends Controller
+class PurchaseOrderController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected PurchaseOrderRepository $repository,
@@ -22,10 +24,24 @@ class PurchaseOrderController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.PurchaseOrder::class, only: ['store']),
+            new Middleware('can:update,purchase_order', only: ['update']),
+            new Middleware('can:cancel,purchase_order', only: ['cancel']),
+        ];
+    }
+
+    /**
      * Display a paginated listing of purchase orders.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', PurchaseOrder::class);
+
         $filters = [
             'search' => $request->input('search'),
             'supplier_id' => $request->input('supplier_id'),
@@ -75,6 +91,8 @@ class PurchaseOrderController extends Controller
      */
     public function show(PurchaseOrder $purchase_order): JsonResponse
     {
+        $this->authorize('view', $purchase_order);
+
         $order = $this->repository->findWithRelations($purchase_order->id);
 
         return response()->json([
@@ -106,6 +124,8 @@ class PurchaseOrderController extends Controller
      */
     public function destroy(PurchaseOrder $purchase_order): JsonResponse
     {
+        $this->authorize('delete', $purchase_order);
+
         $this->purchaseOrderService->deleteOrder($purchase_order);
 
         return response()->json([
@@ -119,6 +139,8 @@ class PurchaseOrderController extends Controller
      */
     public function confirm(Request $request, PurchaseOrder $purchase_order): JsonResponse
     {
+        $this->authorize('confirm', $purchase_order);
+
         $order = $this->purchaseOrderService->confirmOrder(
             $purchase_order,
             $request->user()

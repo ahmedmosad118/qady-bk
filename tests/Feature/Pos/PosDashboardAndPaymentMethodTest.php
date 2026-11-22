@@ -20,8 +20,6 @@ use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosDashboardAndPaymentMethodTest extends TestCase
@@ -29,23 +27,30 @@ class PosDashboardAndPaymentMethodTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected PosShift $shift;
+
     protected PaymentMethod $cashMethod;
+
     protected PaymentMethod $visaMethod;
+
     protected PaymentMethod $bankTransferMethod;
+
     protected Product $product;
+
     protected PosSaleService $saleService;
+
     protected PosShiftService $shiftService;
+
     protected PosReturnService $returnService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(PaymentMethodSeeder::class);
         $this->seed(WarehouseSeeder::class);

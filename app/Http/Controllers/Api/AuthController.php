@@ -83,6 +83,8 @@ class AuthController extends Controller
      */
     protected function payload(User $user): array
     {
+        $user->loadMissing('roles');
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -90,10 +92,9 @@ class AuthController extends Controller
             'phone' => $user->phone,
             'status' => $user->status instanceof UserStatus ? $user->status->value : $user->status,
             'avatar_url' => $user->avatar_url,
-            'roles' => method_exists($user, 'getRoleNames') ? $user->getRoleNames() : [],
-            'permissions' => method_exists($user, 'getAllPermissions')
-                ? $user->getAllPermissions()->pluck('name')
-                : [],
+            'is_super_admin' => $user->isSuperAdmin(),
+            'roles' => $user->getRoleNames()->values()->all(),
+            'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
         ];
     }
 }

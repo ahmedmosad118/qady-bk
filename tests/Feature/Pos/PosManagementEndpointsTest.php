@@ -6,9 +6,7 @@ namespace Tests\Feature\Pos;
 
 use App\Enums\PaymentMethodType;
 use App\Models\Contact;
-use App\Models\InventoryDocument;
 use App\Models\PaymentMethod;
-use App\Models\PosSale;
 use App\Models\PosShift;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -17,8 +15,6 @@ use App\Models\Warehouse;
 use App\Services\Pos\PosSaleService;
 use App\Services\Pos\PosShiftService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosManagementEndpointsTest extends TestCase
@@ -26,19 +22,22 @@ class PosManagementEndpointsTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected PaymentMethod $cashMethod;
+
     protected Product $product;
+
     protected Contact $customer;
+
     protected PosShift $shift;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create(['name' => 'Cashier One']);
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin(['name' => 'Cashier One']);
 
         $this->warehouse = Warehouse::create([
             'name' => 'Main Warehouse',

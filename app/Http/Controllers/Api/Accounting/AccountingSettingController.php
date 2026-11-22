@@ -8,13 +8,25 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Accounting\UpdateAccountingSettingRequest;
 use App\Services\Accounting\AccountingSettingService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Gate;
 
-class AccountingSettingController extends Controller
+class AccountingSettingController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected AccountingSettingService $accountingSettingService,
     ) {}
+
+    /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:accounting.settings.update', only: ['update']),
+        ];
+    }
 
     /**
      * Display current accounting settings, key definitions, and compatible accounts per key.

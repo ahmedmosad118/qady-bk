@@ -13,6 +13,8 @@ use App\Models\Contact;
 use App\Models\InventoryDocument;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
+use App\Models\PurchaseInvoiceExpense;
+use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseOrder;
 use App\Models\StockMovement;
 use App\Models\User;
@@ -24,7 +26,6 @@ use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class PurchaseInvoiceTest extends TestCase
@@ -32,14 +33,14 @@ class PurchaseInvoiceTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Warehouse $defaultWarehouse;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(WarehouseSeeder::class);
         $this->defaultWarehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
@@ -458,7 +459,7 @@ class PurchaseInvoiceTest extends TestCase
         $third = $this->postJson('/api/purchase-invoices', $payload(['invoice_number' => 'SUP-INV-1']))->assertCreated();
         $this->assertSame(sprintf('PIN-%s-%05d', $year, $third->json('data.id')), $third->json('data.invoice_number'));
 
-        $this->putJson('/api/purchase-invoices/' . $third->json('data.id'), $payload(['invoice_number' => 'SUP-INV-2']))
+        $this->putJson('/api/purchase-invoices/'.$third->json('data.id'), $payload(['invoice_number' => 'SUP-INV-2']))
             ->assertOk()
             ->assertJsonPath('data.invoice_number', $third->json('data.invoice_number'));
 
@@ -493,7 +494,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $firstIndexOf = function (string $table) use ($queries): int|false {
             foreach ($queries as $i => $sql) {
-                if (stripos($sql, 'from "' . $table . '"') !== false) {
+                if (stripos($sql, 'from "'.$table.'"') !== false) {
                     return $i;
                 }
             }
@@ -547,13 +548,13 @@ class PurchaseInvoiceTest extends TestCase
         $this->assertSame(1, $count('from "purchase_invoice_items"'));
 
         $invoiceId = (int) $response->json('data.id');
-        $items = \App\Models\PurchaseInvoiceItem::query()->where('purchase_invoice_id', $invoiceId)->get();
+        $items = PurchaseInvoiceItem::query()->where('purchase_invoice_id', $invoiceId)->get();
         $this->assertCount(5, $items);
         $this->assertSame('كتاب 1', $items->firstWhere('product_id', $products[0]->id)->product_snapshot['name']);
         $this->assertNotNull($items->first()->created_at);
         $this->assertNotNull($items->first()->updated_at);
 
-        $expenses = \App\Models\PurchaseInvoiceExpense::query()->where('purchase_invoice_id', $invoiceId)->orderBy('id')->get();
+        $expenses = PurchaseInvoiceExpense::query()->where('purchase_invoice_id', $invoiceId)->orderBy('id')->get();
         $this->assertSame(['شحن', 'تحميل'], $expenses->pluck('name')->all());
         $this->assertSame('ملاحظة', $expenses[1]->notes);
         $this->assertNotNull($expenses[0]->created_at);
@@ -561,8 +562,8 @@ class PurchaseInvoiceTest extends TestCase
         $gr = InventoryDocument::query()->with('items')->findOrFail((int) $response->json('data.goods_receipt.id'));
         $this->assertCount(5, $gr->items);
         $this->assertEqualsCanonicalizing(
-            $items->map(fn ($i): string => $i->product_id . ':' . $i->quantity)->all(),
-            $gr->items->map(fn ($i): string => $i->product_id . ':' . $i->quantity)->all()
+            $items->map(fn ($i): string => $i->product_id.':'.$i->quantity)->all(),
+            $gr->items->map(fn ($i): string => $i->product_id.':'.$i->quantity)->all()
         );
         $this->assertNotNull($gr->items->first()->created_at);
     }
@@ -968,7 +969,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $number1 = $inv1->json('data.invoice_number');
 
-        $this->getJson('/api/purchase-invoices?search=' . urlencode($number1))
+        $this->getJson('/api/purchase-invoices?search='.urlencode($number1))
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.invoice_number', $number1)
@@ -1003,7 +1004,7 @@ class PurchaseInvoiceTest extends TestCase
             ],
         ])->assertCreated();
 
-        $listResponse = $this->getJson('/api/purchase-invoices?search=' . urlencode($inv3->json('data.invoice_number')))
+        $listResponse = $this->getJson('/api/purchase-invoices?search='.urlencode($inv3->json('data.invoice_number')))
             ->assertOk()
             ->assertJsonCount(1, 'data');
 

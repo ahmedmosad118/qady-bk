@@ -11,20 +11,32 @@ use App\Models\ChartOfAccount;
 use App\Services\Accounting\ChartOfAccountService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ChartOfAccountController extends Controller
+class ChartOfAccountController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ChartOfAccountService $accountService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.ChartOfAccount::class, only: ['store']),
+            new Middleware('can:update,account', only: ['update']),
+        ];
+    }
+
+    /**
      * Display a paginated flat listing of accounts with server-side filters and stats.
      */
     public function index(Request $request): JsonResponse
     {
-        Gate::authorize('accounting.accounts.view');
+        $this->authorize('viewAny', ChartOfAccount::class);
 
         $filters = [
             'search' => $request->input('search'),
@@ -56,7 +68,7 @@ class ChartOfAccountController extends Controller
      */
     public function tree(Request $request): JsonResponse
     {
-        Gate::authorize('accounting.accounts.view');
+        $this->authorize('tree', ChartOfAccount::class);
 
         $filters = [
             'search' => $request->input('search'),
@@ -90,7 +102,7 @@ class ChartOfAccountController extends Controller
      */
     public function show(ChartOfAccount $account): JsonResponse
     {
-        Gate::authorize('accounting.accounts.view');
+        $this->authorize('view', $account);
 
         return response()->json([
             'success' => true,
@@ -117,7 +129,7 @@ class ChartOfAccountController extends Controller
      */
     public function destroy(ChartOfAccount $account): JsonResponse
     {
-        Gate::authorize('accounting.accounts.delete');
+        $this->authorize('delete', $account);
 
         $this->accountService->delete($account);
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Pos;
 
-use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PaymentMethodType;
 use App\Models\InventoryDocument;
@@ -24,10 +23,8 @@ use App\Services\Pos\PosShiftService;
 use Database\Seeders\PaymentMethodSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PosIdempotencyTest extends TestCase
@@ -35,21 +32,26 @@ class PosIdempotencyTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Warehouse $warehouse;
+
     protected PosShift $shift;
+
     protected PaymentMethod $cashMethod;
+
     protected Product $product;
+
     protected PosShiftService $shiftService;
+
     protected PosSaleService $saleService;
+
     protected PosReturnService $returnService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
-        $this->user->assignRole(Role::findOrCreate('admin', 'web'));
-        Sanctum::actingAs($this->user);
+        $this->user = $this->actingAsSuperAdmin();
 
         $this->seed(PaymentMethodSeeder::class);
         $this->seed(WarehouseSeeder::class);
@@ -225,7 +227,7 @@ class PosIdempotencyTest extends TestCase
 
     public function test_basic_pos_sell_permission_is_enforced(): void
     {
-        Gate::define('pos.sell', fn () => false);
+        Sanctum::actingAs(User::factory()->create());
 
         $response = $this->postJson('/api/pos/sales', [
             'shift_id' => $this->shift->id,

@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Requests\Pos;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 
 class StorePosSaleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::allows('pos.sell', $this->user());
+        return true;
     }
 
     /**

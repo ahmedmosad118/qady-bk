@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ContactType;
 use App\Models\Contact;
-use App\Models\ContactAddress;
 use App\Models\User;
 use Database\Seeders\ChartOfAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,10 +21,7 @@ class ContactTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        return $user;
+        return $this->actingAsSuperAdmin();
     }
 
     public function test_can_create_an_individual_contact(): void

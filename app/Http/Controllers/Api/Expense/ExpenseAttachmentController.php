@@ -12,15 +12,26 @@ use App\Models\ExpenseItemAttachment;
 use App\Services\Expense\ExpenseAttachmentService;
 use App\Services\Expense\ExpenseService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class ExpenseAttachmentController extends Controller
+class ExpenseAttachmentController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected ExpenseService $expenseService,
         protected ExpenseAttachmentService $attachmentService,
     ) {}
+
+    /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:manageAttachments,'.Expense::class, only: ['upload']),
+        ];
+    }
 
     /**
      * Upload additional attachments to a specific Draft expense item.
@@ -55,7 +66,7 @@ class ExpenseAttachmentController extends Controller
         ExpenseItem $item,
         ExpenseItemAttachment $attachment
     ): StreamedResponse {
-        Gate::authorize('expenses.view');
+        $this->authorize('viewAttachment', Expense::class);
         $this->ensureAttachmentHierarchy($expense, $item, $attachment);
 
         return $this->attachmentService->streamResponse($attachment, false);
@@ -69,7 +80,7 @@ class ExpenseAttachmentController extends Controller
         ExpenseItem $item,
         ExpenseItemAttachment $attachment
     ): StreamedResponse {
-        Gate::authorize('expenses.view');
+        $this->authorize('viewAttachment', Expense::class);
         $this->ensureAttachmentHierarchy($expense, $item, $attachment);
 
         return $this->attachmentService->streamResponse($attachment, true);
@@ -83,7 +94,7 @@ class ExpenseAttachmentController extends Controller
         ExpenseItem $item,
         ExpenseItemAttachment $attachment
     ): JsonResponse {
-        Gate::authorize('expenses.update');
+        $this->authorize('manageAttachments', Expense::class);
         $this->ensureAttachmentHierarchy($expense, $item, $attachment);
 
         $this->expenseService->deleteItemAttachment($expense, $item, $attachment);

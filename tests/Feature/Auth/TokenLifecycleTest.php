@@ -61,7 +61,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_deactivating_a_user_revokes_all_their_tokens(): void
     {
-        $admin = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $admin = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
         $target = User::factory()->create(['status' => UserStatus::ACTIVE]);
         $token1 = $target->createToken('spa')->plainTextToken;
         $target->createToken('mobile');
@@ -84,7 +84,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_password_change_revokes_other_tokens_but_keeps_current_token(): void
     {
-        $user = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $user = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
         $currentToken = $user->createToken('spa-current');
         $otherToken = $user->createToken('spa-other');
 
@@ -113,7 +113,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_admin_changing_another_users_password_revokes_all_their_tokens(): void
     {
-        $admin = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $admin = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
         $target = User::factory()->create(['status' => UserStatus::ACTIVE]);
         $token = $target->createToken('spa');
 
@@ -131,7 +131,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_deleting_a_user_removes_their_tokens(): void
     {
-        $admin = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $admin = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
         $target = User::factory()->create(['status' => UserStatus::ACTIVE]);
         $token = $target->createToken('spa');
 
@@ -145,7 +145,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_creating_a_user_without_password_or_with_weak_password_returns_422(): void
     {
-        $admin = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $admin = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
 
         $this->actingAs($admin)
             ->postJson('/api/users', [
@@ -169,7 +169,7 @@ class TokenLifecycleTest extends TestCase
 
     public function test_user_cannot_deactivate_themselves(): void
     {
-        $user = User::factory()->create(['status' => UserStatus::ACTIVE]);
+        $user = $this->createSuperAdmin(['status' => UserStatus::ACTIVE]);
 
         $this->actingAs($user)
             ->putJson("/api/users/{$user->id}", [

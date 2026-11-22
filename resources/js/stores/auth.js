@@ -51,7 +51,8 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => !!state.token && !!state.user,
     isOwner: (state) => state.roles.includes('Owner'),
-    isSuperAdmin: (state) => state.roles.includes('Owner') || state.roles.includes('Super Admin'),
+    isSuperAdmin: (state) =>
+      Boolean(state.user?.is_super_admin) || state.roles.includes('Super Admin'),
   },
 
   actions: {
@@ -215,10 +216,10 @@ export const useAuthStore = defineStore('auth', {
     },
 
     hasPermission(permission) {
-      if (this.isOwner || this.isSuperAdmin) return true;
-      if (!this.permissions || this.permissions.length === 0) {
-        // When no granular permissions list is returned from backend, operational gates default to allowed (matching Laravel Gate definitions)
-        return true;
+      if (!permission) return true;
+      if (this.isSuperAdmin) return true;
+      if (!Array.isArray(this.permissions) || this.permissions.length === 0) {
+        return false;
       }
       if (Array.isArray(permission)) {
         return permission.some((p) => this.permissions.includes(p));

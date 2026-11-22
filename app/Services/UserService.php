@@ -5,23 +5,36 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\UserStatus;
+use App\Models\Role;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
+use Spatie\Permission\PermissionRegistrar;
 
 class UserService
 {
     /**
-     * Create a new user.
+     * Create a new user and optionally assign roles.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
-    public function create(array $data): User
+    public function create(array $data, ?User $actor = null): User
     {
-        return DB::transaction(function () use ($data) {
-            $user = new User();
+        $roles = ! empty($data['roles']) ? $this->resolveRoles($data['roles']) : new Collection;
+
+        if ($actor !== null
+            && ! $actor->isSuperAdmin()
+            && $roles->contains(static fn (Role $role): bool => $role->isSuperAdmin())
+        ) {
+            throw new AuthorizationException((string) __('roles.only_super_admin_can_assign_super_admin'));
+        }
+
+        return DB::transaction(function () use ($data, $roles): User {
+            $user = new User;
             $user->name = (string) $data['name'];
             $user->email = (string) $data['email'];
             $user->phone = $data['phone'] ?? null;
@@ -30,14 +43,19 @@ class UserService
 
             $user->save();
 
-            return $user;
+            if ($roles->isNotEmpty()) {
+                $user->syncRoles($roles);
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
+            }
+
+            return $user->load('roles:id,name,is_super_admin,is_system');
         });
     }
 
     /**
-     * Update an existing user, enforcing self-deactivation protection and revoking tokens as needed.
+     * Update an existing user, enforcing self-deactivation and last-Super-Admin protections.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(User $user, array $data, ?User $actor = null): User
     {
@@ -49,7 +67,33 @@ class UserService
             ]);
         }
 
-        return DB::transaction(function () use ($user, $data, $actor, $newStatus) {
+        $syncRoles = array_key_exists('roles', $data);
+        $newRoles = $syncRoles ? $this->resolveRoles($data['roles'] ?? []) : new Collection;
+
+        if ($actor !== null
+            && ! $actor->isSuperAdmin()
+            && ($user->isSuperAdmin() || $newRoles->contains(static fn (Role $role): bool => $role->isSuperAdmin()))
+        ) {
+            throw new AuthorizationException((string) __('roles.only_super_admin_can_assign_super_admin'));
+        }
+
+        if ($syncRoles
+            && $user->isSuperAdmin()
+            && ! $newRoles->contains(static fn (Role $role): bool => $role->isSuperAdmin())
+        ) {
+            $otherSuperAdminExists = User::query()
+                ->whereKeyNot($user->id)
+                ->whereHas('roles', static fn ($q) => $q->where('is_super_admin', true))
+                ->exists();
+
+            if (! $otherSuperAdminExists) {
+                throw ValidationException::withMessages([
+                    'roles' => [__('roles.cannot_remove_last_super_admin')],
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($user, $data, $actor, $newStatus, $syncRoles, $newRoles): User {
             $user->name = (string) $data['name'];
             $user->email = (string) $data['email'];
             $user->phone = $data['phone'] ?? null;
@@ -61,6 +105,11 @@ class UserService
             }
 
             $user->save();
+
+            if ($syncRoles) {
+                $user->syncRoles($newRoles);
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
+            }
 
             if ($newStatus === UserStatus::INACTIVE) {
                 $user->tokens()->delete();
@@ -76,14 +125,14 @@ class UserService
                 }
             }
 
-            return $user;
+            return $user->load('roles:id,name,is_super_admin,is_system');
         });
     }
 
     /**
-     * Delete users by IDs, ensuring the authenticated user cannot delete their own account.
+     * Delete users by IDs, ensuring self-deletion and last-Super-Admin protections.
      *
-     * @param array<int|string> $ids
+     * @param  array<int|string>  $ids
      */
     public function delete(array $ids, int $currentAuthId): int
     {
@@ -95,13 +144,51 @@ class UserService
             ]);
         }
 
-        return DB::transaction(function () use ($idArray) {
+        $deletingSuperAdmin = User::query()
+            ->whereIn('id', $idArray)
+            ->whereHas('roles', static fn ($q) => $q->where('is_super_admin', true))
+            ->exists();
+
+        if ($deletingSuperAdmin) {
+            $remainingSuperAdmin = User::query()
+                ->whereNotIn('id', $idArray)
+                ->whereHas('roles', static fn ($q) => $q->where('is_super_admin', true))
+                ->exists();
+
+            if (! $remainingSuperAdmin) {
+                throw ValidationException::withMessages([
+                    'ids' => [__('roles.cannot_remove_last_super_admin')],
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($idArray): int {
             PersonalAccessToken::query()
-                ->where('tokenable_type', (new User())->getMorphClass())
+                ->where('tokenable_type', (new User)->getMorphClass())
                 ->whereIn('tokenable_id', $idArray)
                 ->delete();
 
             return User::whereIn('id', $idArray)->delete();
         });
+    }
+
+    /**
+     * Resolve web-guard roles by IDs.
+     *
+     * @param  array<int|string>  $roleIds
+     * @return Collection<int, Role>
+     */
+    private function resolveRoles(array $roleIds): Collection
+    {
+        $ids = array_values(array_unique(array_map('intval', $roleIds)));
+
+        if ($ids === []) {
+            return new Collection;
+        }
+
+        return Role::query()
+            ->where('guard_name', 'web')
+            ->whereIn('id', $ids)
+            ->get();
     }
 }

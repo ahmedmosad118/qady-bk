@@ -11,18 +11,32 @@ use App\Services\Inventory\WarehouseService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class WarehouseController extends Controller
+class WarehouseController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected WarehouseService $warehouseService,
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:update,warehouse', only: ['update']),
+        ];
+    }
+
+    /**
      * Display a listing of active warehouses (for document select inputs).
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Warehouse::class);
+
         $result = $this->warehouseService->list(
             [
                 'active_only' => $request->input('active_only', true),
@@ -43,6 +57,8 @@ class WarehouseController extends Controller
      */
     public function defaultWarehouse(): JsonResponse
     {
+        $this->authorize('viewAny', Warehouse::class);
+
         $warehouse = $this->warehouseService->findDefaultOrFirst();
 
         if (! $warehouse) {
@@ -57,6 +73,8 @@ class WarehouseController extends Controller
      */
     public function show(Warehouse $warehouse): JsonResponse
     {
+        $this->authorize('view', $warehouse);
+
         return $this->successResponse($warehouse);
     }
 

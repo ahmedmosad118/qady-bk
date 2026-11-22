@@ -21,8 +21,10 @@ use App\Services\Inventory\StocktakeService;
 use App\Services\Inventory\StocktakeWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class StocktakeController extends Controller
+class StocktakeController extends Controller implements HasMiddleware
 {
     public function __construct(
         protected StocktakeRepository $repository,
@@ -32,10 +34,25 @@ class StocktakeController extends Controller
     ) {}
 
     /**
+     * @return array<int, Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:create,'.Stocktake::class, only: ['store']),
+            new Middleware('can:reject,stocktake', only: ['reject']),
+            new Middleware('can:cancel,stocktake', only: ['cancel']),
+            new Middleware('can:count,'.Stocktake::class, only: ['recordCount', 'cancelCount', 'recount']),
+        ];
+    }
+
+    /**
      * Display a listing of stocktakes.
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Stocktake::class);
+
         $filters = [
             'search' => $request->input('search'),
             'warehouse_id' => $request->input('warehouse_id'),
@@ -75,6 +92,8 @@ class StocktakeController extends Controller
      */
     public function show(Request $request, Stocktake $stocktake): JsonResponse
     {
+        $this->authorize('view', $stocktake);
+
         return $this->successResponse(
             $this->queryService->getDetailsForDisplay($stocktake, $request->user())
         );
@@ -85,6 +104,8 @@ class StocktakeController extends Controller
      */
     public function start(Request $request, Stocktake $stocktake): JsonResponse
     {
+        $this->authorize('start', $stocktake);
+
         /** @var User $user */
         $user = $request->user();
         $updated = $this->workflowService->start($stocktake, $user);
@@ -101,6 +122,8 @@ class StocktakeController extends Controller
      */
     public function submit(Request $request, Stocktake $stocktake): JsonResponse
     {
+        $this->authorize('submit', $stocktake);
+
         /** @var User $user */
         $user = $request->user();
         $updated = $this->workflowService->submit($stocktake, $user);
@@ -117,6 +140,8 @@ class StocktakeController extends Controller
      */
     public function approve(Request $request, Stocktake $stocktake): JsonResponse
     {
+        $this->authorize('approve', $stocktake);
+
         /** @var User $user */
         $user = $request->user();
         $updated = $this->workflowService->approve($stocktake, $user);
@@ -171,6 +196,8 @@ class StocktakeController extends Controller
      */
     public function startCounting(Request $request, StocktakeItem $item): JsonResponse
     {
+        $this->authorize('count', Stocktake::class);
+
         /** @var User $user */
         $user = $request->user();
         $updated = $this->stocktakeService->startCounting($item, $user);
