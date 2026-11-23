@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\Access\PermissionController;
 use App\Http\Controllers\Api\Access\RoleController;
 use App\Http\Controllers\Api\Accounting\AccountController;
+use App\Http\Controllers\Api\Accounting\AccountingPeriodController;
 use App\Http\Controllers\Api\Accounting\AccountingSettingController;
+use App\Http\Controllers\Api\Accounting\FiscalYearController;
+use App\Http\Controllers\Api\Accounting\JournalController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
@@ -118,6 +121,33 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/{account}', [AccountController::class, 'show']);
         Route::put('/{account}', [AccountController::class, 'update']);
         Route::delete('/{account}', [AccountController::class, 'destroy']);
+    });
+
+    // Journals
+    Route::prefix('accounting/journals')->group(function () {
+        Route::get('/', [JournalController::class, 'index']);
+        Route::post('/', [JournalController::class, 'store']);
+        Route::get('/{journal}', [JournalController::class, 'show']);
+        Route::put('/{journal}', [JournalController::class, 'update']);
+        Route::delete('/{journal}', [JournalController::class, 'destroy']);
+    });
+
+    // Fiscal Years
+    Route::prefix('accounting/fiscal-years')->group(function () {
+        Route::get('/', [FiscalYearController::class, 'index']);
+        Route::post('/', [FiscalYearController::class, 'store']);
+        Route::get('/{fiscalYear}', [FiscalYearController::class, 'show']);
+        Route::put('/{fiscalYear}', [FiscalYearController::class, 'update']);
+        Route::delete('/{fiscalYear}', [FiscalYearController::class, 'destroy']);
+    });
+
+    // Accounting Periods
+    Route::prefix('accounting/accounting-periods')->group(function () {
+        Route::get('/', [AccountingPeriodController::class, 'index']);
+        Route::post('/', [AccountingPeriodController::class, 'store']);
+        Route::get('/{accountingPeriod}', [AccountingPeriodController::class, 'show']);
+        Route::put('/{accountingPeriod}', [AccountingPeriodController::class, 'update']);
+        Route::delete('/{accountingPeriod}', [AccountingPeriodController::class, 'destroy']);
     });
 
     // Payment Methods (Management & Account Linking)
