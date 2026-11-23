@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'name',
     'type',
-    'chart_of_account_id',
+    'account_id',
     'is_active',
 ])]
 class PaymentMethod extends Model
@@ -28,6 +28,7 @@ class PaymentMethod extends Model
     {
         return [
             'type' => PaymentMethodType::class,
+            'account_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }
@@ -35,9 +36,9 @@ class PaymentMethod extends Model
     /**
      * Linked Asset account in the Chart of Accounts.
      */
-    public function chartOfAccount(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(ChartOfAccount::class, 'chart_of_account_id');
+        return $this->belongsTo(Account::class, 'account_id');
     }
 
     /**

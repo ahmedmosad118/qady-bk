@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'commercial_register',
     'is_customer',
     'is_supplier',
+    'receivable_account_id',
+    'payable_account_id',
     'is_active',
     'notes',
 ])]
@@ -43,6 +46,8 @@ class Contact extends Model
             'type' => ContactType::class,
             'is_customer' => 'boolean',
             'is_supplier' => 'boolean',
+            'receivable_account_id' => 'integer',
+            'payable_account_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }
@@ -168,5 +173,21 @@ class Contact extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class, 'contact_id');
+    }
+
+    /**
+     * Receivable account linked to this customer contact.
+     */
+    public function receivableAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'receivable_account_id');
+    }
+
+    /**
+     * Payable account linked to this supplier contact.
+     */
+    public function payableAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'payable_account_id');
     }
 }
