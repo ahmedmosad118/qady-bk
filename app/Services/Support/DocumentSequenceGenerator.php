@@ -17,18 +17,24 @@ class DocumentSequenceGenerator
     public function next(string $modelClass, string $column, string $prefix, int $padLength = 5): string
     {
         return DB::transaction(function () use ($modelClass, $column, $prefix, $padLength): string {
-            $lastNumber = $modelClass::query()
-                ->where($column, 'like', "{$prefix}%")
-                ->lockForUpdate()
-                ->orderByDesc('id')
-                ->value($column);
-
-            $next = 1;
-            if ($lastNumber && preg_match('/(\d+)$/', (string) $lastNumber, $matches)) {
-                $next = (int) $matches[1] + 1;
+            $query = $modelClass::query();
+            if (method_exists($modelClass, 'withTrashed')) {
+                $query = $modelClass::withTrashed();
             }
 
-            return sprintf('%s%0'.$padLength.'d', $prefix, $next);
+            $existing = $query
+                ->where($column, 'like', "{$prefix}%")
+                ->lockForUpdate()
+                ->pluck($column);
+
+            $max = 0;
+            foreach ($existing as $number) {
+                if (preg_match('/(\d+)$/', (string) $number, $matches)) {
+                    $max = max($max, (int) $matches[1]);
+                }
+            }
+
+            return sprintf('%s%0'.$padLength.'d', $prefix, $max + 1);
         });
     }
 }

@@ -313,4 +313,31 @@ class InventoryDocumentTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['document_type']);
     }
+
+    public function test_document_number_uses_document_id_and_never_collides_after_soft_delete(): void
+    {
+        $first = $this->postJson('/api/inventory-documents', [
+            'document_type' => InventoryDocumentType::GOODS_RECEIPT->value,
+            'document_date' => '2026-11-22',
+            'destination_warehouse_id' => $this->warehouse->id,
+            'items' => [['product_id' => $this->product1->id, 'quantity' => 3]],
+        ])->assertCreated();
+
+        $firstId = (int) $first->json('data.id');
+        $this->assertSame(sprintf('DOC-GR-2026-%05d', $firstId), $first->json('data.document_number'));
+
+        // Soft-delete the first document; the next document must use its own row ID and never collide.
+        $this->deleteJson("/api/inventory-documents/{$firstId}")->assertOk();
+
+        $second = $this->postJson('/api/inventory-documents', [
+            'document_type' => InventoryDocumentType::GOODS_RECEIPT->value,
+            'document_date' => '2026-11-22',
+            'destination_warehouse_id' => $this->warehouse->id,
+            'items' => [['product_id' => $this->product1->id, 'quantity' => 2]],
+        ])->assertCreated();
+
+        $secondId = (int) $second->json('data.id');
+        $this->assertGreaterThan($firstId, $secondId);
+        $this->assertSame(sprintf('DOC-GR-2026-%05d', $secondId), $second->json('data.document_number'));
+    }
 }

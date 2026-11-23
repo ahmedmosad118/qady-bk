@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Page Header -->
     <PageHeader :title="$t('purchaseInvoices.title')" :subtitle="$t('purchaseInvoices.subtitle')">
       <template #actions>
@@ -114,7 +114,7 @@
         <table class="w-full text-start text-sm">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
-              <th class="w-12 px-4 py-3.5">
+              <th scope="col" class="w-12 px-4 py-3.5 text-start">
                 <AppCheckbox
                   :checked="allPageSelected"
                   :indeterminate="somePageSelected && !allPageSelected"

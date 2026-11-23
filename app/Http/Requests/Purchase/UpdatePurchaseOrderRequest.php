@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests\Purchase;
 
 use App\Enums\DiscountType;
-use App\Models\PurchaseOrder;
 use App\Http\Requests\Purchase\Concerns\ValidatesPurchaseDiscounts;
+use App\Models\PurchaseOrder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -49,7 +49,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.unit_price' => ['required', 'numeric', 'gt:0'],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(DiscountType::values())],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
         ];

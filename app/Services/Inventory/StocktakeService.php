@@ -46,10 +46,7 @@ class StocktakeService
             $scope = is_string($data['scope']) ? StocktakeScope::from($data['scope']) : $data['scope'];
             $stocktakeDate = isset($data['stocktake_date']) ? Carbon::parse($data['stocktake_date']) : Carbon::now();
 
-            $stocktakeNumber = $this->numberService->generate($stocktakeDate);
-
             $stocktake = Stocktake::query()->create([
-                'stocktake_number' => $stocktakeNumber,
                 'warehouse_id' => $warehouseId,
                 'scope' => $scope,
                 'status' => StocktakeStatus::DRAFT,

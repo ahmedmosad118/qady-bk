@@ -24,7 +24,7 @@ class InventoryDocumentService
     /**
      * Create a new inventory document with its items.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data, User $user): InventoryDocument
     {
@@ -63,11 +63,9 @@ class InventoryDocumentService
             }
 
             $docDate = isset($data['document_date']) ? Carbon::parse($data['document_date']) : Carbon::now();
-            $docNumber = $this->numberService->generate($docType, $docDate);
 
             /** @var InventoryDocument $document */
             $document = InventoryDocument::query()->create([
-                'document_number' => $docNumber,
                 'document_type' => $docType,
                 'status' => InventoryDocumentStatus::DRAFT,
                 'document_date' => $docDate->toDateString(),
@@ -91,7 +89,7 @@ class InventoryDocumentService
     /**
      * Update an existing draft or rejected inventory document and its items.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(InventoryDocument $document, array $data, User $user): InventoryDocument
     {
@@ -139,8 +137,8 @@ class InventoryDocumentService
     /**
      * Synchronize a Goods Receipt document with its parent Purchase Invoice inside a transaction.
      *
-     * @param array<int, array<string, mixed>> $itemsData Goods receipt lines (product_id, quantity, notes)
-     *                                                    built from the invoice lines the caller just calculated.
+     * @param  array<int, array<string, mixed>>  $itemsData  Goods receipt lines (product_id, quantity, notes)
+     *                                                       built from the invoice lines the caller just calculated.
      */
     public function syncForPurchaseInvoice(InventoryDocument $document, PurchaseInvoice $invoice, int $warehouseId, array $itemsData): InventoryDocument
     {
@@ -236,7 +234,7 @@ class InventoryDocumentService
     /**
      * Sync items on document.
      *
-     * @param array<int, array<string, mixed>> $itemsData
+     * @param  array<int, array<string, mixed>>  $itemsData
      */
     protected function syncItems(InventoryDocument $document, array $itemsData): void
     {

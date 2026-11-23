@@ -582,4 +582,35 @@ class PurchaseOrderTest extends TestCase
         $this->assertEquals(15.0, (float) $response->json('data.0.items_sum_discount_amount'));
         $this->assertEquals(20.0, (float) $response->json('data.0.discount_amount'));
     }
+
+    public function test_purchase_order_rejects_zero_unit_price_on_create_and_update(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+
+        $created = $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
+            ],
+        ])->assertCreated();
+
+        $this->putJson('/api/purchase-orders/'.$created->json('data.id'), [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+    }
 }

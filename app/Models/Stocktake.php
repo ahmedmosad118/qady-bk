@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\StocktakeScope;
 use App\Enums\StocktakeStatus;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -60,10 +62,26 @@ class Stocktake extends Model
     }
 
     /**
-     * Prevent hard deletion after creation; cancellation must be used instead.
+     * Assign ID-based stocktake numbers on creation and prevent hard deletion.
      */
     protected static function booted(): void
     {
+        static::creating(function (Stocktake $stocktake): void {
+            if (empty($stocktake->stocktake_number)) {
+                $stocktake->stocktake_number = 'TMP-'.Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (Stocktake $stocktake): void {
+            if (empty($stocktake->stocktake_number) || str_starts_with((string) $stocktake->stocktake_number, 'TMP-')) {
+                $year = ($stocktake->stocktake_date ? Carbon::parse($stocktake->stocktake_date) : Carbon::now())->format('Y');
+
+                $stocktake->forceFill([
+                    'stocktake_number' => sprintf('STK-%s-%05d', $year, $stocktake->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::deleting(function (Stocktake $stocktake): void {
             throw new LogicException('لا يمكن حذف مستند الجرد المخزني؛ استخدم الإلغاء بدلاً من الحذف للحفاظ على السجل التاريخي.');
         });

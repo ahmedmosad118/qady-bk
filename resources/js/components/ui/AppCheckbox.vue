@@ -4,7 +4,7 @@
       :id="id"
       ref="inputRef"
       type="checkbox"
-      class="peer h-[18px] w-[18px] cursor-pointer appearance-none rounded-[5px] border border-[var(--border)] bg-[var(--card)] transition-colors checked:border-[var(--crimson)] checked:bg-[var(--crimson)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crimson)]/25 disabled:cursor-not-allowed disabled:opacity-50"
+      class="peer h-[18px] w-[18px] cursor-pointer appearance-none rounded-[5px] border-[1.5px] border-[var(--muted)]/45 bg-[var(--card)] transition-colors hover:border-[var(--crimson)] checked:border-[var(--crimson)] checked:bg-[var(--crimson)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crimson)]/25 disabled:cursor-not-allowed disabled:border-[var(--border)] disabled:bg-[var(--bg)] disabled:opacity-45"
       :class="indeterminate ? 'border-[var(--crimson)] bg-[var(--crimson)]' : ''"
       :checked="checked"
       :disabled="disabled"

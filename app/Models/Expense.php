@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\ExpenseStatus;
+use Carbon\Carbon;
 use Database\Factories\ExpenseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -134,6 +136,22 @@ class Expense extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Expense $expense): void {
+            if (empty($expense->expense_number)) {
+                $expense->expense_number = 'TMP-'.Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (Expense $expense): void {
+            if (empty($expense->expense_number) || str_starts_with((string) $expense->expense_number, 'TMP-')) {
+                $dayStr = ($expense->expense_date ? Carbon::parse($expense->expense_date) : Carbon::now())->format('Ymd');
+
+                $expense->forceFill([
+                    'expense_number' => sprintf('EXP-%s-%04d', $dayStr, $expense->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::deleting(function (Expense $expense): void {
             if (! $expense->isDraft()) {
                 throw new LogicException('Cannot delete a posted expense.');

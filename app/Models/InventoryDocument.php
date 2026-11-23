@@ -8,6 +8,7 @@ use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\InventoryReturnDirection;
 use App\Enums\StockAdjustmentDirection;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
+use LogicException;
 
 #[Fillable([
     'document_number',
@@ -207,9 +210,30 @@ class InventoryDocument extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (InventoryDocument $document): void {
+            if (empty($document->document_number)) {
+                $document->document_number = 'TMP-'.Str::uuid()->toString();
+            }
+        });
+
+        static::created(function (InventoryDocument $document): void {
+            if (empty($document->document_number) || str_starts_with((string) $document->document_number, 'TMP-')) {
+                $type = $document->document_type instanceof InventoryDocumentType
+                    ? $document->document_type
+                    : InventoryDocumentType::tryFrom((string) $document->document_type);
+
+                $prefix = $type?->prefix() ?? 'DOC';
+                $year = ($document->document_date ? Carbon::parse($document->document_date) : Carbon::now())->format('Y');
+
+                $document->forceFill([
+                    'document_number' => sprintf('DOC-%s-%s-%05d', $prefix, $year, $document->id),
+                ])->saveQuietly();
+            }
+        });
+
         static::deleting(function (InventoryDocument $document): void {
             if ($document->stockMovements()->exists()) {
-                throw new \LogicException('Cannot delete inventory document that has historical stock movements.');
+                throw new LogicException('Cannot delete inventory document that has historical stock movements.');
             }
         });
     }

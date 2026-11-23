@@ -1011,4 +1011,38 @@ class PurchaseInvoiceTest extends TestCase
         $this->assertEquals(10.0, (float) $listResponse->json('data.0.items_sum_discount_amount'));
         $this->assertEquals(15.0, (float) $listResponse->json('data.0.discount_amount'));
     }
+
+    public function test_purchase_invoice_rejects_zero_unit_price_on_create_and_update(): void
+    {
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+        $today = now()->toDateString();
+
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+
+        $created = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
+            ],
+        ])->assertCreated();
+
+        $this->putJson('/api/purchase-invoices/'.$created->json('data.id'), [
+            'supplier_id' => $supplier->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+    }
 }

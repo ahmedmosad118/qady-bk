@@ -12,7 +12,7 @@
       <HeaderArea class="print:hidden" @toggle-sidebar="sidebarOpen = !sidebarOpen" />
 
       <!-- Page Content -->
-      <main class="grow p-3 sm:p-4 md:p-6 print:p-0">
+      <main class="grow p-3 sm:px-4 sm:py-3 md:px-5 md:py-4 print:p-0">
         <router-view />
       </main>
     </div>

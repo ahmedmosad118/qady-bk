@@ -58,11 +58,9 @@ class ExpenseService
                 $expenseDate = Carbon::parse((string) $data['expense_date']);
 
                 $calc = $this->calculateTotals($data['items'] ?? []);
-                $expenseNumber = $this->numberService->generateExpenseNumber($expenseDate);
 
                 /** @var Expense $expense */
                 $expense = Expense::query()->create([
-                    'expense_number' => $expenseNumber,
                     'expense_category_id' => $category->id,
                     'contact_id' => $contactId,
                     'expense_date' => $expenseDate->toDateString(),

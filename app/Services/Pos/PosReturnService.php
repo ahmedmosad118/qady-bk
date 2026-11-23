@@ -300,11 +300,8 @@ class PosReturnService
                 }
 
                 // 8. Create Goods Receipt document and bulk-insert its items, then post it
-                $docNumber = $this->invDocNumberService->generate(InventoryDocumentType::GOODS_RECEIPT);
-
                 /** @var InventoryDocument $invDoc */
                 $invDoc = InventoryDocument::query()->create([
-                    'document_number' => $docNumber,
                     'document_type' => InventoryDocumentType::GOODS_RECEIPT,
                     'referenceable_type' => 'pos_return',
                     'referenceable_id' => $posReturn->id,

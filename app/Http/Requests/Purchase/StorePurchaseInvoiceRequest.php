@@ -74,7 +74,7 @@ class StorePurchaseInvoiceRequest extends FormRequest
                 Rule::exists('products', 'id')->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at')),
             ],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.unit_price' => ['required', 'numeric', 'gt:0'],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(DiscountType::values())],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
 

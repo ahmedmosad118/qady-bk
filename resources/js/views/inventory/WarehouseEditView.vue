@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-4xl space-y-6">
+  <div class="mx-auto max-w-4xl space-y-4">
     <!-- Header -->
     <PageHeader :title="$t('warehouses.editWarehouse')" :subtitle="$t('warehouses.subtitle')">
       <template #actions>

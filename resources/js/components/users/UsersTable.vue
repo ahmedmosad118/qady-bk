@@ -88,7 +88,7 @@
       <table class="w-full min-w-[520px] table-auto text-start">
         <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
           <tr>
-            <th scope="col" class="w-12 px-4 py-3.5">
+            <th scope="col" class="w-12 px-4 py-3.5 text-start">
               <AppCheckbox
                 :checked="allSelected"
                 :indeterminate="someSelected && !allSelected"

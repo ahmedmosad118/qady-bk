@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Page Header -->
     <PageHeader
       :title="$t('pos.shiftsPage.title')"

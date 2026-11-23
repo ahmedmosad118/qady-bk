@@ -405,7 +405,6 @@ class PosSaleService
         $now = Carbon::now();
 
         $document = InventoryDocument::query()->create([
-            'document_number' => $this->invDocNumberService->generate(InventoryDocumentType::GOODS_DELIVERY),
             'document_type' => InventoryDocumentType::GOODS_DELIVERY,
             'referenceable_type' => 'pos_sale',
             'referenceable_id' => $sale->id,

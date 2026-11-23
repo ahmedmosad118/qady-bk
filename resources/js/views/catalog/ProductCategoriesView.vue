@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Page header -->
     <PageHeader :title="$t('productCategories.title')" :subtitle="$t('productCategories.subtitle')">
       <template #actions>
@@ -115,7 +115,7 @@
         <table class="w-full min-w-[680px] table-auto text-start">
           <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
             <tr>
-              <th scope="col" class="w-12 px-4 py-3.5">
+              <th scope="col" class="w-12 px-4 py-3.5 text-start">
                 <AppCheckbox
                   :checked="allFilteredSelected"
                   :indeterminate="someFilteredSelected && !allFilteredSelected"
@@ -168,18 +168,6 @@
                     class="h-4 w-4 shrink-0 border-b border-s border-[var(--border)]"
                     aria-hidden="true"
                   ></span>
-                  <span
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                    :class="
-                      category.level === 0
-                        ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
-                        : 'bg-[var(--bg)] text-[var(--muted)]'
-                    "
-                    aria-hidden="true"
-                  >
-                    <FolderTree v-if="category.level === 0" class="h-4 w-4" />
-                    <CornerDownLeft v-else class="h-4 w-4 rtl:rotate-180" />
-                  </span>
                   <span class="truncate text-sm font-bold text-[var(--text)]">{{ category.name }}</span>
                 </div>
               </td>
@@ -309,7 +297,6 @@ import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
   ChevronDown,
-  CornerDownLeft,
   FolderTree,
   Pencil,
   Plus,

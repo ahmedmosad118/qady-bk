@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Page header -->
     <PageHeader :title="$t('users.title')" :subtitle="$t('users.subtitle')">
       <template #actions>
