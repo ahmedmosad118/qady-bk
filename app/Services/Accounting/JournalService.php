@@ -37,12 +37,22 @@ class JournalService
             $code = trim((string) $data['code']);
             $this->assertUniqueCode($code);
 
-            return $this->repository->create([
-                'code' => $code,
-                'name' => trim((string) $data['name']),
-                'type' => JournalType::from((string) $data['type'])->value,
-                'is_active' => (bool) ($data['is_active'] ?? true),
-            ]);
+            try {
+                return $this->repository->create([
+                    'code' => $code,
+                    'name' => trim((string) $data['name']),
+                    'type' => JournalType::from((string) $data['type'])->value,
+                    'is_active' => (bool) ($data['is_active'] ?? true),
+                ]);
+            } catch (QueryException $e) {
+                if ($this->isUniqueConstraintException($e)) {
+                    throw ValidationException::withMessages([
+                        'code' => [(string) __('accounting.errors.journal_code_duplicate')],
+                    ]);
+                }
+
+                throw $e;
+            }
         });
     }
 
@@ -62,12 +72,22 @@ class JournalService
                 $this->assertUniqueCode($code, $locked->id);
             }
 
-            return $this->repository->update($locked, [
-                'code' => $code,
-                'name' => trim((string) ($data['name'] ?? $locked->name)),
-                'type' => isset($data['type']) ? JournalType::from((string) $data['type'])->value : $locked->type->value,
-                'is_active' => (bool) ($data['is_active'] ?? $locked->is_active),
-            ]);
+            try {
+                return $this->repository->update($locked, [
+                    'code' => $code,
+                    'name' => trim((string) ($data['name'] ?? $locked->name)),
+                    'type' => isset($data['type']) ? JournalType::from((string) $data['type'])->value : $locked->type->value,
+                    'is_active' => (bool) ($data['is_active'] ?? $locked->is_active),
+                ]);
+            } catch (QueryException $e) {
+                if ($this->isUniqueConstraintException($e)) {
+                    throw ValidationException::withMessages([
+                        'code' => [(string) __('accounting.errors.journal_code_duplicate')],
+                    ]);
+                }
+
+                throw $e;
+            }
         });
     }
 
@@ -107,6 +127,16 @@ class JournalService
                 'code' => [(string) __('accounting.errors.journal_code_duplicate')],
             ]);
         }
+    }
+
+    private function isUniqueConstraintException(QueryException $e): bool
+    {
+        $sqlState = (string) ($e->errorInfo[0] ?? '');
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+        $message = mb_strtolower($e->getMessage());
+
+        return $driverCode === 1062
+            || ($sqlState === '23000' && (str_contains($message, 'unique') || str_contains($message, 'duplicate')));
     }
 
     private function isForeignKeyConstraintException(QueryException $e): bool

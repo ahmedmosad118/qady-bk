@@ -2940,6 +2940,9 @@ export default {
     loadError: 'Unable to load journals.',
     createdSuccess: 'Journal created successfully.',
     updatedSuccess: 'Journal updated successfully.',
+    deletedSuccess: 'Journal deleted successfully.',
+    confirmDeleteTitle: 'Delete Journal',
+    confirmDeleteText: 'Are you sure you want to delete journal "{name}" ({code})?',
     types: {
       Sales: 'Sales',
       Purchase: 'Purchase',
@@ -2968,6 +2971,10 @@ export default {
     loadError: 'Unable to load fiscal years.',
     createdSuccess: 'Fiscal year created successfully.',
     updatedSuccess: 'Fiscal year updated successfully.',
+    deletedSuccess: 'Fiscal year deleted successfully.',
+    confirmDeleteTitle: 'Delete Fiscal Year',
+    confirmDeleteText: 'Are you sure you want to delete fiscal year "{name}" ({code})?',
+    noPeriodsInYear: 'No accounting periods recorded for this fiscal year.',
     statuses: {
       draft: 'Draft',
       open: 'Open',
@@ -2994,6 +3001,10 @@ export default {
     loadError: 'Unable to load accounting periods.',
     createdSuccess: 'Accounting period created successfully.',
     updatedSuccess: 'Accounting period updated successfully.',
+    deletedSuccess: 'Accounting period deleted successfully.',
+    confirmDeleteTitle: 'Delete Accounting Period',
+    confirmDeleteText: 'Are you sure you want to delete period "{name}"?',
+    closedImmutableHint: 'A closed accounting period cannot be modified or deleted.',
     statuses: {
       open: 'Open',
       closed: 'Closed',

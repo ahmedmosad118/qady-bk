@@ -128,15 +128,26 @@
                 </span>
               </td>
               <td class="px-5 py-3.5 text-end">
-                <button
-                  type="button"
-                  :title="selectedFiscalYear.status === 'closed' ? $t('fiscalYears.closedImmutableHint') : $t('common.edit')"
-                  :disabled="selectedFiscalYear.status === 'closed'"
-                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:opacity-40 cursor-pointer"
-                  @click="openEdit(period)"
-                >
-                  <Pencil class="h-4 w-4" />
-                </button>
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    :title="period.status === 'closed' ? $t('accountingPeriods.closedImmutableHint') : $t('common.edit')"
+                    :disabled="selectedFiscalYear.status === 'closed' || period.status === 'closed'"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:opacity-40 cursor-pointer"
+                    @click="openEdit(period)"
+                  >
+                    <Pencil class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    :title="period.status === 'closed' ? $t('accountingPeriods.closedImmutableHint') : $t('common.delete')"
+                    :disabled="selectedFiscalYear.status === 'closed' || period.status === 'closed'"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] disabled:opacity-40 cursor-pointer"
+                    @click="handleDelete(period)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -215,18 +226,11 @@
 
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">
-                {{ $t('common.status') }} <span class="text-[var(--crimson)]">*</span>
+                {{ $t('common.status') }}
               </label>
-              <select
-                v-model="form.status"
-                required
-                :disabled="saving"
-                class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)]"
-              >
-                <option value="open">{{ $t('accountingPeriods.statuses.open') }}</option>
-                <option value="closed">{{ $t('accountingPeriods.statuses.closed') }}</option>
-              </select>
-              <p v-if="errors.status" class="mt-1 text-xs font-semibold text-[var(--crimson)]">{{ errors.status[0] }}</p>
+              <div class="flex h-10 items-center rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                {{ $t('accountingPeriods.statuses.open') }}
+              </div>
             </div>
           </div>
 
@@ -303,14 +307,15 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, CalendarDays, ChevronLeft, Pencil, Plus, X } from 'lucide-vue-next';
+import { AlertCircle, CalendarDays, ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import {
   createAccountingPeriod,
+  deleteAccountingPeriod,
   fetchAccountingPeriods,
   fetchFiscalYears,
   updateAccountingPeriod,
 } from '../../services/accountingApi';
-import { showError, showSuccess } from '../../services/alert';
+import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { formatDate } from '../../utils/date';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import PaginationBar from '../../components/ui/PaginationBar.vue';
@@ -466,6 +471,24 @@ async function submitForm() {
     showError({ title: t('common.error'), text: firstMsg });
   } finally {
     saving.value = false;
+  }
+}
+
+async function handleDelete(period) {
+  const confirmed = await confirmDelete({
+    title: t('accountingPeriods.confirmDeleteTitle'),
+    text: t('accountingPeriods.confirmDeleteText', { name: period.name }),
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await deleteAccountingPeriod(period.id);
+    showSuccess({ title: t('common.successTitle'), text: t('accountingPeriods.deletedSuccess') });
+    await loadPeriods(meta.current_page);
+  } catch (err) {
+    const firstErr = Object.values(err.response?.data?.errors || {})[0]?.[0];
+    showError({ title: t('common.error'), text: firstErr || err.response?.data?.message || t('common.errorTitle') });
   }
 }
 

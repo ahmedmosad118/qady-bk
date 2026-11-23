@@ -61,13 +61,23 @@ class FiscalYearService
                     ]);
                 }
 
-                return $this->repository->create([
-                    'code' => $code,
-                    'name' => trim((string) $data['name']),
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'status' => $status->value,
-                ])->loadCount('accountingPeriods');
+                try {
+                    return $this->repository->create([
+                        'code' => $code,
+                        'name' => trim((string) $data['name']),
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                        'status' => $status->value,
+                    ])->loadCount('accountingPeriods');
+                } catch (QueryException $e) {
+                    if ($this->isUniqueConstraintException($e)) {
+                        throw ValidationException::withMessages([
+                            'code' => [(string) __('accounting.errors.fiscal_year_code_duplicate')],
+                        ]);
+                    }
+
+                    throw $e;
+                }
             });
         });
     }
@@ -110,13 +120,23 @@ class FiscalYearService
                     $this->assertCanClose($locked->id);
                 }
 
-                return $this->repository->update($locked, [
-                    'code' => $code,
-                    'name' => trim((string) ($data['name'] ?? $locked->name)),
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'status' => $status->value,
-                ])->loadCount('accountingPeriods');
+                try {
+                    return $this->repository->update($locked, [
+                        'code' => $code,
+                        'name' => trim((string) ($data['name'] ?? $locked->name)),
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                        'status' => $status->value,
+                    ])->loadCount('accountingPeriods');
+                } catch (QueryException $e) {
+                    if ($this->isUniqueConstraintException($e)) {
+                        throw ValidationException::withMessages([
+                            'code' => [(string) __('accounting.errors.fiscal_year_code_duplicate')],
+                        ]);
+                    }
+
+                    throw $e;
+                }
             });
         });
     }
@@ -269,6 +289,16 @@ class FiscalYearService
                 'status' => [(string) __('accounting.errors.fiscal_year_close_requires_closed_periods')],
             ]);
         }
+    }
+
+    private function isUniqueConstraintException(QueryException $e): bool
+    {
+        $sqlState = (string) ($e->errorInfo[0] ?? '');
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+        $message = mb_strtolower($e->getMessage());
+
+        return $driverCode === 1062
+            || ($sqlState === '23000' && (str_contains($message, 'unique') || str_contains($message, 'duplicate')));
     }
 
     private function isForeignKeyConstraintException(QueryException $e): bool

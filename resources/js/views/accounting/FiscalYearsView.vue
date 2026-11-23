@@ -138,6 +138,15 @@
                   >
                     <Pencil class="h-4 w-4" />
                   </button>
+                  <button
+                    type="button"
+                    :title="$t('common.delete')"
+                    :disabled="fy.status === 'closed' || (fy.accounting_periods_count ?? 0) > 0"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] disabled:opacity-40 cursor-pointer"
+                    @click="handleDelete(fy)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
                 </div>
               </td>
             </tr>
@@ -197,6 +206,29 @@
             <span class="text-xs font-bold text-[var(--muted)]">{{ $t('fiscalYears.periodsCount') }}</span>
             <span class="text-sm font-extrabold text-[var(--text)]">{{ detailsFy.accounting_periods_count ?? 0 }}</span>
           </div>
+
+          <div v-if="detailsLoading" class="py-4 text-center text-xs text-[var(--muted)]">
+            {{ $t('common.loading') }}
+          </div>
+          <div v-else-if="(detailsFy.accounting_periods || []).length > 0" class="max-h-48 overflow-y-auto rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
+            <div
+              v-for="p in detailsFy.accounting_periods"
+              :key="p.id"
+              class="flex items-center justify-between px-3.5 py-2 text-xs"
+            >
+              <div>
+                <span class="font-mono font-bold text-[var(--text)]">#{{ p.period_number }}</span>
+                <span class="ms-2 font-bold text-[var(--text)]">{{ p.name }}</span>
+                <span class="ms-2 text-[var(--muted)]">({{ formatDate(p.start_date) }} — {{ formatDate(p.end_date) }})</span>
+              </div>
+              <span class="font-bold" :class="p.status === 'open' ? 'text-emerald-600' : 'text-rose-600'">
+                {{ $t(`accountingPeriods.statuses.${p.status}`) }}
+              </span>
+            </div>
+          </div>
+          <p v-else class="text-center text-xs text-[var(--muted)]">
+            {{ $t('fiscalYears.noPeriodsInYear') }}
+          </p>
 
           <div class="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
             <router-link
@@ -339,9 +371,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, CalendarRange, ChevronLeft, Eye, Pencil, Plus, X } from 'lucide-vue-next';
-import { createFiscalYear, fetchFiscalYears, updateFiscalYear } from '../../services/accountingApi';
-import { showError, showSuccess } from '../../services/alert';
+import { AlertCircle, CalendarRange, ChevronLeft, Eye, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
+import { createFiscalYear, deleteFiscalYear, fetchFiscalYear, fetchFiscalYears, updateFiscalYear } from '../../services/accountingApi';
+import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { formatDate } from '../../utils/date';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
@@ -354,6 +386,7 @@ const fiscalYears = ref([]);
 const loading = ref(false);
 const loadError = ref('');
 const detailsFy = ref(null);
+const detailsLoading = ref(false);
 const filters = reactive({
   search: '',
   status: '',
@@ -419,8 +452,35 @@ function resetFilters() {
   loadFiscalYears(1);
 }
 
-function openDetails(fy) {
+async function openDetails(fy) {
   detailsFy.value = fy;
+  detailsLoading.value = true;
+  try {
+    const res = await fetchFiscalYear(fy.id);
+    detailsFy.value = res.data?.data || fy;
+  } catch (err) {
+    showError({ title: t('common.error'), text: err.response?.data?.message || t('fiscalYears.loadError') });
+  } finally {
+    detailsLoading.value = false;
+  }
+}
+
+async function handleDelete(fy) {
+  const confirmed = await confirmDelete({
+    title: t('fiscalYears.confirmDeleteTitle'),
+    text: t('fiscalYears.confirmDeleteText', { name: fy.name, code: fy.code }),
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await deleteFiscalYear(fy.id);
+    showSuccess({ title: t('common.successTitle'), text: t('fiscalYears.deletedSuccess') });
+    await loadFiscalYears(meta.current_page);
+  } catch (err) {
+    const firstErr = Object.values(err.response?.data?.errors || {})[0]?.[0];
+    showError({ title: t('common.error'), text: firstErr || err.response?.data?.message || t('common.errorTitle') });
+  }
 }
 
 function openCreate() {

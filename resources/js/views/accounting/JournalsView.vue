@@ -137,6 +137,14 @@
                   >
                     <Pencil class="h-4 w-4" />
                   </button>
+                  <button
+                    type="button"
+                    :title="$t('common.delete')"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] cursor-pointer"
+                    @click="handleDelete(journal)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
                 </div>
               </td>
             </tr>
@@ -257,9 +265,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, BookOpen, ChevronLeft, Pencil, Plus, X } from 'lucide-vue-next';
-import { createJournal, fetchJournals, updateJournal } from '../../services/accountingApi';
-import { showError, showSuccess } from '../../services/alert';
+import { AlertCircle, BookOpen, ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
+import { createJournal, deleteJournal, fetchJournals, updateJournal } from '../../services/accountingApi';
+import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PaginationBar from '../../components/ui/PaginationBar.vue';
@@ -369,6 +377,24 @@ async function toggleActive(journal) {
     showError({ title: t('common.error'), text: err.response?.data?.message || t('common.errorTitle') });
   } finally {
     togglingId.value = null;
+  }
+}
+
+async function handleDelete(journal) {
+  const confirmed = await confirmDelete({
+    title: t('journals.confirmDeleteTitle'),
+    text: t('journals.confirmDeleteText', { name: journal.name, code: journal.code }),
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await deleteJournal(journal.id);
+    showSuccess({ title: t('common.successTitle'), text: t('journals.deletedSuccess') });
+    await loadJournals(meta.current_page);
+  } catch (err) {
+    const firstErr = Object.values(err.response?.data?.errors || {})[0]?.[0];
+    showError({ title: t('common.error'), text: firstErr || err.response?.data?.message || t('common.errorTitle') });
   }
 }
 

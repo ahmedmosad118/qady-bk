@@ -2940,6 +2940,9 @@ export default {
     loadError: 'تعذر تحميل دفاتر اليومية.',
     createdSuccess: 'تم إنشاء دفتر اليومية بنجاح.',
     updatedSuccess: 'تم تحديث دفتر اليومية بنجاح.',
+    deletedSuccess: 'تم حذف دفتر اليومية بنجاح.',
+    confirmDeleteTitle: 'حذف دفتر اليومية',
+    confirmDeleteText: 'هل أنت متأكد من حذف دفتر اليومية "{name}" ({code})؟',
     types: {
       Sales: 'المبيعات',
       Purchase: 'المشتريات',
@@ -2968,6 +2971,10 @@ export default {
     loadError: 'تعذر تحميل السنوات المالية.',
     createdSuccess: 'تم إنشاء السنة المالية بنجاح.',
     updatedSuccess: 'تم تحديث السنة المالية بنجاح.',
+    deletedSuccess: 'تم حذف السنة المالية بنجاح.',
+    confirmDeleteTitle: 'حذف السنة المالية',
+    confirmDeleteText: 'هل أنت متأكد من حذف السنة المالية "{name}" ({code})؟',
+    noPeriodsInYear: 'لا توجد فترات محاسبية مسجلة لهذه السنة المالية.',
     statuses: {
       draft: 'مسودة',
       open: 'مفتوحة',
@@ -2994,6 +3001,10 @@ export default {
     loadError: 'تعذر تحميل الفترات المحاسبية.',
     createdSuccess: 'تم إنشاء الفترة المحاسبية بنجاح.',
     updatedSuccess: 'تم تحديث الفترة المحاسبية بنجاح.',
+    deletedSuccess: 'تم حذف الفترة المحاسبية بنجاح.',
+    confirmDeleteTitle: 'حذف الفترة المحاسبية',
+    confirmDeleteText: 'هل أنت متأكد من حذف الفترة "{name}"؟',
+    closedImmutableHint: 'لا يمكن تعديل أو حذف فترة محاسبية مغلقة.',
     statuses: {
       open: 'مفتوحة',
       closed: 'مغلقة',

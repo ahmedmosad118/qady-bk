@@ -12,6 +12,10 @@ export function updateJournal(id, payload) {
   return api.put(`/accounting/journals/${id}`, payload);
 }
 
+export function deleteJournal(id) {
+  return api.delete(`/accounting/journals/${id}`);
+}
+
 export function fetchFiscalYears(params = {}) {
   return api.get('/accounting/fiscal-years', { params });
 }
@@ -28,6 +32,10 @@ export function updateFiscalYear(id, payload) {
   return api.put(`/accounting/fiscal-years/${id}`, payload);
 }
 
+export function deleteFiscalYear(id) {
+  return api.delete(`/accounting/fiscal-years/${id}`);
+}
+
 export function fetchAccountingPeriods(params = {}) {
   return api.get('/accounting/accounting-periods', { params });
 }
@@ -38,4 +46,8 @@ export function createAccountingPeriod(payload) {
 
 export function updateAccountingPeriod(id, payload) {
   return api.put(`/accounting/accounting-periods/${id}`, payload);
+}
+
+export function deleteAccountingPeriod(id) {
+  return api.delete(`/accounting/accounting-periods/${id}`);
 }

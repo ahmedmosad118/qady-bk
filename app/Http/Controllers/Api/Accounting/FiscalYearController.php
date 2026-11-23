@@ -56,7 +56,9 @@ class FiscalYearController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $fiscalYear->loadCount('accountingPeriods'),
+            'data' => $fiscalYear
+                ->loadCount('accountingPeriods')
+                ->load(['accountingPeriods' => static fn ($q) => $q->orderBy('period_number')]),
         ]);
     }
 
