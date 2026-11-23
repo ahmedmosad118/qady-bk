@@ -8,6 +8,7 @@ use App\Enums\Accounting\JournalType;
 use App\Models\Journal;
 use App\Repositories\JournalRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -70,13 +71,26 @@ class JournalService
         });
     }
 
+    /**
+     * Safely delete an unused journal without cascading dependent records.
+     */
     public function delete(Journal $journal): bool
     {
         return DB::transaction(function () use ($journal): bool {
             /** @var Journal $locked */
             $locked = Journal::query()->lockForUpdate()->findOrFail($journal->id);
 
-            return $this->repository->delete($locked);
+            try {
+                return $this->repository->delete($locked);
+            } catch (QueryException $e) {
+                if ($this->isForeignKeyConstraintException($e)) {
+                    throw ValidationException::withMessages([
+                        'journal' => [(string) __('accounting.errors.journal_in_use')],
+                    ]);
+                }
+
+                throw $e;
+            }
         });
     }
 
@@ -93,5 +107,13 @@ class JournalService
                 'code' => [(string) __('accounting.errors.journal_code_duplicate')],
             ]);
         }
+    }
+
+    private function isForeignKeyConstraintException(QueryException $e): bool
+    {
+        $sqlState = (string) ($e->errorInfo[0] ?? '');
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+        return $sqlState === '23000' || $driverCode === 1451 || str_contains(mb_strtolower($e->getMessage()), 'foreign key constraint');
     }
 }

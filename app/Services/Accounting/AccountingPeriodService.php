@@ -10,6 +10,7 @@ use App\Models\AccountingPeriod;
 use App\Models\FiscalYear;
 use App\Repositories\AccountingPeriodRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,13 +29,20 @@ class AccountingPeriodService
     }
 
     /**
-     * Create a new accounting period within a fiscal year without overlapping dates.
+     * Create an open accounting period within an open/draft fiscal year.
+     * Lock ordering: FiscalYear first, then AccountingPeriod checks.
      *
      * @param  array<string, mixed>  $data
      */
-    public function create(array $data, ?int $userId = null): AccountingPeriod
+    public function create(array $data): AccountingPeriod
     {
-        return DB::transaction(function () use ($data, $userId): AccountingPeriod {
+        return DB::transaction(function () use ($data): AccountingPeriod {
+            if (isset($data['status']) && (string) $data['status'] !== AccountingPeriodStatus::Open->value) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.period_closing_not_allowed_in_crud')],
+                ]);
+            }
+
             $fiscalYear = $this->lockOpenFiscalYear((int) $data['fiscal_year_id']);
             $periodNumber = (int) $data['period_number'];
             $startDate = (string) $data['start_date'];
@@ -44,63 +52,104 @@ class AccountingPeriodService
             $this->assertUniquePeriodNumber($fiscalYear->id, $periodNumber);
             $this->assertNoOverlap($fiscalYear->id, $startDate, $endDate);
 
-            $status = isset($data['status'])
-                ? AccountingPeriodStatus::from((string) $data['status'])
-                : AccountingPeriodStatus::Open;
-
             return $this->repository->create([
                 'fiscal_year_id' => $fiscalYear->id,
                 'name' => trim((string) $data['name']),
                 'period_number' => $periodNumber,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'status' => $status->value,
-                ...$this->resolveClosureFields($status, null, $userId),
+                'status' => AccountingPeriodStatus::Open->value,
+                'closed_at' => null,
+                'closed_by' => null,
             ])->load(['fiscalYear:id,code,name,start_date,end_date,status', 'closedBy:id,name']);
         });
     }
 
     /**
-     * Update an existing accounting period while enforcing fiscal year bounds and non-overlap.
+     * Update an open accounting period. Closed periods and status transitions to closed are rejected.
+     * Lock ordering: FiscalYear(s) in ascending ID order first, then AccountingPeriod.
      *
      * @param  array<string, mixed>  $data
      */
-    public function update(AccountingPeriod $period, array $data, ?int $userId = null): AccountingPeriod
+    public function update(AccountingPeriod $period, array $data): AccountingPeriod
     {
-        return DB::transaction(function () use ($period, $data, $userId): AccountingPeriod {
+        return DB::transaction(function () use ($period, $data): AccountingPeriod {
+            if (isset($data['status']) && (string) $data['status'] !== AccountingPeriodStatus::Open->value) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.period_closing_not_allowed_in_crud')],
+                ]);
+            }
+
+            $currentFiscalYearId = (int) AccountingPeriod::query()
+                ->whereKey($period->id)
+                ->value('fiscal_year_id');
+
+            if ($currentFiscalYearId <= 0) {
+                AccountingPeriod::query()->findOrFail($period->id);
+            }
+
+            $targetFiscalYearId = (int) ($data['fiscal_year_id'] ?? $currentFiscalYearId);
+
+            // Lock FiscalYear(s) in deterministic ascending ID order before locking AccountingPeriod.
+            $fiscalYearsToLock = array_values(array_unique([$currentFiscalYearId, $targetFiscalYearId]));
+            sort($fiscalYearsToLock);
+
+            $targetFiscalYear = null;
+            foreach ($fiscalYearsToLock as $fyId) {
+                $lockedFy = $this->lockOpenFiscalYear($fyId);
+                if ($fyId === $targetFiscalYearId) {
+                    $targetFiscalYear = $lockedFy;
+                }
+            }
+
             /** @var AccountingPeriod $locked */
             $locked = AccountingPeriod::query()->lockForUpdate()->findOrFail($period->id);
-            $fiscalYear = $this->lockOpenFiscalYear((int) ($data['fiscal_year_id'] ?? $locked->fiscal_year_id));
 
+            if ($locked->status === AccountingPeriodStatus::Closed) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.period_closed_immutable')],
+                ]);
+            }
+
+            /** @var FiscalYear $targetFiscalYear */
             $periodNumber = (int) ($data['period_number'] ?? $locked->period_number);
             $startDate = (string) ($data['start_date'] ?? $locked->start_date->toDateString());
             $endDate = (string) ($data['end_date'] ?? $locked->end_date->toDateString());
-            $status = isset($data['status'])
-                ? AccountingPeriodStatus::from((string) $data['status'])
-                : $locked->status;
 
-            $this->assertValidDates($fiscalYear, $startDate, $endDate);
-            $this->assertUniquePeriodNumber($fiscalYear->id, $periodNumber, $locked->id);
-            $this->assertNoOverlap($fiscalYear->id, $startDate, $endDate, $locked->id);
+            $this->assertValidDates($targetFiscalYear, $startDate, $endDate);
+            $this->assertUniquePeriodNumber($targetFiscalYear->id, $periodNumber, $locked->id);
+            $this->assertNoOverlap($targetFiscalYear->id, $startDate, $endDate, $locked->id);
 
             return $this->repository->update($locked, [
-                'fiscal_year_id' => $fiscalYear->id,
+                'fiscal_year_id' => $targetFiscalYear->id,
                 'name' => trim((string) ($data['name'] ?? $locked->name)),
                 'period_number' => $periodNumber,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'status' => $status->value,
-                ...$this->resolveClosureFields($status, $locked, $userId),
+                'status' => AccountingPeriodStatus::Open->value,
             ])->load(['fiscalYear:id,code,name,start_date,end_date,status', 'closedBy:id,name']);
         });
     }
 
+    /**
+     * Safely delete an unused open accounting period.
+     * Lock ordering: FiscalYear first, then AccountingPeriod.
+     */
     public function delete(AccountingPeriod $period): bool
     {
         return DB::transaction(function () use ($period): bool {
+            $fiscalYearId = (int) AccountingPeriod::query()
+                ->whereKey($period->id)
+                ->value('fiscal_year_id');
+
+            if ($fiscalYearId <= 0) {
+                AccountingPeriod::query()->findOrFail($period->id);
+            }
+
+            $this->lockOpenFiscalYear($fiscalYearId);
+
             /** @var AccountingPeriod $locked */
             $locked = AccountingPeriod::query()->lockForUpdate()->findOrFail($period->id);
-            $this->lockOpenFiscalYear($locked->fiscal_year_id);
 
             if ($locked->status === AccountingPeriodStatus::Closed) {
                 throw ValidationException::withMessages([
@@ -108,7 +157,17 @@ class AccountingPeriodService
                 ]);
             }
 
-            return $this->repository->delete($locked);
+            try {
+                return $this->repository->delete($locked);
+            } catch (QueryException $e) {
+                if ($this->isForeignKeyConstraintException($e)) {
+                    throw ValidationException::withMessages([
+                        'accounting_period' => [(string) __('accounting.errors.period_in_use')],
+                    ]);
+                }
+
+                throw $e;
+            }
         });
     }
 
@@ -124,22 +183,6 @@ class AccountingPeriodService
         }
 
         return $fiscalYear;
-    }
-
-    /**
-     * @return array{closed_at: mixed, closed_by: ?int}
-     */
-    private function resolveClosureFields(AccountingPeriodStatus $targetStatus, ?AccountingPeriod $existing, ?int $userId): array
-    {
-        if ($targetStatus === AccountingPeriodStatus::Open) {
-            return ['closed_at' => null, 'closed_by' => null];
-        }
-
-        if ($existing && $existing->status === AccountingPeriodStatus::Closed) {
-            return ['closed_at' => $existing->closed_at, 'closed_by' => $existing->closed_by];
-        }
-
-        return ['closed_at' => now(), 'closed_by' => $userId];
     }
 
     private function assertValidDates(FiscalYear $fiscalYear, string $startDate, string $endDate): void
@@ -188,5 +231,13 @@ class AccountingPeriodService
                 'start_date' => [(string) __('accounting.errors.period_overlap')],
             ]);
         }
+    }
+
+    private function isForeignKeyConstraintException(QueryException $e): bool
+    {
+        $sqlState = (string) ($e->errorInfo[0] ?? '');
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+        return $sqlState === '23000' || $driverCode === 1451 || str_contains(mb_strtolower($e->getMessage()), 'foreign key constraint');
     }
 }

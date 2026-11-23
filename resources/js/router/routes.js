@@ -26,6 +26,9 @@ import ExpensesView from '../views/expenses/ExpensesView.vue';
 import ExpenseCategoriesView from '../views/expenses/ExpenseCategoriesView.vue';
 import ChartOfAccountsView from '../views/accounting/ChartOfAccountsView.vue';
 import PaymentMethodsView from '../views/accounting/PaymentMethodsView.vue';
+import JournalsView from '../views/accounting/JournalsView.vue';
+import FiscalYearsView from '../views/accounting/FiscalYearsView.vue';
+import AccountingPeriodsView from '../views/accounting/AccountingPeriodsView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
@@ -218,6 +221,24 @@ const routes = [
         name: 'accounting.accounts',
         component: ChartOfAccountsView,
         meta: { titleKey: 'nav.chartOfAccounts', permission: 'accounting.accounts.view' },
+      },
+      {
+        path: 'accounting/journals',
+        name: 'accounting.journals',
+        component: JournalsView,
+        meta: { titleKey: 'nav.journals' },
+      },
+      {
+        path: 'accounting/fiscal-years',
+        name: 'accounting.fiscalYears',
+        component: FiscalYearsView,
+        meta: { titleKey: 'nav.fiscalYears' },
+      },
+      {
+        path: 'accounting/accounting-periods',
+        name: 'accounting.periods',
+        component: AccountingPeriodsView,
+        meta: { titleKey: 'nav.accountingPeriods' },
       },
       {
         path: 'accounting/payment-methods',

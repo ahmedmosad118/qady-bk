@@ -33,7 +33,7 @@ class StoreAccountingPeriodRequest extends FormRequest
             'period_number' => ['required', 'integer', 'min:1', 'max:65535'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'status' => ['sometimes', Rule::enum(AccountingPeriodStatus::class)],
+            'status' => ['sometimes', Rule::in([AccountingPeriodStatus::Open->value])],
         ];
     }
 

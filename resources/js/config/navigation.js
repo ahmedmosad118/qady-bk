@@ -117,6 +117,9 @@ export const navigation = [
       {
         items: [
           { label: 'nav.chartOfAccounts', to: '/accounting/accounts', permission: 'accounting.accounts.view' },
+          { label: 'nav.journals', to: '/accounting/journals' },
+          { label: 'nav.fiscalYears', to: '/accounting/fiscal-years' },
+          { label: 'nav.accountingPeriods', to: '/accounting/accounting-periods' },
           { label: 'nav.paymentMethods', to: '/accounting/payment-methods', permission: 'accounting.settings.view' },
         ],
       },

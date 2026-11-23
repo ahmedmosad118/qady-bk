@@ -44,7 +44,7 @@ class AccountingPeriodController extends Controller
 
     public function store(StoreAccountingPeriodRequest $request): JsonResponse
     {
-        $period = $this->accountingPeriodService->create($request->validated(), $request->user()?->id);
+        $period = $this->accountingPeriodService->create($request->validated());
 
         return response()->json([
             'success' => true,
@@ -63,7 +63,7 @@ class AccountingPeriodController extends Controller
 
     public function update(UpdateAccountingPeriodRequest $request, AccountingPeriod $accountingPeriod): JsonResponse
     {
-        $updated = $this->accountingPeriodService->update($accountingPeriod, $request->validated(), $request->user()?->id);
+        $updated = $this->accountingPeriodService->update($accountingPeriod, $request->validated());
 
         return response()->json([
             'success' => true,
