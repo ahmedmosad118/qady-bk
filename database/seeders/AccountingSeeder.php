@@ -25,6 +25,8 @@ class AccountingSeeder extends Seeder
             $this->seedAccountTypes($classesByCode);
             $this->seedJournals();
         });
+
+        $this->call(AccountSeeder::class);
     }
 
     /**

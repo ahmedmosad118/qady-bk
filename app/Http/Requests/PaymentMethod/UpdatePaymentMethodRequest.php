@@ -30,7 +30,7 @@ class UpdatePaymentMethodRequest extends FormRequest
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'type' => ['sometimes', 'required', Rule::enum(PaymentMethodType::class)],
-            'chart_of_account_id' => ['sometimes', 'required', 'integer', Rule::exists('chart_of_accounts', 'id')],
+            'account_id' => ['sometimes', 'required', 'integer', Rule::exists('accounts', 'id')],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

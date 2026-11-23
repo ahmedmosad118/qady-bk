@@ -25,7 +25,7 @@ import PurchaseInvoicesView from '../views/purchases/PurchaseInvoicesView.vue';
 import ExpensesView from '../views/expenses/ExpensesView.vue';
 import ExpenseCategoriesView from '../views/expenses/ExpenseCategoriesView.vue';
 import ChartOfAccountsView from '../views/accounting/ChartOfAccountsView.vue';
-import AccountingSettingsView from '../views/accounting/AccountingSettingsView.vue';
+import PaymentMethodsView from '../views/accounting/PaymentMethodsView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
@@ -220,10 +220,10 @@ const routes = [
         meta: { titleKey: 'nav.chartOfAccounts', permission: 'accounting.accounts.view' },
       },
       {
-        path: 'accounting/settings',
-        name: 'accounting.settings',
-        component: AccountingSettingsView,
-        meta: { titleKey: 'nav.accountingSettings', permission: 'accounting.settings.view' },
+        path: 'accounting/payment-methods',
+        name: 'accounting.paymentMethods',
+        component: PaymentMethodsView,
+        meta: { titleKey: 'nav.paymentMethods', permission: 'accounting.settings.view' },
       },
     ],
   },

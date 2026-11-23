@@ -117,7 +117,7 @@ export const navigation = [
       {
         items: [
           { label: 'nav.chartOfAccounts', to: '/accounting/accounts', permission: 'accounting.accounts.view' },
-          { label: 'nav.accountingSettings', to: '/accounting/settings', permission: 'accounting.settings.view' },
+          { label: 'nav.paymentMethods', to: '/accounting/payment-methods', permission: 'accounting.settings.view' },
         ],
       },
     ],

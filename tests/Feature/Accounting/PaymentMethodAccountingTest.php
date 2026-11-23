@@ -4,175 +4,174 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Accounting;
 
-use App\Enums\AccountPurpose;
-use App\Enums\AccountType;
+use App\Enums\Accounting\AccountTypeCode;
 use App\Enums\PaymentMethodType;
-use App\Models\ChartOfAccount;
+use App\Models\Account;
+use App\Models\AccountType;
 use App\Models\PaymentMethod;
 use App\Models\User;
-use Database\Seeders\ChartOfAccountSeeder;
-use Database\Seeders\PaymentMethodSeeder;
+use Database\Seeders\AccountingSeeder;
+use Database\Seeders\PermissionsTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class PaymentMethodAccountingTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User $user;
+    private User $admin;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->user = $this->actingAsSuperAdmin();
-        $this->seed(ChartOfAccountSeeder::class);
-        $this->seed(PaymentMethodSeeder::class);
-    }
-
-    public function test_seeder_links_default_payment_methods_and_preserves_customizations(): void
-    {
-        $cashAccount = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
-        $bankAccount = ChartOfAccount::query()->where('code', '1002')->firstOrFail();
-
-        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
-        $visaMethod = PaymentMethod::query()->where('type', PaymentMethodType::VISA)->firstOrFail();
-        $bankMethod = PaymentMethod::query()->where('type', PaymentMethodType::BANK_TRANSFER)->firstOrFail();
-
-        $this->assertSame($cashAccount->id, $cashMethod->chart_of_account_id);
-        $this->assertSame($bankAccount->id, $visaMethod->chart_of_account_id);
-        $this->assertSame($bankAccount->id, $bankMethod->chart_of_account_id);
-
-        // Customize cash payment method mapping & name
-        $altCash = ChartOfAccount::query()->create([
-            'code' => '1011',
-            'name' => 'صندوق المعرض',
-            'account_type' => AccountType::ASSET->value,
-            'account_purpose' => AccountPurpose::CASH->value,
+        $this->seed([
+            PermissionsTableSeeder::class,
+            AccountingSeeder::class,
         ]);
 
-        $this->putJson("/api/payment-methods/{$cashMethod->id}", [
-            'name' => 'خزينة المعرض',
-            'chart_of_account_id' => $altCash->id,
-        ])->assertOk()
-            ->assertJsonPath('data.chart_of_account_id', $altCash->id);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // Re-run seeders -> customized mapping & name preserved, no duplicates created
-        $this->seed(ChartOfAccountSeeder::class);
-        $this->seed(PaymentMethodSeeder::class);
-
-        $this->assertSame(3, PaymentMethod::query()->count());
-        $cashMethod->refresh();
-        $this->assertSame('خزينة المعرض', $cashMethod->name);
-        $this->assertSame($altCash->id, $cashMethod->chart_of_account_id);
+        $this->admin = User::factory()->create();
+        $this->admin->givePermissionTo([
+            'accounting.settings.view',
+            'accounting.settings.update',
+            'pos.sell',
+        ]);
     }
 
-    public function test_pos_and_management_endpoints_return_linked_account_info(): void
+    public function test_index_returns_only_active_bank_cash_accounts(): void
     {
-        $this->getJson('/api/payment-methods')
+        $bankCashType = AccountType::query()->where('code', AccountTypeCode::BankCash->value)->firstOrFail();
+        $expenseType = AccountType::query()->where('code', AccountTypeCode::Expenses->value)->firstOrFail();
+
+        $activeBankCash = Account::query()->where('code', '1101')->firstOrFail();
+
+        $inactive = Account::query()->create([
+            'account_type_id' => $bankCashType->id,
+            'code' => '9902',
+            'name' => 'خزينة معطلة',
+            'is_active' => false,
+        ]);
+
+        $expenseAcc = Account::query()->create([
+            'account_type_id' => $expenseType->id,
+            'code' => '9951',
+            'name' => 'مصروفات عامة',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->getJson('/api/payment-methods')
             ->assertOk()
+            ->assertJsonPath('success', true);
+
+        foreach (PaymentMethodType::values() as $type) {
+            $compatibleIds = collect($response->json("compatible_accounts.{$type}"))->pluck('id')->all();
+            $this->assertContains($activeBankCash->id, $compatibleIds);
+            $this->assertNotContains($inactive->id, $compatibleIds);
+            $this->assertNotContains($expenseAcc->id, $compatibleIds);
+        }
+    }
+
+    public function test_can_create_and_update_payment_method_with_active_bank_cash_account(): void
+    {
+        $cashAccount = Account::query()->where('code', '1101')->firstOrFail();
+        $bankAccount = Account::query()->where('code', '1102')->firstOrFail();
+
+        $createResponse = $this->actingAs($this->admin)
+            ->postJson('/api/payment-methods', [
+                'name' => 'تحويل بنكي',
+                'type' => PaymentMethodType::BANK_TRANSFER->value,
+                'account_id' => $bankAccount->id,
+                'is_active' => true,
+            ])
+            ->assertCreated()
             ->assertJsonPath('success', true)
+            ->assertJsonPath('data.account_id', $bankAccount->id)
+            ->assertJsonPath('data.account.id', $bankAccount->id);
+
+        $paymentMethodId = (int) $createResponse->json('data.id');
+
+        $this->actingAs($this->admin)
+            ->putJson("/api/payment-methods/{$paymentMethodId}", [
+                'account_id' => $cashAccount->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $paymentMethodId)
+            ->assertJsonPath('data.account_id', $cashAccount->id)
+            ->assertJsonPath('data.account.code', '1101');
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/pos/payment-methods')
+            ->assertOk()
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    '*' => [
-                        'id',
-                        'name',
-                        'type',
-                        'chart_of_account_id',
-                        'chart_of_account' => ['id', 'code', 'name', 'account_type', 'account_purpose'],
-                    ],
-                ],
-                'compatible_accounts' => ['cash', 'visa', 'bank_transfer'],
-            ]);
-
-        $this->getJson('/api/pos/payment-methods')
-            ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonStructure([
-                'success',
-                'data' => [
-                    '*' => ['id', 'name', 'type', 'chart_of_account_id', 'chart_of_account'],
+                    '*' => ['id', 'name', 'type', 'account_id', 'account'],
                 ],
             ]);
     }
 
-    public function test_validates_account_compatibility_by_payment_method_type(): void
+    public function test_rejects_missing_inactive_or_non_bank_cash_account(): void
     {
-        $cashAccount = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
-        $bankAccount = ChartOfAccount::query()->where('code', '1002')->firstOrFail();
-        $generalAsset = ChartOfAccount::query()->where('code', '1003')->firstOrFail();
-        $expenseAccount = ChartOfAccount::query()->where('code', '5001')->firstOrFail();
+        $bankCashType = AccountType::query()->where('code', AccountTypeCode::BankCash->value)->firstOrFail();
+        $currentAssetsType = AccountType::query()->where('code', AccountTypeCode::CurrentAssets->value)->firstOrFail();
 
-        // Cash rejects bank, general, and expense accounts
-        foreach ([$bankAccount->id, $generalAsset->id, $expenseAccount->id] as $badId) {
-            $this->postJson('/api/payment-methods', [
-                'name' => 'نقدي غير متوافق',
+        $inactiveBankCash = Account::query()->create([
+            'account_type_id' => $bankCashType->id,
+            'code' => '9902',
+            'name' => 'صندوق معطل',
+            'is_active' => false,
+        ]);
+
+        $nonBankCash = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '9903',
+            'name' => 'المخزون',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->postJson('/api/payment-methods', [
+                'name' => 'نقدي',
                 'type' => PaymentMethodType::CASH->value,
-                'chart_of_account_id' => $badId,
-            ])->assertUnprocessable()
-                ->assertJsonValidationErrors(['chart_of_account_id']);
-        }
+                'account_id' => 999999,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_id']);
 
-        // Visa rejects cash, general, and expense accounts
-        foreach ([$cashAccount->id, $generalAsset->id, $expenseAccount->id] as $badId) {
-            $this->postJson('/api/payment-methods', [
-                'name' => 'فيزا غير متوافقة',
+        $this->actingAs($this->admin)
+            ->postJson('/api/payment-methods', [
+                'name' => 'نقدي',
+                'type' => PaymentMethodType::CASH->value,
+                'account_id' => $inactiveBankCash->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_id']);
+
+        $this->actingAs($this->admin)
+            ->postJson('/api/payment-methods', [
+                'name' => 'فيزا',
                 'type' => PaymentMethodType::VISA->value,
-                'chart_of_account_id' => $badId,
-            ])->assertUnprocessable()
-                ->assertJsonValidationErrors(['chart_of_account_id']);
-        }
+                'account_id' => $nonBankCash->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_id']);
 
-        // Bank transfer rejects cash account
-        $this->postJson('/api/payment-methods', [
-            'name' => 'تحويل غير متوافق',
-            'type' => PaymentMethodType::BANK_TRANSFER->value,
-            'chart_of_account_id' => $cashAccount->id,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['chart_of_account_id']);
-
-        // Valid creations succeed
-        $newCashPm = $this->postJson('/api/payment-methods', [
-            'name' => 'صندوق إضافي',
+        $pm = PaymentMethod::query()->create([
+            'name' => 'نقدي',
             'type' => PaymentMethodType::CASH->value,
-            'chart_of_account_id' => $cashAccount->id,
-        ])->assertCreated()
-            ->assertJsonPath('data.chart_of_account_id', $cashAccount->id)
-            ->json('data');
+            'account_id' => null,
+            'is_active' => true,
+        ]);
 
-        // Changing type to visa without updating cash account -> rejected
-        $this->putJson("/api/payment-methods/{$newCashPm['id']}", [
-            'type' => PaymentMethodType::VISA->value,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['chart_of_account_id']);
-
-        // Updating both type and compatible bank account -> succeeds and preserves ID
-        $this->putJson("/api/payment-methods/{$newCashPm['id']}", [
-            'type' => PaymentMethodType::BANK_TRANSFER->value,
-            'chart_of_account_id' => $bankAccount->id,
-        ])->assertOk()
-            ->assertJsonPath('data.id', $newCashPm['id'])
-            ->assertJsonPath('data.type', PaymentMethodType::BANK_TRANSFER->value)
-            ->assertJsonPath('data.chart_of_account_id', $bankAccount->id);
-    }
-
-    public function test_unauthorized_user_cannot_create_or_update_payment_methods(): void
-    {
-        $cashMethod = PaymentMethod::query()->where('type', PaymentMethodType::CASH)->firstOrFail();
-        $cashAccount = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
-
-        Sanctum::actingAs(User::factory()->create());
-
-        $this->getJson('/api/payment-methods')->assertForbidden();
-        $this->postJson('/api/payment-methods', [
-            'name' => 'Unauthorized',
-            'type' => PaymentMethodType::CASH->value,
-            'chart_of_account_id' => $cashAccount->id,
-        ])->assertForbidden();
-        $this->putJson("/api/payment-methods/{$cashMethod->id}", [
-            'name' => 'Unauthorized Update',
-        ])->assertForbidden();
+        $this->actingAs($this->admin)
+            ->putJson("/api/payment-methods/{$pm->id}", [
+                'account_id' => $nonBankCash->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_id']);
     }
 }

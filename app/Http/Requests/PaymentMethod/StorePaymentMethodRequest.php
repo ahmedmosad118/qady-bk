@@ -30,7 +30,7 @@ class StorePaymentMethodRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(PaymentMethodType::class)],
-            'chart_of_account_id' => ['required', 'integer', Rule::exists('chart_of_accounts', 'id')],
+            'account_id' => ['required', 'integer', Rule::exists('accounts', 'id')],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

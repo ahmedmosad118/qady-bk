@@ -3,19 +3,11 @@
     <!-- Page Header -->
     <PageHeader :title="$t('chartOfAccounts.title')" :subtitle="$t('chartOfAccounts.subtitle')">
       <template #actions>
-        <router-link
-          to="/accounting/settings"
-          class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
-        >
-          <Settings2 class="h-[18px] w-[18px] text-[var(--muted)]" aria-hidden="true" />
-          <span>{{ $t('nav.accountingSettings') }}</span>
-        </router-link>
-
         <button
           v-if="canCreate"
           type="button"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
-          @click="openCreate"
+          @click="openCreateModal"
         >
           <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
           <span>{{ $t('chartOfAccounts.addAccount') }}</span>
@@ -25,281 +17,508 @@
 
     <!-- Error Banner -->
     <div
-      v-if="loadError"
-      class="flex flex-col gap-3 rounded-xl border border-[var(--crimson)]/25 bg-[var(--crimson-soft)] px-4 py-3 text-sm font-semibold text-[var(--crimson)] sm:flex-row sm:items-center sm:justify-between"
+      v-if="treeError"
+      class="flex items-center justify-between gap-4 rounded-2xl border border-[var(--crimson)]/30 bg-[var(--crimson-soft)] p-4 text-sm font-semibold text-[var(--crimson)]"
       role="alert"
     >
-      <span class="flex items-center gap-2">
-        <AlertCircle class="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-        {{ loadError }}
-      </span>
-      <button type="button" class="self-start underline underline-offset-4 sm:self-auto cursor-pointer" @click="loadAccounts(meta.current_page)">
+      <div class="flex items-center gap-2">
+        <AlertCircle class="h-5 w-5 shrink-0" />
+        <span>{{ treeError }}</span>
+      </div>
+      <button type="button" class="underline underline-offset-4 cursor-pointer" @click="loadTree">
         {{ $t('common.retry') }}
       </button>
     </div>
 
-    <!-- Main Card -->
-    <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <FilterToolbar
-        v-model:search="filters.search"
-        :search-placeholder="$t('chartOfAccounts.searchPlaceholder')"
-        :active-filters-count="activeFiltersCount"
-        @reset="resetFilters"
-      >
-        <div class="space-y-4">
-          <div>
-            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">
-              {{ $t('chartOfAccounts.accountType') }}
-            </label>
-            <div class="flex flex-wrap gap-2">
-              <FilterChip
-                :label="$t('common.all')"
-                :active="filters.account_type === ''"
-                @click="filters.account_type = ''"
-              />
-              <FilterChip
-                v-for="typeOpt in accountTypeOptions"
-                :key="typeOpt.value"
-                :label="typeOpt.label"
-                :active="filters.account_type === typeOpt.value"
-                @click="filters.account_type = typeOpt.value"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="mb-2 block text-xs font-bold text-[var(--muted)]">
-              {{ $t('chartOfAccounts.accountPurpose') }}
-            </label>
-            <div class="flex flex-wrap gap-2">
-              <FilterChip
-                :label="$t('common.all')"
-                :active="filters.account_purpose === ''"
-                @click="filters.account_purpose = ''"
-              />
-              <FilterChip
-                v-for="purposeOpt in accountPurposeOptions"
-                :key="purposeOpt.value"
-                :label="purposeOpt.label"
-                :active="filters.account_purpose === purposeOpt.value"
-                @click="filters.account_purpose = purposeOpt.value"
-              />
-            </div>
-          </div>
-        </div>
-      </FilterToolbar>
-
-      <!-- Account Type Quick Bar -->
-      <div class="flex flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--bg)]/50 px-4 py-2.5 sm:px-5">
-        <FilterChip
-          :label="$t('common.all')"
-          :active="filters.account_type === ''"
-          @click="filters.account_type = ''"
-        />
-        <FilterChip
-          v-for="typeOpt in accountTypeOptions"
-          :key="`bar-${typeOpt.value}`"
-          :label="typeOpt.label"
-          :active="filters.account_type === typeOpt.value"
-          @click="filters.account_type = typeOpt.value"
-        />
-      </div>
-
-      <!-- Bulk Actions -->
-      <BulkActionsBar
-        v-if="canDelete"
-        :count="selectedIds.length"
-        :loading="bulkDeleting"
-        @delete="deleteSelectedAccounts"
-        @clear="clearSelection"
-      />
-
-      <!-- Loading -->
-      <div v-if="loading && accounts.length === 0" class="p-12 text-center">
-        <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
-          <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
-          <span>{{ $t('common.loading') }}</span>
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div v-else-if="accounts.length === 0" class="flex flex-col items-center justify-center px-6 py-16 text-center">
-        <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
-          <Landmark class="h-7 w-7" />
-        </span>
-        <h2 class="mt-4 text-base font-extrabold text-[var(--text)]">{{ $t('chartOfAccounts.emptyTitle') }}</h2>
-        <p class="mt-1.5 max-w-sm text-sm text-[var(--muted)]">{{ $t('chartOfAccounts.emptyDesc') }}</p>
-      </div>
-
-      <!-- Five Account-Type Sections -->
-      <div v-else class="divide-y divide-[var(--border)]">
-        <section
-          v-for="group in visibleGroups"
-          :key="group.type"
-          class="bg-[var(--card)]"
-        >
-          <!-- Group Header -->
-          <div class="flex items-center justify-between gap-3 border-b border-[var(--border)]/70 bg-[var(--bg)]/70 px-4 py-3 sm:px-5">
-            <div class="flex items-center gap-2.5">
-              <AppCheckbox
-                v-if="canDelete"
-                :checked="isGroupAllSelected(group.items)"
-                :indeterminate="isGroupSomeSelected(group.items) && !isGroupAllSelected(group.items)"
-                :disabled="!group.items.some((acc) => acc.can_delete)"
-                :aria-label="$t('common.selectAll')"
-                @change="toggleGroupSelection(group.items)"
-              />
-              <span
-                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
-                :class="typeBadgeClass(group.type)"
+    <!-- File Explorer Layout -->
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <!-- Sidebar Virtual Tree -->
+      <aside class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] lg:col-span-4 xl:col-span-3">
+        <div class="border-b border-[var(--border)] p-4 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-extrabold text-[var(--text)]">{{ $t('chartOfAccounts.treeTitle') }}</span>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                @click="expandAllClasses"
               >
-                {{ group.label }}
-              </span>
-              <span class="text-xs font-bold text-[var(--muted)]">
-                {{ $t('chartOfAccounts.sectionCount', { count: group.items.length }) }}
-              </span>
+                {{ $t('chartOfAccounts.expandAll') }}
+              </button>
+              <button
+                type="button"
+                class="rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                @click="collapseAllClasses"
+              >
+                {{ $t('chartOfAccounts.collapseAll') }}
+              </button>
             </div>
           </div>
 
-          <!-- Empty Group Notice (when a specific type filter is selected and empty, or all 5 shown) -->
-          <div v-if="group.items.length === 0" class="px-5 py-4 text-xs text-[var(--muted)]">
-            {{ $t('chartOfAccounts.noAccountsInSection') }}
+          <div class="relative">
+            <Search class="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              v-model="treeSearch"
+              type="text"
+              :placeholder="$t('chartOfAccounts.treeSearchPlaceholder')"
+              class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] ps-9 pe-3 text-xs font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)]"
+            />
           </div>
+        </div>
 
-          <!-- Accounts in Group -->
-          <div v-else class="divide-y divide-[var(--border)]/60">
+        <div v-if="treeLoading" class="p-8 text-center">
+          <div class="inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
+            <span>{{ $t('common.loading') }}</span>
+          </div>
+        </div>
+
+        <nav v-else class="max-h-[65vh] overflow-y-auto p-2 space-y-1">
+          <!-- Root node -->
+          <button
+            type="button"
+            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-start text-xs font-bold transition-colors cursor-pointer"
+            :class="!selectedClass && !selectedType
+              ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+              : 'text-[var(--text)] hover:bg-[var(--bg)]'"
+            @click="selectRoot"
+          >
+            <span class="flex items-center gap-2">
+              <Landmark class="h-4 w-4 shrink-0" />
+              <span>{{ $t('chartOfAccounts.rootLabel') }}</span>
+            </span>
+          </button>
+
+          <!-- Classes & Types -->
+          <div v-for="cls in filteredTree" :key="cls.id" class="space-y-0.5">
             <div
-              v-for="account in group.items"
-              :key="account.id"
-              class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors sm:px-5"
-              :class="isSelected(account) ? 'bg-[var(--crimson-soft)]' : 'hover:bg-[var(--bg)]/60'"
+              class="flex items-center gap-1 rounded-xl px-2 py-1.5 transition-colors"
+              :class="selectedClass?.id === cls.id && !selectedType
+                ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
+                : 'text-[var(--text)] hover:bg-[var(--bg)]'"
             >
-              <!-- Start: Checkbox, Icon, Code, Name, Description -->
-              <div class="flex min-w-0 flex-1 items-center gap-3">
-                <AppCheckbox
-                  v-if="canDelete"
-                  :checked="isSelected(account)"
-                  :disabled="!account.can_delete"
-                  :aria-label="$t('common.selectRow')"
-                  @change="toggleRow(account)"
-                />
-                <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--bg)] text-[var(--muted)]" aria-hidden="true">
-                  <FileText class="h-4 w-4" />
-                </span>
+              <button
+                type="button"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                @click.stop="toggleClassExpand(cls.id)"
+              >
+                <ChevronDown v-if="isClassExpanded(cls.id)" class="h-3.5 w-3.5" />
+                <ChevronLeft v-else class="h-3.5 w-3.5 rtl:rotate-0 ltr:rotate-180" />
+              </button>
 
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--text)]">
-                      {{ account.code }}
-                    </span>
-                    <span class="truncate text-sm font-bold text-[var(--text)]">
-                      {{ account.name }}
-                    </span>
-                  </div>
-                  <p v-if="account.description" class="mt-0.5 truncate text-xs text-[var(--muted)]">
-                    {{ account.description }}
-                  </p>
-                </div>
+              <button
+                type="button"
+                class="flex flex-1 items-center justify-between gap-2 text-start text-xs font-extrabold cursor-pointer"
+                @click="selectClass(cls)"
+              >
+                <span class="flex items-center gap-2 truncate">
+                  <FolderOpen v-if="isClassExpanded(cls.id)" class="h-4 w-4 shrink-0 text-[var(--crimson)]" />
+                  <Folder v-else class="h-4 w-4 shrink-0 text-[var(--muted)]" />
+                  <span class="truncate">{{ cls.name }}</span>
+                </span>
+                <span class="rounded-full bg-[var(--bg)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted)]">
+                  {{ cls.account_types.length }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Types inside Class -->
+            <div v-if="isClassExpanded(cls.id)" class="ms-5 space-y-0.5 border-s border-[var(--border)] ps-2">
+              <button
+                v-for="type in cls.account_types"
+                :key="type.id"
+                type="button"
+                class="flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-start text-xs font-semibold transition-colors cursor-pointer"
+                :class="selectedType?.id === type.id
+                  ? 'bg-[var(--crimson-soft)] text-[var(--crimson)] font-bold'
+                  : 'text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]'"
+                @click="selectType(cls, type)"
+              >
+                <span class="flex items-center gap-2 truncate">
+                  <Folder class="h-3.5 w-3.5 shrink-0" />
+                  <span class="truncate">{{ type.name }}</span>
+                </span>
+                <span class="rounded-full bg-[var(--bg)] px-1.5 py-0.5 text-[10px] font-bold">
+                  {{ type.accounts_count ?? 0 }}
+                </span>
+              </button>
+            </div>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Main Workspace -->
+      <section class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] lg:col-span-8 xl:col-span-9">
+        <!-- Breadcrumbs & Back Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3.5">
+          <div class="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+            <button
+              type="button"
+              class="text-[var(--muted)] hover:text-[var(--crimson)] cursor-pointer"
+              @click="selectRoot"
+            >
+              {{ $t('chartOfAccounts.rootLabel') }}
+            </button>
+
+            <template v-if="selectedClass">
+              <ChevronLeft class="h-3.5 w-3.5 text-[var(--muted)] rtl:rotate-0 ltr:rotate-180" />
+              <button
+                type="button"
+                class="hover:text-[var(--crimson)] cursor-pointer"
+                :class="selectedType ? 'text-[var(--muted)]' : 'text-[var(--text)]'"
+                @click="selectClass(selectedClass)"
+              >
+                {{ selectedClass.name }}
+              </button>
+            </template>
+
+            <template v-if="selectedType">
+              <ChevronLeft class="h-3.5 w-3.5 text-[var(--muted)] rtl:rotate-0 ltr:rotate-180" />
+              <button
+                type="button"
+                class="hover:text-[var(--crimson)] cursor-pointer"
+                :class="selectedAccount ? 'text-[var(--muted)]' : 'text-[var(--text)]'"
+                @click="selectType(selectedClass, selectedType)"
+              >
+                {{ selectedType.name }}
+              </button>
+            </template>
+
+            <template v-if="selectedAccount">
+              <ChevronLeft class="h-3.5 w-3.5 text-[var(--muted)] rtl:rotate-0 ltr:rotate-180" />
+              <span class="text-[var(--text)]">{{ selectedAccount.code }} — {{ selectedAccount.name }}</span>
+            </template>
+          </div>
+
+          <button
+            v-if="selectedClass || selectedType || selectedAccount"
+            type="button"
+            class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-xs font-bold text-[var(--text)] hover:border-[var(--crimson)]/40 cursor-pointer"
+            @click="goBack"
+          >
+            <ArrowRight class="h-3.5 w-3.5 rtl:rotate-0 ltr:rotate-180" />
+            <span>{{ $t('chartOfAccounts.backLevel') }}</span>
+          </button>
+        </div>
+
+        <!-- Level 3: Account Details View -->
+        <div v-if="selectedAccount" class="p-6 space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="rounded-lg bg-[var(--bg)] px-2.5 py-1 font-mono text-sm font-extrabold text-[var(--text)]">
+                  {{ selectedAccount.code }}
+                </span>
+                <h2 class="text-lg font-extrabold text-[var(--text)]">{{ selectedAccount.name }}</h2>
+                <span
+                  v-if="selectedAccount.is_system"
+                  class="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300"
+                >
+                  {{ $t('chartOfAccounts.systemBadge') }}
+                </span>
               </div>
+              <p class="text-xs text-[var(--muted)]">
+                {{ selectedAccount.account_type?.account_class?.name }} / {{ selectedAccount.account_type?.name }}
+              </p>
+            </div>
 
-              <!-- End: Purpose Badge, Linked Flags, Actions -->
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  v-if="account.account_purpose && account.account_purpose !== 'general'"
-                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                  :class="purposeBadgeClass(account.account_purpose)"
-                >
-                  {{ account.account_purpose_label }}
+            <button
+              v-if="canUpdate"
+              type="button"
+              class="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-xs font-bold text-white hover:bg-[var(--crimson-hover)] cursor-pointer"
+              @click="openEditModal(selectedAccount)"
+            >
+              <Pencil class="h-3.5 w-3.5" />
+              <span>{{ $t('chartOfAccounts.editAccount') }}</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div class="text-[11px] font-bold text-[var(--muted)]">{{ $t('chartOfAccounts.accountClass') }}</div>
+              <div class="mt-1 text-sm font-extrabold text-[var(--text)]">
+                {{ selectedAccount.account_type?.account_class?.name || '—' }}
+              </div>
+            </div>
+            <div class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div class="text-[11px] font-bold text-[var(--muted)]">{{ $t('chartOfAccounts.accountType') }}</div>
+              <div class="mt-1 text-sm font-extrabold text-[var(--text)]">
+                {{ selectedAccount.account_type?.name || '—' }}
+              </div>
+            </div>
+            <div class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div class="text-[11px] font-bold text-[var(--muted)]">{{ $t('chartOfAccounts.normalBalanceOverride') }}</div>
+              <div class="mt-1 text-sm font-extrabold text-[var(--text)]">
+                {{ formatNormalBalance(selectedAccount.normal_balance_override) }}
+              </div>
+            </div>
+            <div class="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div class="text-[11px] font-bold text-[var(--muted)]">{{ $t('chartOfAccounts.reconcile') }} / {{ $t('chartOfAccounts.isActive') }}</div>
+              <div class="mt-1 flex items-center gap-2">
+                <span class="text-xs font-bold text-[var(--text)]">
+                  {{ selectedAccount.reconcile ? $t('chartOfAccounts.reconcileYes') : $t('chartOfAccounts.reconcileNo') }}
                 </span>
-
+                <span class="text-[var(--muted)]">•</span>
                 <span
-                  v-if="account.is_linked_to_settings"
-                  class="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300"
-                  :title="$t('chartOfAccounts.linkedToSettings')"
+                  class="text-xs font-bold"
+                  :class="selectedAccount.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--muted)]'"
                 >
-                  <Settings2 class="h-3 w-3" />
-                  <span>{{ $t('chartOfAccounts.settingBadge') }}</span>
+                  {{ selectedAccount.is_active ? $t('common.active') : $t('common.inactive') }}
                 </span>
-
-                <span
-                  v-if="account.is_linked_to_payment_method"
-                  class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
-                  :title="$t('chartOfAccounts.linkedToPaymentMethod')"
-                >
-                  <CreditCard class="h-3 w-3" />
-                  <span>{{ $t('chartOfAccounts.paymentMethodBadge') }}</span>
-                </span>
-
-                <!-- Actions -->
-                <div class="ms-1 flex items-center gap-1">
-                  <button
-                    v-if="canUpdate"
-                    type="button"
-                    :title="$t('common.edit')"
-                    class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
-                    @click="openEdit(account)"
-                  >
-                    <Pencil class="h-4 w-4" />
-                  </button>
-
-                  <button
-                    v-if="canDelete"
-                    type="button"
-                    :disabled="!account.can_delete"
-                    :title="deleteDisabledReason(account) || $t('common.delete')"
-                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-                    :class="!account.can_delete
-                      ? 'cursor-not-allowed text-[var(--muted)]/35'
-                      : 'cursor-pointer text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)]'"
-                    @click="handleDelete(account)"
-                  >
-                    <Trash2 class="h-4 w-4" />
-                  </button>
-                </div>
               </div>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
 
-      <!-- Pagination -->
-      <PaginationBar :meta="meta" @change-page="loadAccounts" />
+        <!-- Level 2: Account Type -> Accounts Table -->
+        <div v-else-if="selectedType">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3">
+            <div class="relative w-full max-w-xs">
+              <Search class="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                v-model="accountSearch"
+                type="text"
+                :placeholder="$t('chartOfAccounts.searchPlaceholder')"
+                class="h-9 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] ps-9 pe-3 text-xs font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)]"
+                @input="debouncedLoadAccounts"
+              />
+            </div>
+
+            <span class="text-xs font-bold text-[var(--muted)]">
+              {{ $t('chartOfAccounts.sectionCount', { count: meta.total }) }}
+            </span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-start text-sm">
+              <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
+                <tr>
+                  <th class="px-5 py-3.5 text-start">{{ $t('chartOfAccounts.accountCode') }}</th>
+                  <th class="px-5 py-3.5 text-start">{{ $t('chartOfAccounts.accountName') }}</th>
+                  <th class="px-5 py-3.5 text-start">{{ $t('chartOfAccounts.normalBalanceOverride') }}</th>
+                  <th class="px-5 py-3.5 text-start">{{ $t('chartOfAccounts.reconcile') }}</th>
+                  <th class="px-5 py-3.5 text-start">{{ $t('chartOfAccounts.isActive') }}</th>
+                  <th class="px-5 py-3.5 text-end">{{ $t('common.actions') }}</th>
+                </tr>
+              </thead>
+
+              <tbody class="divide-y divide-[var(--border)]">
+                <tr v-if="accountsLoading">
+                  <td colspan="6" class="py-16 text-center">
+                    <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
+                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
+                      <span>{{ $t('common.loading') }}</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr v-else-if="accounts.length === 0">
+                  <td colspan="6" class="py-16 text-center">
+                    <div class="mx-auto flex max-w-sm flex-col items-center">
+                      <FileText class="h-10 w-10 text-[var(--muted)]/50" />
+                      <h3 class="mt-3 text-sm font-extrabold text-[var(--text)]">
+                        {{ $t('chartOfAccounts.emptyTitle') }}
+                      </h3>
+                      <p class="mt-1 text-xs text-[var(--muted)]">
+                        {{ $t('chartOfAccounts.noAccountsInSection') }}
+                      </p>
+                      <button
+                        v-if="canCreate"
+                        type="button"
+                        class="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 py-2 text-xs font-bold text-white hover:bg-[var(--crimson-hover)] cursor-pointer"
+                        @click="openCreateModal"
+                      >
+                        <Plus class="h-4 w-4" />
+                        <span>{{ $t('chartOfAccounts.addAccount') }}</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr
+                  v-for="acc in accounts"
+                  :key="acc.id"
+                  class="transition-colors hover:bg-[var(--bg)]/50"
+                >
+                  <td class="px-5 py-3.5 font-mono text-xs font-bold text-[var(--text)]">
+                    {{ acc.code }}
+                  </td>
+
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="font-bold text-[var(--text)] hover:text-[var(--crimson)] hover:underline text-start cursor-pointer"
+                        @click="selectAccount(acc)"
+                      >
+                        {{ acc.name }}
+                      </button>
+                      <span
+                        v-if="acc.is_system"
+                        class="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300"
+                      >
+                        {{ $t('chartOfAccounts.systemBadge') }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td class="px-5 py-3.5 text-xs font-semibold text-[var(--muted)]">
+                    {{ formatNormalBalance(acc.normal_balance_override) }}
+                  </td>
+
+                  <td class="px-5 py-3.5 text-xs font-semibold text-[var(--text)]">
+                    {{ acc.reconcile ? $t('chartOfAccounts.reconcileYes') : $t('chartOfAccounts.reconcileNo') }}
+                  </td>
+
+                  <td class="px-5 py-3.5">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+                      :class="acc.is_active
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-[var(--bg)] text-[var(--muted)]'"
+                    >
+                      {{ acc.is_active ? $t('common.active') : $t('common.inactive') }}
+                    </span>
+                  </td>
+
+                  <td class="px-5 py-3.5 text-end">
+                    <div class="flex items-center justify-end gap-1">
+                      <button
+                        v-if="canUpdate"
+                        type="button"
+                        :title="$t('common.edit')"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                        @click="openEditModal(acc)"
+                      >
+                        <Pencil class="h-4 w-4" />
+                      </button>
+                      <button
+                        v-if="canDelete"
+                        type="button"
+                        :title="acc.can_delete ? $t('common.delete') : $t('chartOfAccounts.cannotDeleteAccount')"
+                        :disabled="!acc.can_delete"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--crimson-soft)] hover:text-[var(--crimson)] disabled:opacity-40 cursor-pointer"
+                        @click="deleteAccount(acc)"
+                      >
+                        <Trash2 class="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <PaginationBar
+            v-if="meta.last_page > 1"
+            :current-page="meta.current_page"
+            :last-page="meta.last_page"
+            :total="meta.total"
+            :per-page="meta.per_page"
+            @page-change="loadAccounts"
+          />
+        </div>
+
+        <!-- Level 1: Account Class -> Account Type Folders -->
+        <div v-else-if="selectedClass" class="p-5">
+          <div
+            v-if="(selectedClass.account_types || []).length === 0"
+            class="py-16 text-center text-sm text-[var(--muted)]"
+          >
+            {{ $t('chartOfAccounts.noTypesInClass') }}
+          </div>
+
+          <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <button
+              v-for="type in selectedClass.account_types"
+              :key="type.id"
+              type="button"
+              class="group flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 text-start transition-all hover:border-[var(--crimson)]/50 hover:shadow-sm cursor-pointer"
+              @click="selectType(selectedClass, type)"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
+                  <Folder class="h-5 w-5" />
+                </div>
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-extrabold text-[var(--text)] group-hover:text-[var(--crimson)]">
+                    {{ type.name }}
+                  </div>
+                  <div class="mt-0.5 text-xs font-semibold text-[var(--muted)]">
+                    {{ $t('chartOfAccounts.sectionCount', { count: type.accounts_count ?? 0 }) }}
+                  </div>
+                </div>
+              </div>
+              <ChevronLeft class="h-4 w-4 shrink-0 text-[var(--muted)] rtl:rotate-0 ltr:rotate-180" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Level 0: Root -> Account Class Folders -->
+        <div v-else class="p-5">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <button
+              v-for="cls in tree"
+              :key="cls.id"
+              type="button"
+              class="group flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 text-start transition-all hover:border-[var(--crimson)]/50 hover:shadow-sm cursor-pointer"
+              @click="selectClass(cls)"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--crimson-soft)] text-[var(--crimson)]">
+                  <FolderOpen class="h-5 w-5" />
+                </div>
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-extrabold text-[var(--text)] group-hover:text-[var(--crimson)]">
+                    {{ cls.name }}
+                  </div>
+                  <div class="mt-0.5 text-xs font-semibold text-[var(--muted)]">
+                    {{ $t('chartOfAccounts.typesCount', { count: (cls.account_types || []).length }) }}
+                  </div>
+                </div>
+              </div>
+              <ChevronLeft class="h-4 w-4 shrink-0 text-[var(--muted)] rtl:rotate-0 ltr:rotate-180" />
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- Form Drawer -->
+    <!-- Add / Edit Account Modal -->
     <ChartOfAccountFormModal
       :open="modalOpen"
       :editing-account="editingAccount"
+      :default-account-type-id="selectedType?.id ?? null"
+      :account-classes="tree"
       @close="modalOpen = false"
-      @saved="handleSaved"
+      @saved="handleAccountSaved"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   AlertCircle,
-  CreditCard,
+  ArrowRight,
+  ChevronDown,
+  ChevronLeft,
   FileText,
+  Folder,
+  FolderOpen,
   Landmark,
   Pencil,
   Plus,
-  Settings2,
+  Search,
   Trash2,
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
-import AppCheckbox from '../../components/ui/AppCheckbox.vue';
-import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
-import FilterToolbar from '../../components/ui/FilterToolbar.vue';
-import FilterChip from '../../components/ui/FilterChip.vue';
 import PaginationBar from '../../components/ui/PaginationBar.vue';
 import ChartOfAccountFormModal from './ChartOfAccountFormModal.vue';
-import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -308,245 +527,244 @@ const canCreate = computed(() => authStore.hasPermission('accounting.accounts.cr
 const canUpdate = computed(() => authStore.hasPermission('accounting.accounts.update'));
 const canDelete = computed(() => authStore.hasPermission('accounting.accounts.delete'));
 
+const tree = ref([]);
+const treeLoading = ref(false);
+const treeError = ref('');
+const treeSearch = ref('');
+const expandedClassIds = ref([]);
+
+const selectedClass = ref(null);
+const selectedType = ref(null);
+const selectedAccount = ref(null);
+
 const accounts = ref([]);
+const accountsLoading = ref(false);
+const accountSearch = ref('');
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 50,
+  per_page: 15,
   total: 0,
-});
-const loading = ref(false);
-const loadError = ref('');
-
-const filters = reactive({
-  search: '',
-  account_type: '',
-  account_purpose: '',
 });
 
 const modalOpen = ref(false);
 const editingAccount = ref(null);
 
-const accountTypeOptions = computed(() => [
-  { value: 'asset', label: t('chartOfAccounts.types.asset') },
-  { value: 'liability', label: t('chartOfAccounts.types.liability') },
-  { value: 'equity', label: t('chartOfAccounts.types.equity') },
-  { value: 'revenue', label: t('chartOfAccounts.types.revenue') },
-  { value: 'expense', label: t('chartOfAccounts.types.expense') },
-]);
-
-const accountPurposeOptions = computed(() => [
-  { value: 'general', label: t('chartOfAccounts.purposes.general') },
-  { value: 'cash', label: t('chartOfAccounts.purposes.cash') },
-  { value: 'bank', label: t('chartOfAccounts.purposes.bank') },
-]);
-
-const activeFiltersCount = computed(() => {
-  let count = 0;
-  if (filters.account_type) count++;
-  if (filters.account_purpose) count++;
-  return count;
-});
-
-const visibleGroups = computed(() => {
-  const byType = new Map();
-  accountTypeOptions.value.forEach((opt) => {
-    byType.set(opt.value, []);
-  });
-
-  accounts.value.forEach((acc) => {
-    if (!byType.has(acc.account_type)) {
-      byType.set(acc.account_type, []);
-    }
-    byType.get(acc.account_type).push(acc);
-  });
-
-  return accountTypeOptions.value
-    .filter((opt) => !filters.account_type || filters.account_type === opt.value)
-    .map((opt) => ({
-      type: opt.value,
-      label: opt.label,
-      items: byType.get(opt.value) || [],
-    }));
-});
-
 let searchTimer = null;
 
-async function loadAccounts(page = 1) {
-  clearSelection();
-  loading.value = true;
-  loadError.value = '';
+const filteredTree = computed(() => {
+  const term = treeSearch.value.trim().toLowerCase();
+  if (!term) {
+    return tree.value;
+  }
+
+  return tree.value
+    .map((cls) => {
+      const classMatches = (cls.name || '').toLowerCase().includes(term);
+      const matchingTypes = (cls.account_types || []).filter((type) =>
+        (type.name || '').toLowerCase().includes(term)
+      );
+
+      if (classMatches) {
+        return cls;
+      }
+
+      if (matchingTypes.length > 0) {
+        return { ...cls, account_types: matchingTypes };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+});
+
+function isClassExpanded(classId) {
+  if (treeSearch.value.trim() !== '') {
+    return true;
+  }
+  return expandedClassIds.value.includes(classId);
+}
+
+function toggleClassExpand(classId) {
+  if (expandedClassIds.value.includes(classId)) {
+    expandedClassIds.value = expandedClassIds.value.filter((id) => id !== classId);
+  } else {
+    expandedClassIds.value = [...expandedClassIds.value, classId];
+  }
+}
+
+function expandAllClasses() {
+  expandedClassIds.value = tree.value.map((cls) => cls.id);
+}
+
+function collapseAllClasses() {
+  expandedClassIds.value = [];
+}
+
+function selectRoot() {
+  selectedClass.value = null;
+  selectedType.value = null;
+  selectedAccount.value = null;
+}
+
+function selectClass(cls) {
+  selectedClass.value = cls;
+  selectedType.value = null;
+  selectedAccount.value = null;
+  if (!expandedClassIds.value.includes(cls.id)) {
+    expandedClassIds.value = [...expandedClassIds.value, cls.id];
+  }
+}
+
+function selectType(cls, type) {
+  selectedClass.value = cls;
+  selectedType.value = type;
+  selectedAccount.value = null;
+  accountSearch.value = '';
+  if (!expandedClassIds.value.includes(cls.id)) {
+    expandedClassIds.value = [...expandedClassIds.value, cls.id];
+  }
+  loadAccounts(1);
+}
+
+function selectAccount(account) {
+  selectedAccount.value = account;
+}
+
+function goBack() {
+  if (selectedAccount.value) {
+    selectedAccount.value = null;
+    return;
+  }
+  if (selectedType.value) {
+    selectedType.value = null;
+    return;
+  }
+  if (selectedClass.value) {
+    selectedClass.value = null;
+  }
+}
+
+function formatNormalBalance(val) {
+  if (!val) {
+    return t('chartOfAccounts.normalBalanceDefault');
+  }
+  return t(`chartOfAccounts.normalBalances.${val}`);
+}
+
+async function loadTree() {
+  treeLoading.value = true;
+  treeError.value = '';
   try {
-    const params = {
-      page,
-      per_page: meta.per_page,
-    };
-    if (filters.search.trim()) params.search = filters.search.trim();
-    if (filters.account_type) params.account_type = filters.account_type;
-    if (filters.account_purpose) params.account_purpose = filters.account_purpose;
+    const res = await api.get('/accounting/accounts/tree');
+    tree.value = res.data?.data || [];
+    if (expandedClassIds.value.length === 0 && tree.value.length > 0) {
+      expandedClassIds.value = [tree.value[0].id];
+    }
 
-    const res = await api.get('/accounting/accounts', { params });
-    accounts.value = res.data.data || [];
-    Object.assign(meta, {
-      current_page: res.data.meta?.current_page ?? 1,
-      last_page: res.data.meta?.last_page ?? 1,
-      per_page: res.data.meta?.per_page ?? 50,
-      total: res.data.meta?.total ?? accounts.value.length,
-    });
+    if (selectedClass.value) {
+      const freshClass = tree.value.find((c) => c.id === selectedClass.value.id) || null;
+      selectedClass.value = freshClass;
+      if (freshClass && selectedType.value) {
+        selectedType.value = (freshClass.account_types || []).find((tp) => tp.id === selectedType.value.id) || null;
+      }
+    }
   } catch (err) {
-    loadError.value = err.response?.data?.message || t('chartOfAccounts.loadError');
+    treeError.value = err.response?.data?.message || t('chartOfAccounts.loadError');
   } finally {
-    loading.value = false;
+    treeLoading.value = false;
   }
 }
 
-watch(
-  () => filters.search,
-  () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => loadAccounts(1), 300);
+async function loadAccounts(page = 1) {
+  if (!selectedType.value) {
+    return;
   }
-);
 
-watch(
-  () => [filters.account_type, filters.account_purpose],
-  () => {
+  accountsLoading.value = true;
+  try {
+    const res = await api.get('/accounting/accounts', {
+      params: {
+        account_type_id: selectedType.value.id,
+        search: accountSearch.value.trim() || undefined,
+        page,
+        per_page: meta.per_page,
+      },
+    });
+
+    accounts.value = res.data?.data || [];
+    const resMeta = res.data?.meta || {};
+    meta.current_page = resMeta.current_page || 1;
+    meta.last_page = resMeta.last_page || 1;
+    meta.per_page = resMeta.per_page || 15;
+    meta.total = resMeta.total || 0;
+  } catch (err) {
+    showError({
+      title: t('common.error'),
+      text: err.response?.data?.message || t('chartOfAccounts.loadError'),
+    });
+  } finally {
+    accountsLoading.value = false;
+  }
+}
+
+function debouncedLoadAccounts() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
     loadAccounts(1);
-  }
-);
-
-function resetFilters() {
-  filters.search = '';
-  filters.account_type = '';
-  filters.account_purpose = '';
+  }, 300);
 }
 
-function typeBadgeClass(type) {
-  switch (type) {
-    case 'asset':
-      return 'bg-blue-500/10 text-blue-700 dark:text-blue-300';
-    case 'liability':
-      return 'bg-orange-500/10 text-orange-700 dark:text-orange-300';
-    case 'equity':
-      return 'bg-purple-500/10 text-purple-700 dark:text-purple-300';
-    case 'revenue':
-      return 'bg-teal-500/10 text-teal-700 dark:text-teal-300';
-    case 'expense':
-      return 'bg-rose-500/10 text-rose-700 dark:text-rose-300';
-    default:
-      return 'bg-[var(--bg)] text-[var(--muted)]';
-  }
-}
-
-function purposeBadgeClass(purpose) {
-  if (purpose === 'cash') return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
-  if (purpose === 'bank') return 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300';
-  return 'bg-[var(--bg)] text-[var(--muted)]';
-}
-
-function deleteDisabledReason(account) {
-  if (account.is_linked_to_settings) return t('chartOfAccounts.cannotDeleteSetting');
-  if (account.is_linked_to_payment_method) return t('chartOfAccounts.cannotDeletePaymentMethod');
-  return '';
-}
-
-function openCreate() {
+function openCreateModal() {
   editingAccount.value = null;
   modalOpen.value = true;
 }
 
-function openEdit(account) {
+function openEditModal(account) {
   editingAccount.value = account;
   modalOpen.value = true;
 }
 
-async function handleSaved() {
-  await loadAccounts(meta.current_page);
+async function handleAccountSaved(savedAccount) {
+  modalOpen.value = false;
+  await loadTree();
+
+  if (selectedAccount.value && savedAccount?.id === selectedAccount.value.id) {
+    selectedAccount.value = savedAccount;
+  }
+
+  if (selectedType.value) {
+    await loadAccounts(meta.current_page);
+  }
 }
 
-async function handleDelete(account) {
+async function deleteAccount(account) {
   const confirmed = await confirmDelete({
     title: t('chartOfAccounts.confirmDeleteTitle'),
     text: t('chartOfAccounts.confirmDeleteText', { name: account.name, code: account.code }),
   });
 
-  if (!confirmed) return;
-
-  try {
-    await api.delete(`/accounting/accounts/${account.id}`);
-    removeId(account.id);
-    showSuccess({ title: t('common.successTitle'), text: t('chartOfAccounts.deletedSuccess') });
-    await loadAccounts(meta.current_page);
-  } catch (err) {
-    const msg = err.response?.data?.errors?.account?.[0] || err.response?.data?.message || t('common.errorTitle');
-    showError({ title: t('common.error'), text: msg });
-  }
-}
-
-const bulkDeleting = ref(false);
-const {
-  selectedIds,
-  isSelected,
-  toggleRow,
-  clearSelection,
-  removeId,
-} = useBulkSelection(accounts, { canSelect: (account) => Boolean(account.can_delete) });
-
-function isGroupAllSelected(items) {
-  const deletable = (items || []).filter((acc) => acc.can_delete);
-  return deletable.length > 0 && deletable.every((acc) => selectedIds.value.includes(acc.id));
-}
-
-function isGroupSomeSelected(items) {
-  const deletable = (items || []).filter((acc) => acc.can_delete);
-  return deletable.some((acc) => selectedIds.value.includes(acc.id));
-}
-
-function toggleGroupSelection(items) {
-  const deletableIds = (items || []).filter((acc) => acc.can_delete).map((acc) => acc.id);
-  if (deletableIds.length === 0) return;
-
-  if (isGroupAllSelected(items)) {
-    selectedIds.value = selectedIds.value.filter((id) => !deletableIds.includes(id));
+  if (!confirmed) {
     return;
   }
 
-  selectedIds.value = Array.from(new Set([...selectedIds.value, ...deletableIds]));
-}
-
-async function deleteSelectedAccounts() {
-  if (!selectedIds.value.length || bulkDeleting.value) return;
-
-  const count = selectedIds.value.length;
-  const confirmed = await confirmDelete({
-    title: t('common.confirmBulkDeleteTitle'),
-    text: t('common.confirmBulkDeleteText', { count }),
-    confirmButtonText: t('common.confirmBulkDeleteBtn', { count }),
-    cancelButtonText: t('common.cancel'),
-  });
-  if (!confirmed) return;
-
-  bulkDeleting.value = true;
-  const { deletedCount, failedCount, firstErrorMessage } = await deleteRecordsSequentially(
-    [...selectedIds.value],
-    (id) => api.delete(`/accounting/accounts/${id}`)
-  );
-  bulkDeleting.value = false;
-
-  clearSelection();
-  await loadAccounts(meta.current_page);
-
-  if (deletedCount > 0 && failedCount === 0) {
-    showSuccess({ title: t('common.successTitle'), text: t('common.bulkDeleteSuccess', { count: deletedCount }) });
-  } else {
+  try {
+    await api.delete(`/accounting/accounts/${account.id}`);
+    showSuccess({
+      title: t('common.successTitle'),
+      text: t('chartOfAccounts.deletedSuccess'),
+    });
+    await loadTree();
+    await loadAccounts(meta.current_page);
+  } catch (err) {
     showError({
       title: t('common.error'),
-      text: firstErrorMessage || t('common.bulkDeletePartialError', { count: failedCount }),
+      text: err.response?.data?.message || t('common.errorTitle'),
     });
   }
 }
 
 onMounted(() => {
-  loadAccounts(1);
+  loadTree();
 });
 </script>

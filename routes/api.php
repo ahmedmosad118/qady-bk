@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\Api\Access\PermissionController;
 use App\Http\Controllers\Api\Access\RoleController;
+use App\Http\Controllers\Api\Accounting\AccountController;
 use App\Http\Controllers\Api\Accounting\AccountingSettingController;
-use App\Http\Controllers\Api\Accounting\ChartOfAccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
@@ -112,11 +112,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Chart of Accounts
     Route::prefix('accounting/accounts')->group(function () {
-        Route::get('/', [ChartOfAccountController::class, 'index']);
-        Route::post('/', [ChartOfAccountController::class, 'store']);
-        Route::get('/{account}', [ChartOfAccountController::class, 'show']);
-        Route::put('/{account}', [ChartOfAccountController::class, 'update']);
-        Route::delete('/{account}', [ChartOfAccountController::class, 'destroy']);
+        Route::get('/tree', [AccountController::class, 'tree']);
+        Route::get('/', [AccountController::class, 'index']);
+        Route::post('/', [AccountController::class, 'store']);
+        Route::get('/{account}', [AccountController::class, 'show']);
+        Route::put('/{account}', [AccountController::class, 'update']);
+        Route::delete('/{account}', [AccountController::class, 'destroy']);
     });
 
     // Payment Methods (Management & Account Linking)

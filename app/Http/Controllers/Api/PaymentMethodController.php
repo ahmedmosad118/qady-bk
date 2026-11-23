@@ -67,7 +67,7 @@ class PaymentMethodController extends Controller implements HasMiddleware
 
         return response()->json([
             'success' => true,
-            'data' => $paymentMethod->load('chartOfAccount:id,code,name,account_type,account_purpose'),
+            'data' => $paymentMethod->load('account:id,code,name,account_type_id,is_active'),
         ]);
     }
 
