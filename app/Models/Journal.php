@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Accounting\JournalType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -21,6 +22,7 @@ class Journal extends Model
     protected function casts(): array
     {
         return [
+            'type' => JournalType::class,
             'is_active' => 'boolean',
         ];
     }

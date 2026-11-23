@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Accounting\NormalBalance;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,7 @@ class Account extends Model
     {
         return [
             'account_type_id' => 'integer',
+            'normal_balance_override' => NormalBalance::class,
             'reconcile' => 'boolean',
             'is_active' => 'boolean',
             'is_system' => 'boolean',

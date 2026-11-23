@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Accounting\AccountingPeriodStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,6 +31,7 @@ class AccountingPeriod extends Model
             'period_number' => 'integer',
             'start_date' => 'date',
             'end_date' => 'date',
+            'status' => AccountingPeriodStatus::class,
             'closed_at' => 'datetime',
             'closed_by' => 'integer',
         ];

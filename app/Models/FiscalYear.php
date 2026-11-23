@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Accounting\FiscalYearStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,6 +26,7 @@ class FiscalYear extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'status' => FiscalYearStatus::class,
         ];
     }
 
