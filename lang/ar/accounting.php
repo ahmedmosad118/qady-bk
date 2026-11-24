@@ -117,6 +117,8 @@ return [
         'journal_entry_posted_immutable' => 'لا يمكن تعديل قيد يومية مرحل.',
         'journal_entry_posted_cannot_delete' => 'لا يمكن حذف قيد يومية مرحل.',
         'journal_entry_unbalanced' => 'يجب أن يتساوى إجمالي المدين مع إجمالي الدائن في قيد اليومية.',
+        'journal_entry_fiscal_year_not_open' => 'يجب أن تكون السنة المالية موجودة وفي حالة مفتوحة.',
+        'journal_entry_line_invalid' => 'بيانات سطر القيد غير صالحة.',
     ],
 
     'settings' => [

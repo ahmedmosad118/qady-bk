@@ -334,8 +334,8 @@ class JournalEntryService
         }
 
         $fiscalYear = FiscalYear::query()->find($fiscalYearId);
-        if ($fiscalYear === null || $fiscalYear->status === FiscalYearStatus::Closed) {
-            $errors['fiscal_year_id'] = [(string) __('accounting.errors.journal_entry_fiscal_year_closed')];
+        if ($fiscalYear === null || $fiscalYear->status !== FiscalYearStatus::Open) {
+            $errors['fiscal_year_id'] = [(string) __('accounting.errors.journal_entry_fiscal_year_not_open')];
         } elseif ($entryDate < $fiscalYear->start_date->toDateString() || $entryDate > $fiscalYear->end_date->toDateString()) {
             $errors['entry_date'] = [(string) __('accounting.errors.journal_entry_date_outside_fiscal_year')];
         }
@@ -373,7 +373,16 @@ class JournalEntryService
         }
 
         $accountIds = array_values(array_unique(array_filter(array_map(
-            static fn (mixed $line): int => is_array($line) ? (int) ($line['account_id'] ?? 0) : 0,
+            static function (mixed $line): int {
+                if (! is_array($line)) {
+                    return 0;
+                }
+
+                $rawId = $line['account_id'] ?? null;
+                $validId = is_bool($rawId) ? false : filter_var($rawId, FILTER_VALIDATE_INT);
+
+                return ($validId !== false && $validId > 0) ? (int) $validId : 0;
+            },
             $rawLines,
         ))));
 
@@ -390,16 +399,26 @@ class JournalEntryService
 
         foreach (array_values($rawLines) as $index => $line) {
             if (! is_array($line)) {
+                $errors["lines.{$index}"] = [(string) __('accounting.errors.journal_entry_line_invalid')];
+
                 continue;
             }
 
-            $accountId = (int) ($line['account_id'] ?? 0);
-            $account = $accounts->get($accountId);
+            $rawAccountId = $line['account_id'] ?? null;
+            $validatedAccountId = is_bool($rawAccountId) ? false : filter_var($rawAccountId, FILTER_VALIDATE_INT);
 
-            if ($account === null) {
+            if ($validatedAccountId === false || $validatedAccountId <= 0) {
                 $errors["lines.{$index}.account_id"] = [(string) __('accounting.errors.journal_entry_account_not_found')];
-            } elseif (! $account->is_active) {
-                $errors["lines.{$index}.account_id"] = [(string) __('accounting.errors.journal_entry_account_inactive')];
+                $accountId = 0;
+            } else {
+                $accountId = (int) $validatedAccountId;
+                $account = $accounts->get($accountId);
+
+                if ($account === null) {
+                    $errors["lines.{$index}.account_id"] = [(string) __('accounting.errors.journal_entry_account_not_found')];
+                } elseif (! $account->is_active) {
+                    $errors["lines.{$index}.account_id"] = [(string) __('accounting.errors.journal_entry_account_inactive')];
+                }
             }
 
             $debit = Decimal::fromNumeric($line['debit'] ?? 0, Decimal::MONEY_SCALE);

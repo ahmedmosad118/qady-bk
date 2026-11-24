@@ -17,6 +17,7 @@ use App\Services\Accounting\JournalEntryService;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -311,6 +312,64 @@ class JournalEntryCrudTest extends TestCase
             ->postJson('/api/accounting/journal-entries', $this->validPayload())
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['fiscal_year_id']);
+    }
+
+    public function test_rejects_draft_fiscal_year_on_create_and_update(): void
+    {
+        $entry = app(JournalEntryService::class)->create($this->validPayload(), $this->user);
+
+        $this->fiscalYear->update(['status' => FiscalYearStatus::Draft]);
+
+        $this->actingAs($this->user)
+            ->postJson('/api/accounting/journal-entries', $this->validPayload())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['fiscal_year_id']);
+
+        $this->actingAs($this->user)
+            ->putJson("/api/accounting/journal-entries/{$entry->id}", $this->validPayload(['reference' => 'SHOULD-FAIL']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['fiscal_year_id']);
+
+        $this->fiscalYear->update(['status' => FiscalYearStatus::Closed]);
+
+        $this->actingAs($this->user)
+            ->putJson("/api/accounting/journal-entries/{$entry->id}", $this->validPayload(['reference' => 'SHOULD-FAIL']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['fiscal_year_id']);
+
+        $this->assertDatabaseCount('journal_entries', 1);
+        $this->assertDatabaseHas('journal_entries', [
+            'id' => $entry->id,
+            'reference' => 'REF-100',
+        ]);
+    }
+
+    public function test_rejects_non_array_line_and_invalid_account_id_without_coercion(): void
+    {
+        $service = app(JournalEntryService::class);
+
+        $nonArrayPayload = $this->validPayload();
+        $nonArrayPayload['lines'][1] = 'invalid-line-string';
+
+        try {
+            $service->create($nonArrayPayload, $this->user);
+            $this->fail('Expected ValidationException for non-array line.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('lines.1', $e->errors());
+        }
+
+        $invalidAccountPayload = $this->validPayload();
+        $invalidAccountPayload['lines'][0]['account_id'] = "{$this->accounts[0]->id}abc";
+
+        try {
+            $service->create($invalidAccountPayload, $this->user);
+            $this->fail('Expected ValidationException for non-integer account_id.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('lines.0.account_id', $e->errors());
+        }
+
+        $this->assertDatabaseCount('journal_entries', 0);
+        $this->assertDatabaseCount('journal_entry_lines', 0);
     }
 
     public function test_can_show_journal_entry_with_relations_and_totals(): void

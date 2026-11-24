@@ -117,6 +117,8 @@ return [
         'journal_entry_posted_immutable' => 'A posted journal entry cannot be modified.',
         'journal_entry_posted_cannot_delete' => 'A posted journal entry cannot be deleted.',
         'journal_entry_unbalanced' => 'Total debit must equal total credit in a journal entry.',
+        'journal_entry_fiscal_year_not_open' => 'The selected fiscal year must exist and be open.',
+        'journal_entry_line_invalid' => 'Journal entry line data is invalid.',
     ],
 
     'settings' => [
