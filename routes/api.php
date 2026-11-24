@@ -172,6 +172,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/{journalEntry}', [JournalEntryController::class, 'show']);
         Route::put('/{journalEntry}', [JournalEntryController::class, 'update']);
         Route::delete('/{journalEntry}', [JournalEntryController::class, 'destroy']);
+        Route::post('/{journalEntry}/post', [JournalEntryController::class, 'post']);
     });
 
     // Payment Methods (Management & Account Linking)

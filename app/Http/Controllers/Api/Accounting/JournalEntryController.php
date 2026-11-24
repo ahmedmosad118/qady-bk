@@ -92,4 +92,15 @@ class JournalEntryController extends Controller
             'message' => __('accounting.messages.journal_entry_deleted'),
         ]);
     }
+
+    public function post(Request $request, JournalEntry $journalEntry): JsonResponse
+    {
+        $posted = $this->journalEntryService->post($journalEntry, $request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => __('accounting.messages.journal_entry_posted'),
+            'data' => $posted,
+        ]);
+    }
 }

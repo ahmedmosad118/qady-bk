@@ -52,6 +52,7 @@ return [
         'journal_entry_created' => 'تم إنشاء قيد اليومية بنجاح.',
         'journal_entry_updated' => 'تم تحديث قيد اليومية بنجاح.',
         'journal_entry_deleted' => 'تم حذف قيد اليومية بنجاح.',
+        'journal_entry_posted' => 'تم ترحيل قيد اليومية بنجاح.',
     ],
 
     'errors' => [
@@ -119,6 +120,7 @@ return [
         'journal_entry_unbalanced' => 'يجب أن يتساوى إجمالي المدين مع إجمالي الدائن في قيد اليومية.',
         'journal_entry_fiscal_year_not_open' => 'يجب أن تكون السنة المالية موجودة وفي حالة مفتوحة.',
         'journal_entry_line_invalid' => 'بيانات سطر القيد غير صالحة.',
+        'journal_entry_already_posted' => 'قيد اليومية مرحل بالفعل ولا يمكن ترحيله مرة أخرى.',
     ],
 
     'settings' => [

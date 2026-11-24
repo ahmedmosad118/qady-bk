@@ -52,6 +52,7 @@ return [
         'journal_entry_created' => 'Journal entry created successfully.',
         'journal_entry_updated' => 'Journal entry updated successfully.',
         'journal_entry_deleted' => 'Journal entry deleted successfully.',
+        'journal_entry_posted' => 'Journal entry posted successfully.',
     ],
 
     'errors' => [
@@ -119,6 +120,7 @@ return [
         'journal_entry_unbalanced' => 'Total debit must equal total credit in a journal entry.',
         'journal_entry_fiscal_year_not_open' => 'The selected fiscal year must exist and be open.',
         'journal_entry_line_invalid' => 'Journal entry line data is invalid.',
+        'journal_entry_already_posted' => 'This journal entry is already posted and cannot be posted again.',
     ],
 
     'settings' => [

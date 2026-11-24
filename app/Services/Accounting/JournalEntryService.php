@@ -12,6 +12,7 @@ use App\Models\AccountingPeriod;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
 use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
@@ -218,6 +219,38 @@ class JournalEntryService
     }
 
     /**
+     * Post a draft journal entry atomically after revalidating its context and lines.
+     */
+    public function post(JournalEntry $journalEntry, ?User $user = null): JournalEntry
+    {
+        return DB::transaction(function () use ($journalEntry, $user): JournalEntry {
+            /** @var JournalEntry $locked */
+            $locked = JournalEntry::query()->lockForUpdate()->findOrFail($journalEntry->id);
+
+            if (! $locked->isDraft()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.journal_entry_already_posted')],
+                ]);
+            }
+
+            $this->validateAccountingContext(
+                $locked->journal_id,
+                $locked->fiscal_year_id,
+                $locked->accounting_period_id,
+                $locked->entry_date->toDateString(),
+            );
+
+            $locked->update([
+                'status' => JournalEntryStatus::Posted->value,
+                'posted_by' => $user?->id,
+                'posted_at' => now(),
+            ]);
+
+            return $this->getDetails($locked);
+        });
+    }
+
+    /**
      * @param  Builder<JournalEntry>  $query
      * @param  array<string, mixed>  $filters
      */
@@ -346,7 +379,7 @@ class JournalEntryService
         } else {
             if ($period->fiscal_year_id !== $fiscalYearId) {
                 $errors['accounting_period_id'] = [(string) __('accounting.errors.journal_entry_period_fiscal_year_mismatch')];
-            } elseif ($period->status === AccountingPeriodStatus::Closed) {
+            } elseif ($period->status !== AccountingPeriodStatus::Open) {
                 $errors['accounting_period_id'] = [(string) __('accounting.errors.journal_entry_period_closed')];
             } elseif ($entryDate < $period->start_date->toDateString() || $entryDate > $period->end_date->toDateString()) {
                 $errors['entry_date'] = [(string) __('accounting.errors.journal_entry_date_outside_period')];
