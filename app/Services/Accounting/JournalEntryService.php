@@ -19,6 +19,7 @@ use App\Support\Decimal;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -112,13 +113,35 @@ class JournalEntryService
     }
 
     /**
+     * Create a posted journal entry linked to an operational source model.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function createFromSource(
+        array $data,
+        Model $source,
+        ?User $user = null,
+    ): JournalEntry {
+        return $this->persistNewEntry(
+            data: $data,
+            user: $user,
+            status: JournalEntryStatus::Posted,
+            source: $source,
+        );
+    }
+
+    /**
      * Persist a new journal entry and its lines inside a single transaction.
      *
      * @param  array<string, mixed>  $data
      */
-    private function persistNewEntry(array $data, ?User $user = null): JournalEntry
-    {
-        return DB::transaction(function () use ($data, $user): JournalEntry {
+    private function persistNewEntry(
+        array $data,
+        ?User $user = null,
+        JournalEntryStatus $status = JournalEntryStatus::Draft,
+        ?Model $source = null,
+    ): JournalEntry {
+        return DB::transaction(function () use ($data, $user, $status, $source): JournalEntry {
             $entryDate = Carbon::parse((string) $data['entry_date'])->toDateString();
             $this->validateAccountingContext(
                 (int) $data['journal_id'],
@@ -136,6 +159,8 @@ class JournalEntryService
                 5,
             );
 
+            $isPosted = $status === JournalEntryStatus::Posted;
+
             $entry = JournalEntry::query()->create([
                 'journal_id' => (int) $data['journal_id'],
                 'fiscal_year_id' => (int) $data['fiscal_year_id'],
@@ -144,10 +169,12 @@ class JournalEntryService
                 'entry_date' => $entryDate,
                 'reference' => isset($data['reference']) && $data['reference'] !== '' ? (string) $data['reference'] : null,
                 'description' => isset($data['description']) && $data['description'] !== '' ? (string) $data['description'] : null,
-                'status' => JournalEntryStatus::Draft->value,
+                'source_type' => $source?->getMorphClass(),
+                'source_id' => $source?->getKey(),
+                'status' => $status->value,
                 'created_by' => $user?->id,
-                'posted_by' => null,
-                'posted_at' => null,
+                'posted_by' => $isPosted ? $user?->id : null,
+                'posted_at' => $isPosted ? now() : null,
             ]);
 
             JournalEntry::query()
