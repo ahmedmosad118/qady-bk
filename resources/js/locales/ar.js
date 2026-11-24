@@ -21,6 +21,7 @@ export default {
     previous: 'السابق',
     next: 'التالي',
     paginationSummary: 'عرض الصفحة {current} من {last} (إجمالي {total})',
+    perPage: 'عدد الصفوف',
     retry: 'إعادة المحاولة',
     confirmDelete: 'هل أنت متأكد من رغبتك في حذف هذا السجل؟ لا يمكن التراجع عن هذا الإجراء.',
     successSave: 'تم حفظ البيانات بنجاح',

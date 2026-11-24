@@ -14,10 +14,24 @@
       </template>
     </PageHeader>
 
-    <!-- Main Card -->
-    <div class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <!-- Filter Toolbar & Drawer -->
-      <FilterToolbar
+    <!-- Main DataTable -->
+    <DataTable
+      :items="entries"
+      :loading="loading"
+      :error="loadError"
+      :colspan="11"
+      :meta="meta"
+      :per-page="perPage"
+      :empty-title="$t('journalEntries.emptyTitle')"
+      :empty-subtitle="$t('journalEntries.emptySubtitle')"
+      @update:per-page="perPage = $event"
+      @change-per-page="loadEntries(1)"
+      @change-page="loadEntries"
+      @retry="loadEntries(meta.current_page)"
+    >
+      <template #toolbar>
+        <!-- Filter Toolbar & Drawer -->
+        <FilterToolbar
         v-model:search="filters.search"
         :search-placeholder="$t('journalEntries.searchPlaceholder')"
         :active-filters-count="activeFiltersCount"
@@ -164,65 +178,30 @@
             </div>
           </div>
         </div>
-      </FilterToolbar>
+        </FilterToolbar>
+      </template>
 
-      <!-- Error State -->
-      <div v-if="loadError" class="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center" role="alert">
-        <AlertCircle class="h-8 w-8 text-[var(--crimson)]" />
-        <p class="text-sm font-bold text-[var(--text)]">{{ loadError }}</p>
-        <button
-          type="button"
-          class="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-xs font-bold text-white hover:bg-[var(--crimson-hover)] cursor-pointer"
-          @click="loadEntries(meta.current_page)"
-        >
-          {{ $t('common.retry') }}
-        </button>
-      </div>
+      <template #empty-icon>
+        <BookOpenCheck class="h-10 w-10 text-[var(--muted)]/50" />
+      </template>
 
-      <!-- Table Section -->
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-start text-sm">
-          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
-            <tr>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.entryNumber') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.entryDate') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.journal') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.label') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.reference') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.fiscalYear') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.accountingPeriod') }}</th>
-              <th class="px-4 py-3.5 text-end">{{ $t('journalEntries.totalDebit') }}</th>
-              <th class="px-4 py-3.5 text-end">{{ $t('journalEntries.totalCredit') }}</th>
-              <th class="px-4 py-3.5 text-center">{{ $t('journalEntries.status') }}</th>
-              <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
-            </tr>
-          </thead>
+      <template #head>
+        <tr>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.entryNumber') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.entryDate') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.journal') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.label') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.reference') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.fiscalYear') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('journalEntries.accountingPeriod') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('journalEntries.totalDebit') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('journalEntries.totalCredit') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('journalEntries.status') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
+        </tr>
+      </template>
 
-          <tbody class="divide-y divide-[var(--border)]">
-            <tr v-if="loading">
-              <td colspan="11" class="py-16 text-center">
-                <div class="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
-                  <span class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--crimson)] border-t-transparent"></span>
-                  <span>{{ $t('common.loading') }}</span>
-                </div>
-              </td>
-            </tr>
-
-            <tr v-else-if="entries.length === 0">
-              <td colspan="11" class="py-16 text-center">
-                <div class="mx-auto flex max-w-sm flex-col items-center">
-                  <BookOpenCheck class="h-10 w-10 text-[var(--muted)]/50" />
-                  <h3 class="mt-3 text-sm font-extrabold text-[var(--text)]">{{ $t('journalEntries.emptyTitle') }}</h3>
-                  <p class="mt-1 text-xs text-[var(--muted)]">{{ $t('journalEntries.emptySubtitle') }}</p>
-                </div>
-              </td>
-            </tr>
-
-            <tr
-              v-for="entry in entries"
-              :key="entry.id"
-              class="transition-colors hover:bg-[var(--bg)]/50"
-            >
+      <template #row="{ item: entry }">
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
                   type="button"
@@ -310,57 +289,8 @@
                   </button>
                 </div>
               </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination & Page Size -->
-      <div
-        v-if="!loadError && meta.total > 0"
-        class="flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] px-4 py-3.5 text-xs text-[var(--muted)] sm:flex-row sm:px-6"
-      >
-        <div class="flex flex-wrap items-center gap-3">
-          <span>
-            {{ meta.from ?? 0 }}–{{ meta.to ?? 0 }} / {{ meta.total }}
-            ({{ $t('common.page') }} {{ meta.current_page }} {{ $t('common.of') }} {{ meta.last_page }})
-          </span>
-          <label class="inline-flex items-center gap-2">
-            <span class="font-semibold">{{ $t('journalEntries.perPage') }}</span>
-            <select
-              v-model.number="perPage"
-              class="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 text-xs font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)]"
-              @change="loadEntries(1)"
-            >
-              <option :value="10">10</option>
-              <option :value="15">15</option>
-              <option :value="25">25</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-            </select>
-          </label>
-        </div>
-
-        <div v-if="meta.last_page > 1" class="flex items-center gap-1.5">
-          <button
-            type="button"
-            :disabled="meta.current_page <= 1 || loading"
-            class="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 font-semibold text-[var(--text)] transition hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
-            @click="loadEntries(meta.current_page - 1)"
-          >
-            {{ $t('common.previous') }}
-          </button>
-          <button
-            type="button"
-            :disabled="meta.current_page >= meta.last_page || loading"
-            class="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 font-semibold text-[var(--text)] transition hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
-            @click="loadEntries(meta.current_page + 1)"
-          >
-            {{ $t('common.next') }}
-          </button>
-        </div>
-      </div>
-    </div>
+      </template>
+    </DataTable>
 
     <JournalEntryFormModal
       :show="showFormModal"
@@ -384,7 +314,8 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, BookOpenCheck, CheckCircle2, Eye, Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { BookOpenCheck, CheckCircle2, Eye, Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import DataTable from '../../components/ui/DataTable.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
@@ -412,7 +343,7 @@ const entries = ref([]);
 const loading = ref(false);
 const loadError = ref('');
 const actionEntryId = ref(null);
-const perPage = ref(15);
+const perPage = ref(10);
 const showFormModal = ref(false);
 const editingEntryId = ref(null);
 const showDetailModal = ref(false);

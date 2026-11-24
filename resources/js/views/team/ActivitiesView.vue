@@ -159,7 +159,15 @@
       </div>
 
       <!-- Pagination -->
-      <PaginationBar :meta="meta" @change-page="goToPage" />
+      <TablePagination
+        :meta="meta"
+        :items-count="items.length"
+        :per-page="meta.per_page"
+        :loading="loading"
+        @update:per-page="meta.per_page = $event"
+        @change-per-page="goToPage(1)"
+        @change-page="goToPage"
+      />
     </div>
   </div>
 </template>
@@ -171,7 +179,7 @@ import { Activity, AlertCircle, ChevronDown, RotateCw, Trash2 } from 'lucide-vue
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
-import PaginationBar from '../../components/ui/PaginationBar.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import ActivityTable from '../../components/activities/ActivityTable.vue';
 import { clearAllActivities, deleteActivity, fetchActivities } from '../../services/activityApi';
 import { confirmDelete } from '../../services/alert';
@@ -188,7 +196,7 @@ const canClear = computed(() => authStore.hasPermission('activities.clear'));
 
 const items = ref([]);
 const filtersMeta = ref({ modules: [], users: [] });
-const meta = ref({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
+const meta = ref({ current_page: 1, last_page: 1, per_page: 10, total: 0 });
 const loading = ref(false);
 const clearing = ref(false);
 const deletingId = ref(null);
@@ -219,7 +227,7 @@ const activeFiltersCount = computed(() => {
 function buildQueryParams() {
   const params = {
     page: currentPage.value,
-    per_page: 15,
+    per_page: meta.value.per_page || 10,
   };
   if (search.value.trim()) params.search = search.value.trim();
   if (eventFilter.value) params.event = eventFilter.value;

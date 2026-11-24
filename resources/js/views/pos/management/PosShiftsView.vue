@@ -25,9 +25,24 @@
     </PageHeader>
 
     <!-- Data Table Container -->
-    <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs overflow-hidden">
-      <!-- Compact Toolbar & Filter Drawer -->
-      <FilterToolbar
+    <DataTable
+      :items="shifts"
+      :loading="loading"
+      :colspan="9"
+      :meta="meta"
+      :per-page="meta.per_page"
+      :loading-text="$t('pos.shiftsPage.loadingShifts')"
+      :empty-title="$t('pos.shiftsPage.noShiftsTitle')"
+      :empty-subtitle="$t('pos.shiftsPage.noShiftsDesc')"
+      row-clickable
+      @update:per-page="meta.per_page = $event"
+      @change-per-page="fetchShifts(1)"
+      @change-page="fetchShifts"
+      @row-click="(shift) => openShiftDetails(shift.id)"
+    >
+      <template #toolbar>
+        <!-- Compact Toolbar & Filter Drawer -->
+        <FilterToolbar
         v-model:search="filters.search"
         :search-placeholder="$t('pos.shiftsPage.searchPlaceholder')"
         :active-filters-count="activeFiltersCount"
@@ -72,49 +87,28 @@
             </div>
           </div>
         </div>
-      </FilterToolbar>
-      <div class="overflow-x-auto">
-        <table class="w-full text-start text-sm">
-          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
-            <tr>
-              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.shiftNumber') }}</th>
-              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.status') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedAt') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedAt') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedBy') }}</th>
-              <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedBy') }}</th>
-              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.totalSales') }}</th>
-              <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.cashDiff') }}</th>
-              <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[var(--border)]">
-            <!-- Loading Skeletons -->
-            <tr v-if="loading && shifts.length === 0">
-              <td colspan="9" class="px-4 py-16 text-center text-sm text-[var(--muted)]">
-                <Loader2 class="mx-auto h-7 w-7 animate-spin text-[var(--crimson)]" />
-                <span class="mt-2.5 block font-bold">{{ $t('pos.shiftsPage.loadingShifts') }}</span>
-              </td>
-            </tr>
+        </FilterToolbar>
+      </template>
 
-            <!-- Empty State -->
-            <tr v-else-if="!loading && shifts.length === 0">
-              <td colspan="9" class="px-4 py-16 text-center">
-                <Clock class="mx-auto h-12 w-12 text-[var(--muted)]/50" />
-                <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">{{ $t('pos.shiftsPage.noShiftsTitle') }}</h3>
-                <p class="mt-1 text-xs text-[var(--muted)] max-w-sm mx-auto">
-                  {{ $t('pos.shiftsPage.noShiftsDesc') }}
-                </p>
-              </td>
-            </tr>
+      <template #empty-icon>
+        <Clock class="h-12 w-12 text-[var(--muted)]/50" />
+      </template>
 
-            <!-- Table Rows -->
-            <tr
-              v-for="shift in shifts"
-              :key="shift.id"
-              class="transition-colors hover:bg-[var(--bg)]/60 cursor-pointer"
-              @click="openShiftDetails(shift.id)"
-            >
+      <template #head>
+        <tr>
+          <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.shiftNumber') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.status') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedAt') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedAt') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.openedBy') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('pos.shiftsPage.closedBy') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.totalSales') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('pos.shiftsPage.cashDiff') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('pos.shiftsPage.actions') }}</th>
+        </tr>
+      </template>
+
+      <template #row="{ item: shift }">
               <!-- Shift Number -->
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
@@ -207,40 +201,8 @@
                   </button>
                 </div>
               </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination -->
-      <div v-if="meta.last_page > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-[var(--border)] bg-[var(--card)]">
-        <span class="text-xs text-[var(--muted)]">
-          {{ $t('pos.shiftsPage.paginationSummary', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
-        </span>
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-            :disabled="meta.current_page <= 1"
-            @click="fetchShifts(meta.current_page - 1)"
-          >
-            <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
-            <ChevronLeft v-else class="w-4 h-4" />
-            <span>{{ $t('common.previous') }}</span>
-          </button>
-          <button
-            type="button"
-            class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-            :disabled="meta.current_page >= meta.last_page"
-            @click="fetchShifts(meta.current_page + 1)"
-          >
-            <span>{{ $t('common.next') }}</span>
-            <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
-            <ChevronRight v-else class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
+      </template>
+    </DataTable>
 
     <!-- Shift Detail Modal -->
     <PosShiftDetailModal
@@ -288,6 +250,7 @@ import {
 import api from '../../../services/api';
 import { formatDateTime } from '../../../utils/date';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
+import DataTable from '../../../components/ui/DataTable.vue';
 import PageHeader from '../../../components/ui/PageHeader.vue';
 import PosShiftDetailModal from './PosShiftDetailModal.vue';
 import PosSaleDetailModal from './PosSaleDetailModal.vue';
@@ -308,7 +271,7 @@ const filters = reactive({
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

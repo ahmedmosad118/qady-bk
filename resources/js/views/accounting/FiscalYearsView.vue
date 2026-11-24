@@ -154,13 +154,14 @@
         </table>
       </div>
 
-      <PaginationBar
-        v-if="meta.last_page > 1"
-        :current-page="meta.current_page"
-        :last-page="meta.last_page"
-        :total="meta.total"
+      <TablePagination
+        :meta="meta"
+        :items-count="fiscalYears.length"
         :per-page="meta.per_page"
-        @page-change="loadFiscalYears"
+        :loading="loading"
+        @update:per-page="meta.per_page = $event"
+        @change-per-page="loadFiscalYears(1)"
+        @change-page="loadFiscalYears"
       />
     </div>
 
@@ -377,7 +378,7 @@ import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { formatDate } from '../../utils/date';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
-import PaginationBar from '../../components/ui/PaginationBar.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 
 const { t } = useI18n();
 const statuses = ['draft', 'open', 'closed'];
@@ -394,7 +395,7 @@ const filters = reactive({
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

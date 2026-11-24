@@ -39,7 +39,7 @@ class PosSaleController extends Controller implements HasMiddleware
 
         $paginated = $this->saleService->paginateSales(
             $request->only(['search', 'shift_id', 'payment_method_id', 'date_from', 'date_to']),
-            $request->integer('per_page', 12)
+            $request->integer('per_page', 10)
         );
 
         return response()->json([

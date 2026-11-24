@@ -228,38 +228,15 @@
         </div>
 
         <!-- Pagination -->
-        <div
-          v-if="totalRecords > 0"
-          class="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-        >
-          <p class="text-sm text-[var(--muted)]">{{ rangeLabel }}</p>
-
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40"
-              :disabled="page <= 1"
-              @click="page -= 1"
-            >
-              <component :is="previousIcon" class="h-4 w-4" aria-hidden="true" />
-              {{ $t('users.previous') }}
-            </button>
-
-            <span class="px-1 text-sm font-medium text-[var(--muted)]">
-              {{ $t('users.pageOf', { page, pages: lastPage }) }}
-            </span>
-
-            <button
-              type="button"
-              class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40"
-              :disabled="page >= lastPage"
-              @click="page += 1"
-            >
-              {{ $t('users.next') }}
-              <component :is="nextIcon" class="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        <TablePagination
+          :meta="{ current_page: page, last_page: lastPage, per_page: perPage, total: totalRecords }"
+          :items-count="roles.length"
+          :per-page="perPage"
+          :loading="loading"
+          @update:per-page="perPage = $event"
+          @change-per-page="page = 1; loadRoles()"
+          @change-page="page = $event"
+        />
       </template>
     </div>
 
@@ -298,6 +275,7 @@ import alertService from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import RoleFormModal from '../../components/roles/RoleFormModal.vue';
 
@@ -310,7 +288,7 @@ const loading = ref(true);
 const loadError = ref('');
 const search = ref('');
 const page = ref(1);
-const perPage = 15;
+const perPage = ref(10);
 const totalRecords = ref(0);
 const lastPage = ref(1);
 
@@ -349,7 +327,7 @@ const loadRoles = async () => {
     const response = await api.get('/roles', {
       params: {
         page: page.value,
-        per_page: perPage,
+        per_page: perPage.value,
         search: search.value.trim() || undefined,
       },
     });

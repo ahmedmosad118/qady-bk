@@ -327,33 +327,15 @@
       </div>
 
       <!-- Pagination -->
-      <div
-        v-if="meta.total > meta.per_page"
-        class="flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] p-4 sm:flex-row sm:px-6"
-      >
-        <span class="text-xs text-[var(--muted)]">
-          {{ $t('common.page') }} {{ meta.current_page }} {{ $t('common.of') }} {{ meta.last_page }} {{ $t('purchaseOrders.ordersCountParen', { count: meta.total }) }}
-        </span>
-
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            :disabled="meta.current_page <= 1"
-            class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
-            @click="changePage(meta.current_page - 1)"
-          >
-            {{ $t('common.previous') }}
-          </button>
-          <button
-            type="button"
-            :disabled="meta.current_page >= meta.last_page"
-            class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
-            @click="changePage(meta.current_page + 1)"
-          >
-            {{ $t('common.next') }}
-          </button>
-        </div>
-      </div>
+      <TablePagination
+        :meta="meta"
+        :items-count="orders.length"
+        :per-page="meta.per_page"
+        :loading="loading"
+        @update:per-page="meta.per_page = $event"
+        @change-per-page="fetchOrders(1)"
+        @change-page="changePage"
+      />
     </div>
 
     <!-- Create / Edit Form Modal -->
@@ -398,6 +380,7 @@ import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import PurchaseOrderFormModal from './PurchaseOrderFormModal.vue';
 import PurchaseOrderDetailModal from './PurchaseOrderDetailModal.vue';
@@ -427,7 +410,7 @@ const actionLoading = ref(false);
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

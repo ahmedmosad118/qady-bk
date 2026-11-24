@@ -21,6 +21,7 @@ export default {
     previous: 'Previous',
     next: 'Next',
     paginationSummary: 'Showing page {current} of {last} (Total {total})',
+    perPage: 'Per page',
     retry: 'Retry',
     confirmDelete: 'Are you sure you want to delete this record? This action cannot be undone.',
     successSave: 'Data saved successfully',

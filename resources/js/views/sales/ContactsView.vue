@@ -332,36 +332,16 @@
       </div>
 
       <!-- Pagination -->
-      <div
-        v-if="!loading && totalRecords > 0"
-        class="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-      >
-        <p class="text-sm text-[var(--muted)]">{{ rangeLabel }}</p>
-
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
-            :disabled="page <= 1"
-            @click="page -= 1"
-          >
-            <component :is="previousIcon" class="h-4 w-4" aria-hidden="true" />
-            {{ $t('contacts.previous') }}
-          </button>
-
-          <span class="px-1 text-sm font-medium text-[var(--muted)]">{{ pageOfLabel }}</span>
-
-          <button
-            type="button"
-            class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
-            :disabled="page >= pageCount"
-            @click="page += 1"
-          >
-            {{ $t('contacts.next') }}
-            <component :is="nextIcon" class="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
+      <TablePagination
+        v-if="!loading"
+        :meta="{ current_page: page, last_page: pageCount, per_page: perPage, total: totalRecords }"
+        :items-count="contacts.length"
+        :per-page="perPage"
+        :loading="loading"
+        @update:per-page="perPage = $event"
+        @change-per-page="page = 1; loadContacts()"
+        @change-page="page = $event"
+      />
     </div>
 
     <!-- Create / edit modal -->
@@ -403,6 +383,7 @@ import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
@@ -551,7 +532,7 @@ const roleFilter = ref('all');
 const typeFilter = ref('all');
 
 const page = ref(1);
-const perPage = 10;
+const perPage = ref(10);
 
 const totalRecords = ref(0);
 const lastPage = ref(1);
@@ -691,7 +672,7 @@ const loadContacts = async () => {
     const response = await api.get('/contacts', {
       params: {
         page: page.value,
-        per_page: perPage,
+        per_page: perPage.value,
         search: search.value.trim() || undefined,
         type: typeFilter.value !== 'all' ? typeFilter.value : undefined,
         is_customer: isCustomerParam,

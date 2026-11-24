@@ -25,8 +25,23 @@
     </PageHeader>
 
     <!-- Data Table Container -->
-    <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs overflow-hidden">
-      <FilterToolbar
+    <DataTable
+      :items="returns"
+      :loading="loading"
+      :colspan="10"
+      :meta="meta"
+      :per-page="meta.per_page"
+      :loading-text="$t('posReturns.loadingReturns')"
+      :empty-title="$t('posReturns.emptyTitle')"
+      :empty-subtitle="$t('posReturns.emptyDescription')"
+      row-clickable
+      @update:per-page="meta.per_page = $event"
+      @change-per-page="fetchReturns(1)"
+      @change-page="fetchReturns"
+      @row-click="(ret) => openReturnDetails(ret.id)"
+    >
+      <template #toolbar>
+        <FilterToolbar
         v-model:search="filters.search"
         :search-placeholder="$t('posReturns.searchPlaceholder')"
         :active-filters-count="activeFiltersCount"
@@ -71,55 +86,29 @@
             />
           </div>
         </div>
-      </FilterToolbar>
+        </FilterToolbar>
+      </template>
 
-      <!-- Responsive Table -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-start text-sm">
-          <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
-            <tr>
-              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnNumber') }}</th>
-              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnedAt') }}</th>
-              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.originalInvoice') }}</th>
-              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.customer') }}</th>
-              <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.cashier') }}</th>
-              <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.refundMethod') }}</th>
-              <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.shift') }}</th>
-              <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.returnedItemsCount') }}</th>
-              <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.totalReturned') }}</th>
-              <th class="px-4 py-3.5 text-end whitespace-nowrap">{{ $t('posReturns.actions') }}</th>
-            </tr>
-          </thead>
+      <template #empty-icon>
+        <RotateCcw class="h-12 w-12 text-[var(--muted)]/50" />
+      </template>
 
-          <tbody class="divide-y divide-[var(--border)]">
-            <!-- Loading State -->
-            <tr v-if="loading">
-              <td colspan="10" class="px-4 py-16 text-center">
-                <div class="inline-flex flex-col items-center gap-3 text-[var(--muted)]">
-                  <Loader2 class="w-8 h-8 animate-spin text-[var(--crimson)]" />
-                  <span class="text-sm font-medium">{{ $t('posReturns.loadingReturns') }}</span>
-                </div>
-              </td>
-            </tr>
+      <template #head>
+        <tr>
+          <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnNumber') }}</th>
+          <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.returnedAt') }}</th>
+          <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.originalInvoice') }}</th>
+          <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.customer') }}</th>
+          <th class="px-4 py-3.5 text-start whitespace-nowrap">{{ $t('posReturns.cashier') }}</th>
+          <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.refundMethod') }}</th>
+          <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.shift') }}</th>
+          <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.returnedItemsCount') }}</th>
+          <th class="px-4 py-3.5 text-center whitespace-nowrap">{{ $t('posReturns.totalReturned') }}</th>
+          <th class="px-4 py-3.5 text-end whitespace-nowrap">{{ $t('posReturns.actions') }}</th>
+        </tr>
+      </template>
 
-            <!-- Empty State -->
-            <tr v-else-if="!loading && returns.length === 0">
-              <td colspan="10" class="px-4 py-16 text-center">
-                <RotateCcw class="mx-auto h-12 w-12 text-[var(--muted)]/50" />
-                <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">{{ $t('posReturns.emptyTitle') }}</h3>
-                <p class="mt-1 text-xs text-[var(--muted)] max-w-sm mx-auto">
-                  {{ $t('posReturns.emptyDescription') }}
-                </p>
-              </td>
-            </tr>
-
-            <!-- Table Rows -->
-            <tr
-              v-for="ret in returns"
-              :key="ret.id"
-              class="transition-colors hover:bg-[var(--bg)]/60 cursor-pointer"
-              @click="openReturnDetails(ret.id)"
-            >
+      <template #row="{ item: ret }">
               <!-- Return Number -->
               <td class="px-4 py-3.5 whitespace-nowrap">
                 <button
@@ -221,44 +210,8 @@
                   </button>
                 </div>
               </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination Footer -->
-      <div
-        v-if="meta.total > 0"
-        class="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] bg-[var(--bg)]/30 px-4 py-3"
-      >
-        <div class="text-xs text-[var(--muted)] font-medium">
-          {{ $t('posReturns.showingRange', { shown: returns.length, total: meta.total, page: meta.current_page, lastPage: meta.last_page }) }}
-        </div>
-
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-            :disabled="meta.current_page <= 1"
-            @click="fetchReturns(meta.current_page - 1)"
-          >
-            <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
-            <ChevronLeft v-else class="w-4 h-4" />
-            <span>{{ $t('common.previous') }}</span>
-          </button>
-          <button
-            type="button"
-            class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-            :disabled="meta.current_page >= meta.last_page"
-            @click="fetchReturns(meta.current_page + 1)"
-          >
-            <span>{{ $t('common.next') }}</span>
-            <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
-            <ChevronRight v-else class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
+      </template>
+    </DataTable>
 
     <!-- Return Detail Drawer -->
     <PosReturnDetailModal
@@ -316,6 +269,7 @@ import {
 import api from '../../../services/api';
 import { formatDateTime } from '../../../utils/date';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
+import DataTable from '../../../components/ui/DataTable.vue';
 import PageHeader from '../../../components/ui/PageHeader.vue';
 import PosReturnDetailModal from './PosReturnDetailModal.vue';
 import PosSaleDetailModal from './PosSaleDetailModal.vue';
@@ -346,7 +300,7 @@ const filters = reactive({
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

@@ -1,7 +1,22 @@
 <template>
-  <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xs overflow-hidden">
-    <!-- Compact Toolbar & Filter Drawer -->
-    <FilterToolbar
+  <DataTable
+    :items="sales"
+    :loading="loading"
+    :colspan="colspan"
+    :meta="meta"
+    :per-page="currentPerPage"
+    :loading-text="$t('pos.salesPage.loadingSales')"
+    :empty-title="$t('pos.salesPage.noSalesTitle')"
+    :empty-subtitle="$t('pos.salesPage.noSalesDesc')"
+    row-clickable
+    @update:per-page="currentPerPage = $event"
+    @change-per-page="fetchSales(1)"
+    @change-page="fetchSales"
+    @row-click="(sale) => emit('open-sale', sale.id, 'info')"
+  >
+    <template #toolbar>
+      <!-- Compact Toolbar & Filter Drawer -->
+      <FilterToolbar
       v-model:search="filters.search"
       :search-placeholder="$t('pos.salesPage.searchPlaceholder')"
       :active-filters-count="activeFiltersCount"
@@ -46,53 +61,30 @@
             />
           </div>
         </div>
-      </div>
-    </FilterToolbar>
+        </div>
+      </FilterToolbar>
+    </template>
 
-    <!-- Data Table -->
-    <div class="overflow-x-auto">
-      <table class="w-full text-start text-sm">
-        <thead class="border-b border-[var(--border)] bg-[var(--bg)] text-xs font-bold text-[var(--muted)]">
-          <tr>
-            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.invoiceNumber') }}</th>
-            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.dateTime') }}</th>
-            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.customer') }}</th>
-            <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.cashier') }}</th>
-            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.paymentMethod') }}</th>
-            <th v-if="!shiftId" class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.shift') }}</th>
-            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.items') }}</th>
-            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.grandTotal') }}</th>
-            <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.returns') }}</th>
-            <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-[var(--border)]">
-          <!-- Loading Skeletons -->
-          <tr v-if="loading && sales.length === 0">
-            <td :colspan="colspan" class="px-4 py-16 text-center text-sm text-[var(--muted)]">
-              <Loader2 class="mx-auto h-7 w-7 animate-spin text-[var(--crimson)]" />
-              <span class="mt-2.5 block font-bold">{{ $t('pos.salesPage.loadingSales') }}</span>
-            </td>
-          </tr>
+    <template #empty-icon>
+      <Receipt class="h-12 w-12 text-[var(--muted)]/50" />
+    </template>
 
-          <!-- Empty State -->
-          <tr v-else-if="!loading && sales.length === 0">
-            <td :colspan="colspan" class="px-4 py-16 text-center">
-              <Receipt class="mx-auto h-12 w-12 text-[var(--muted)]/50" />
-              <h3 class="mt-3 text-base font-extrabold text-[var(--text)]">{{ $t('pos.salesPage.noSalesTitle') }}</h3>
-              <p class="mt-1 text-xs text-[var(--muted)] max-w-sm mx-auto">
-                {{ $t('pos.salesPage.noSalesDesc') }}
-              </p>
-            </td>
-          </tr>
+    <template #head>
+      <tr>
+        <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.invoiceNumber') }}</th>
+        <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.dateTime') }}</th>
+        <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.customer') }}</th>
+        <th class="px-4 py-3.5 text-start">{{ $t('pos.salesPage.cashier') }}</th>
+        <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.paymentMethod') }}</th>
+        <th v-if="!shiftId" class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.shift') }}</th>
+        <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.items') }}</th>
+        <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.grandTotal') }}</th>
+        <th class="px-4 py-3.5 text-center">{{ $t('pos.salesPage.returns') }}</th>
+        <th class="px-4 py-3.5 text-end">{{ $t('pos.salesPage.actions') }}</th>
+      </tr>
+    </template>
 
-          <!-- Table Rows -->
-          <tr
-            v-for="sale in sales"
-            :key="sale.id"
-            class="transition-colors hover:bg-[var(--bg)]/60 cursor-pointer"
-            @click="emit('open-sale', sale.id, 'info')"
-          >
+    <template #row="{ item: sale }">
             <!-- Invoice Number -->
             <td class="px-4 py-3.5 whitespace-nowrap">
               <button
@@ -220,40 +212,8 @@
                 </button>
               </div>
             </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Pagination -->
-    <div v-if="meta.last_page > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-[var(--border)] bg-[var(--card)]">
-      <span class="text-xs text-[var(--muted)]">
-        {{ $t('pos.salesPage.paginationSummary', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
-      </span>
-      <div class="flex items-center gap-1.5">
-        <button
-          type="button"
-          class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-          :disabled="meta.current_page <= 1"
-          @click="fetchSales(meta.current_page - 1)"
-        >
-          <ChevronRight v-if="locale === 'ar'" class="w-4 h-4" />
-          <ChevronLeft v-else class="w-4 h-4" />
-          <span>{{ $t('common.previous') }}</span>
-        </button>
-        <button
-          type="button"
-          class="h-9 px-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--bg)] flex items-center gap-1 cursor-pointer"
-          :disabled="meta.current_page >= meta.last_page"
-          @click="fetchSales(meta.current_page + 1)"
-        >
-          <span>{{ $t('common.next') }}</span>
-          <ChevronLeft v-if="locale === 'ar'" class="w-4 h-4" />
-          <ChevronRight v-else class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  </div>
+    </template>
+  </DataTable>
 </template>
 
 <script setup>
@@ -265,13 +225,11 @@ import {
   UserCheck,
   Eye,
   Printer,
-  ChevronRight,
-  ChevronLeft,
-  Loader2,
   RotateCcw,
 } from 'lucide-vue-next';
 import api from '../../../services/api';
 import { formatDateTime } from '../../../utils/date';
+import DataTable from '../../../components/ui/DataTable.vue';
 import FilterToolbar from '../../../components/ui/FilterToolbar.vue';
 
 const { t, te, locale } = useI18n();
@@ -283,7 +241,7 @@ const props = defineProps({
   },
   perPage: {
     type: Number,
-    default: 15,
+    default: 10,
   },
 });
 
@@ -292,6 +250,7 @@ const emit = defineEmits(['open-sale', 'open-shift', 'print', 'total-updated']);
 const sales = ref([]);
 const loading = ref(true);
 const paymentMethods = ref([]);
+const currentPerPage = ref(props.perPage);
 
 const filters = reactive({
   search: '',
@@ -338,7 +297,7 @@ async function fetchSales(page = 1) {
   try {
     const params = {
       page,
-      per_page: props.perPage,
+      per_page: currentPerPage.value,
       search: filters.search || undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,

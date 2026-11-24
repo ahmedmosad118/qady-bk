@@ -172,30 +172,15 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="meta.total > meta.per_page" class="flex items-center justify-between border-t border-[var(--border)] px-4 py-3 sm:px-6">
-        <span class="text-xs text-[var(--muted)]">
-          {{ $t('stocktaking.showingRange', { from: (meta.current_page - 1) * meta.per_page + 1, to: Math.min(meta.current_page * meta.per_page, meta.total), total: meta.total }) }}
-        </span>
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            class="rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-bold disabled:opacity-50 cursor-pointer"
-            :disabled="meta.current_page <= 1"
-            @click="changePage(meta.current_page - 1)"
-          >
-            {{ $t('common.previous') }}
-          </button>
-          <span class="text-xs font-bold font-mono px-2">{{ meta.current_page }} / {{ meta.last_page }}</span>
-          <button
-            type="button"
-            class="rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-bold disabled:opacity-50 cursor-pointer"
-            :disabled="meta.current_page >= meta.last_page"
-            @click="changePage(meta.current_page + 1)"
-          >
-            {{ $t('common.next') }}
-          </button>
-        </div>
-      </div>
+      <TablePagination
+        :meta="meta"
+        :items-count="stocktakes.length"
+        :per-page="meta.per_page"
+        :loading="loading"
+        @update:per-page="meta.per_page = $event"
+        @change-per-page="fetchStocktakes(1)"
+        @change-page="changePage"
+      />
     </div>
 
     <!-- Modals -->
@@ -229,6 +214,7 @@ import {
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import StocktakeFormModal from './StocktakeFormModal.vue';
 import StocktakeDetailModal from './StocktakeDetailModal.vue';
 import api from '../../services/api';
@@ -261,7 +247,7 @@ const stats = reactive({
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

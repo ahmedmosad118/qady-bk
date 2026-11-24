@@ -409,13 +409,14 @@
             </table>
           </div>
 
-          <PaginationBar
-            v-if="meta.last_page > 1"
-            :current-page="meta.current_page"
-            :last-page="meta.last_page"
-            :total="meta.total"
+          <TablePagination
+            :meta="meta"
+            :items-count="accounts.length"
             :per-page="meta.per_page"
-            @page-change="loadAccounts"
+            :loading="accountsLoading"
+            @update:per-page="meta.per_page = $event"
+            @change-per-page="loadAccounts(1)"
+            @change-page="loadAccounts"
           />
         </div>
 
@@ -517,7 +518,7 @@ import api from '../../services/api';
 import { confirmDelete, showError, showSuccess } from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
 import PageHeader from '../../components/ui/PageHeader.vue';
-import PaginationBar from '../../components/ui/PaginationBar.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import ChartOfAccountFormModal from './ChartOfAccountFormModal.vue';
 
 const { t } = useI18n();
@@ -543,7 +544,7 @@ const accountSearch = ref('');
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 

@@ -164,33 +164,15 @@
       </div>
 
       <!-- Pagination -->
-      <div
-        v-if="meta.total > meta.per_page"
-        class="flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] p-4 sm:flex-row sm:px-6"
-      >
-        <span class="text-xs text-[var(--muted)]">
-          {{ $t('warehouseStocks.pageOf', { current: meta.current_page, last: meta.last_page, total: meta.total }) }}
-        </span>
-
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            :disabled="meta.current_page <= 1"
-            class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
-            @click="changePage(meta.current_page - 1)"
-          >
-            {{ $t('common.previous') }}
-          </button>
-          <button
-            type="button"
-            :disabled="meta.current_page >= meta.last_page"
-            class="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg)] disabled:opacity-40"
-            @click="changePage(meta.current_page + 1)"
-          >
-            {{ $t('common.next') }}
-          </button>
-        </div>
-      </div>
+      <TablePagination
+        :meta="meta"
+        :items-count="stocks.length"
+        :per-page="meta.per_page"
+        :loading="loading"
+        @update:per-page="meta.per_page = $event"
+        @change-per-page="fetchStocks(1)"
+        @change-page="changePage"
+      />
     </div>
 
     <!-- Stock Card Drawer (Side Drawer) -->
@@ -397,6 +379,7 @@ import api from '../../services/api';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import TablePagination from '../../components/ui/TablePagination.vue';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import { formatDateOnly } from '../../utils/date';
 import { createWarehouseFetcher } from '../../utils/selectFetchers';
@@ -416,7 +399,7 @@ const stats = reactive({
 const meta = reactive({
   current_page: 1,
   last_page: 1,
-  per_page: 15,
+  per_page: 10,
   total: 0,
 });
 
