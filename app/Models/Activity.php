@@ -86,6 +86,7 @@ class Activity extends BaseActivity
             'journal' => ['icon' => 'book-marked', 'link' => '/accounting/journals?showId=', 'append_id' => true, 'main_field' => 'name'],
             'fiscal_year' => ['icon' => 'calendar-range', 'link' => '/accounting/fiscal-years?showId=', 'append_id' => true, 'main_field' => 'name'],
             'accounting_period' => ['icon' => 'calendar-days', 'link' => '/accounting/accounting-periods?showId=', 'append_id' => true, 'main_field' => 'name'],
+            'journal_entry' => ['icon' => 'book-open-check', 'link' => '/accounting/journal-entries?showId=', 'append_id' => true, 'main_field' => 'entry_number'],
             'payment_method' => ['icon' => 'credit-card', 'link' => '/accounting/payment-methods?showId=', 'append_id' => true, 'main_field' => 'name'],
         ];
     }
