@@ -49,6 +49,9 @@ return [
         'accounting_period_created' => 'Accounting period created successfully.',
         'accounting_period_updated' => 'Accounting period updated successfully.',
         'accounting_period_deleted' => 'Accounting period deleted successfully.',
+        'journal_entry_created' => 'Journal entry created successfully.',
+        'journal_entry_updated' => 'Journal entry updated successfully.',
+        'journal_entry_deleted' => 'Journal entry deleted successfully.',
     ],
 
     'errors' => [
@@ -98,6 +101,22 @@ return [
         'period_closed_immutable' => 'A closed accounting period cannot be modified or reopened.',
         'period_closed_cannot_delete' => 'Cannot delete a closed accounting period.',
         'period_in_use' => 'Cannot delete an accounting period that has dependent records.',
+        'journal_entry_journal_inactive' => 'The selected journal is inactive.',
+        'journal_entry_fiscal_year_closed' => 'Cannot record a journal entry in a closed fiscal year.',
+        'journal_entry_date_outside_fiscal_year' => 'Entry date must fall within the selected fiscal year dates.',
+        'journal_entry_period_fiscal_year_mismatch' => 'The selected accounting period does not belong to the selected fiscal year.',
+        'journal_entry_period_closed' => 'Cannot record a journal entry in a closed accounting period.',
+        'journal_entry_date_outside_period' => 'Entry date must fall within the selected accounting period dates.',
+        'journal_entry_min_lines' => 'A journal entry must contain at least two lines.',
+        'journal_entry_account_not_found' => 'The selected account on this line does not exist.',
+        'journal_entry_account_inactive' => 'The selected account on this line is inactive.',
+        'journal_entry_line_negative' => 'Debit and credit amounts cannot be negative.',
+        'journal_entry_line_both_positive' => 'A line cannot have positive values in both debit and credit.',
+        'journal_entry_line_both_zero' => 'A line must have a positive value in either debit or credit.',
+        'journal_entry_status_must_be_draft' => 'A journal entry cannot be created or updated directly as posted.',
+        'journal_entry_posted_immutable' => 'A posted journal entry cannot be modified.',
+        'journal_entry_posted_cannot_delete' => 'A posted journal entry cannot be deleted.',
+        'journal_entry_unbalanced' => 'Total debit must equal total credit in a journal entry.',
     ],
 
     'settings' => [

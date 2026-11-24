@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Accounting\AccountingPeriodController;
 use App\Http\Controllers\Api\Accounting\AccountingSettingController;
 use App\Http\Controllers\Api\Accounting\FiscalYearController;
 use App\Http\Controllers\Api\Accounting\JournalController;
+use App\Http\Controllers\Api\Accounting\JournalEntryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
@@ -162,6 +163,15 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/{accountingPeriod}', [AccountingPeriodController::class, 'show']);
         Route::put('/{accountingPeriod}', [AccountingPeriodController::class, 'update']);
         Route::delete('/{accountingPeriod}', [AccountingPeriodController::class, 'destroy']);
+    });
+
+    // Journal Entries
+    Route::prefix('accounting/journal-entries')->group(function () {
+        Route::get('/', [JournalEntryController::class, 'index']);
+        Route::post('/', [JournalEntryController::class, 'store']);
+        Route::get('/{journalEntry}', [JournalEntryController::class, 'show']);
+        Route::put('/{journalEntry}', [JournalEntryController::class, 'update']);
+        Route::delete('/{journalEntry}', [JournalEntryController::class, 'destroy']);
     });
 
     // Payment Methods (Management & Account Linking)

@@ -49,6 +49,9 @@ return [
         'accounting_period_created' => 'تم إنشاء الفترة المحاسبية بنجاح.',
         'accounting_period_updated' => 'تم تحديث الفترة المحاسبية بنجاح.',
         'accounting_period_deleted' => 'تم حذف الفترة المحاسبية بنجاح.',
+        'journal_entry_created' => 'تم إنشاء قيد اليومية بنجاح.',
+        'journal_entry_updated' => 'تم تحديث قيد اليومية بنجاح.',
+        'journal_entry_deleted' => 'تم حذف قيد اليومية بنجاح.',
     ],
 
     'errors' => [
@@ -98,6 +101,22 @@ return [
         'period_closed_immutable' => 'لا يمكن تعديل أو إعادة فتح فترة محاسبية مغلقة.',
         'period_closed_cannot_delete' => 'لا يمكن حذف فترة محاسبية مغلقة.',
         'period_in_use' => 'لا يمكن حذف فترة محاسبية مرتبطة بسجلات محاسبية.',
+        'journal_entry_journal_inactive' => 'دفتر اليومية المحدد غير نشط.',
+        'journal_entry_fiscal_year_closed' => 'لا يمكن تسجيل قيد في سنة مالية مغلقة.',
+        'journal_entry_date_outside_fiscal_year' => 'تاريخ القيد يجب أن يقع ضمن نطاق السنة المالية المحددة.',
+        'journal_entry_period_fiscal_year_mismatch' => 'الفترة المحاسبية المحددة لا تتبع السنة المالية المختارة.',
+        'journal_entry_period_closed' => 'لا يمكن تسجيل قيد في فترة محاسبية مغلقة.',
+        'journal_entry_date_outside_period' => 'تاريخ القيد يجب أن يقع ضمن نطاق الفترة المحاسبية المحددة.',
+        'journal_entry_min_lines' => 'يجب أن يحتوي القيد على سطرين على الأقل.',
+        'journal_entry_account_not_found' => 'الحساب المحاسبي المحدد في السطر غير موجود.',
+        'journal_entry_account_inactive' => 'الحساب المحاسبي المحدد في السطر غير نشط.',
+        'journal_entry_line_negative' => 'لا يمكن أن تكون قيمة المدين أو الدائن سالبة.',
+        'journal_entry_line_both_positive' => 'لا يمكن إدخال قيمة موجبة في المدين والدائن معًا في نفس السطر.',
+        'journal_entry_line_both_zero' => 'يجب أن يحتوي السطر على قيمة موجبة في المدين أو الدائن.',
+        'journal_entry_status_must_be_draft' => 'لا يمكن إنشاء أو تعديل قيد بحالة مرحل مباشرة.',
+        'journal_entry_posted_immutable' => 'لا يمكن تعديل قيد يومية مرحل.',
+        'journal_entry_posted_cannot_delete' => 'لا يمكن حذف قيد يومية مرحل.',
+        'journal_entry_unbalanced' => 'يجب أن يتساوى إجمالي المدين مع إجمالي الدائن في قيد اليومية.',
     ],
 
     'settings' => [
