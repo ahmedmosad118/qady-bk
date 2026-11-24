@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Accounting;
 
-use App\Enums\AccountPurpose;
-use App\Enums\AccountType;
-use App\Models\ChartOfAccount;
+use App\Enums\Accounting\AccountTypeCode;
+use App\Models\Account;
+use App\Models\AccountType;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Accounting\AccountingSettingRegistry;
-use Database\Seeders\ChartOfAccountSeeder;
+use Database\Seeders\AccountingSeeder;
+use Database\Seeders\PermissionsTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class AccountingSettingTest extends TestCase
@@ -25,52 +27,175 @@ class AccountingSettingTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = $this->actingAsSuperAdmin();
-        $this->seed(ChartOfAccountSeeder::class);
+        $this->seed([
+            PermissionsTableSeeder::class,
+            AccountingSeeder::class,
+        ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->user = User::factory()->create();
+        $this->user->givePermissionTo([
+            'accounting.settings.view',
+            'accounting.settings.update',
+        ]);
     }
 
-    public function test_removed_keys_are_not_returned_and_remaining_settings_load_cleanly(): void
+    public function test_only_receivable_and_payable_appear_in_items_with_compatible_active_accounts(): void
     {
-        $res = $this->getJson('/api/settings/accounting');
+        $receivableType = AccountType::query()->where('code', AccountTypeCode::Receivable->value)->firstOrFail();
+        $payableType = AccountType::query()->where('code', AccountTypeCode::Payable->value)->firstOrFail();
 
-        $res->assertOk()
+        $inactiveReceivable = Account::query()->create([
+            'account_type_id' => $receivableType->id,
+            'code' => '1299',
+            'name' => 'عملاء معطل',
+            'is_active' => false,
+        ]);
+
+        $inactivePayable = Account::query()->create([
+            'account_type_id' => $payableType->id,
+            'code' => '2199',
+            'name' => 'موردون معطل',
+            'is_active' => false,
+        ]);
+
+        $res = $this->actingAs($this->user)
+            ->getJson('/api/settings/accounting')
+            ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.type', AccountingSettingRegistry::SETTING_TYPE);
 
-        $data = $res->json('data.data');
-        foreach (['cash', 'bank', 'accounts_receivable', 'accounts_payable'] as $removedKey) {
-            $this->assertArrayNotHasKey($removedKey, $data);
+        $items = collect($res->json('data.items'))->keyBy('key');
+        $this->assertSame(['accounts_receivable', 'accounts_payable'], $items->keys()->all());
+
+        foreach (['inventory', 'capital', 'owner_current', 'sales_revenue', 'sales_returns', 'cost_of_goods_sold', 'operating_expenses'] as $legacyKey) {
+            $this->assertFalse($items->has($legacyKey));
+            $this->assertArrayNotHasKey($legacyKey, $res->json('data.compatible_accounts'));
         }
 
-        $items = collect($res->json('data.items'))->keyBy('key');
-        $this->assertSame([
-            'inventory',
-            'capital',
-            'owner_current',
-            'sales_revenue',
-            'sales_returns',
-            'cost_of_goods_sold',
-            'operating_expenses',
-        ], $items->keys()->all());
+        $this->assertFalse($items->get('accounts_receivable')['required']);
+        $this->assertFalse($items->get('accounts_payable')['required']);
 
-        $this->assertTrue($items->get('inventory')['required']);
-        $this->assertFalse($items->get('owner_current')['required']);
-        $this->assertNull($items->get('owner_current')['account_id']);
-        $this->assertNotNull($items->get('inventory')['account_id']);
+        $activeReceivable = Account::query()->where('code', '1201')->firstOrFail();
+        $activePayable = Account::query()->where('code', '2101')->firstOrFail();
 
-        // Approved Arabic labels
-        app()->setLocale('ar');
-        $arRes = $this->getJson('/api/settings/accounting')->assertOk();
-        $arItems = collect($arRes->json('data.items'))->keyBy('key');
-        $this->assertSame('حساب مبيعات الكتب', $arItems->get('sales_revenue')['label']);
-        $this->assertSame('حساب مردودات المبيعات', $arItems->get('sales_returns')['label']);
+        $recCompatibleIds = collect($res->json('data.compatible_accounts.accounts_receivable'))->pluck('id')->all();
+        $this->assertSame([$activeReceivable->id], $recCompatibleIds);
+        $this->assertNotContains($inactiveReceivable->id, $recCompatibleIds);
 
-        // Cash and bank accounts must be excluded from compatible inventory options
-        $cashAccount = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
-        $bankAccount = ChartOfAccount::query()->where('code', '1002')->firstOrFail();
-        $inventoryCompatibleIds = collect($arRes->json('data.compatible_accounts.inventory'))->pluck('id')->all();
-        $this->assertNotContains($cashAccount->id, $inventoryCompatibleIds);
-        $this->assertNotContains($bankAccount->id, $inventoryCompatibleIds);
+        $payCompatibleIds = collect($res->json('data.compatible_accounts.accounts_payable'))->pluck('id')->all();
+        $this->assertSame([$activePayable->id], $payCompatibleIds);
+        $this->assertNotContains($inactivePayable->id, $payCompatibleIds);
+    }
+
+    public function test_preserves_legacy_seven_keys_and_unrelated_json_keys_when_updating(): void
+    {
+        $receivable = Account::query()->where('code', '1201')->firstOrFail();
+        $payable = Account::query()->where('code', '2101')->firstOrFail();
+
+        Setting::query()->create([
+            'type' => AccountingSettingRegistry::SETTING_TYPE,
+            'data' => [
+                'inventory' => 10,
+                'capital' => 20,
+                'owner_current' => null,
+                'sales_revenue' => 30,
+                'sales_returns' => 40,
+                'cost_of_goods_sold' => 50,
+                'operating_expenses' => 60,
+                'custom_preserved_key' => 'keep_me',
+                'cash' => 999,
+                'bank' => 888,
+            ],
+        ]);
+
+        // Update only accounts_receivable
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => [
+                    'accounts_receivable' => $receivable->id,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.data.accounts_receivable', $receivable->id)
+            ->assertJsonPath('data.data.inventory', 10)
+            ->assertJsonPath('data.data.capital', 20)
+            ->assertJsonPath('data.data.sales_revenue', 30)
+            ->assertJsonPath('data.data.custom_preserved_key', 'keep_me');
+
+        // Update only accounts_payable; accounts_receivable & legacy keys must remain intact
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => [
+                    'accounts_payable' => $payable->id,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.data.accounts_receivable', $receivable->id)
+            ->assertJsonPath('data.data.accounts_payable', $payable->id)
+            ->assertJsonPath('data.data.inventory', 10)
+            ->assertJsonPath('data.data.operating_expenses', 60)
+            ->assertJsonPath('data.data.custom_preserved_key', 'keep_me');
+
+        $freshData = Setting::query()->where('type', AccountingSettingRegistry::SETTING_TYPE)->firstOrFail()->data;
+        $this->assertArrayNotHasKey('cash', $freshData);
+        $this->assertArrayNotHasKey('bank', $freshData);
+
+        // Clear both back to null
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => [
+                    'accounts_receivable' => null,
+                    'accounts_payable' => null,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.data.accounts_receivable', null)
+            ->assertJsonPath('data.data.accounts_payable', null)
+            ->assertJsonPath('data.data.inventory', 10);
+    }
+
+    public function test_rejects_invalid_inactive_or_wrong_type_accounts(): void
+    {
+        $receivableType = AccountType::query()->where('code', AccountTypeCode::Receivable->value)->firstOrFail();
+        $inactiveReceivable = Account::query()->create([
+            'account_type_id' => $receivableType->id,
+            'code' => '1299',
+            'name' => 'عملاء معطل',
+            'is_active' => false,
+        ]);
+
+        $activeReceivable = Account::query()->where('code', '1201')->firstOrFail();
+        $activePayable = Account::query()->where('code', '2101')->firstOrFail();
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['accounts_receivable' => 999999],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.accounts_receivable']);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['accounts_receivable' => $inactiveReceivable->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.accounts_receivable']);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['accounts_receivable' => $activePayable->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.accounts_receivable']);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['accounts_payable' => $activeReceivable->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.accounts_payable']);
     }
 
     public function test_unauthorized_user_cannot_view_or_update_accounting_settings(): void
@@ -78,99 +203,6 @@ class AccountingSettingTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/settings/accounting')->assertForbidden();
-        $this->putJson('/api/settings/accounting', ['settings' => ['inventory' => 1]])->assertForbidden();
-    }
-
-    public function test_can_update_setting_to_compatible_account_and_null_optional_key_preserving_unrelated_keys(): void
-    {
-        // Add an unrelated key inside settings.data to verify it is preserved
-        $setting = Setting::query()->where('type', AccountingSettingRegistry::SETTING_TYPE)->firstOrFail();
-        $data = $setting->data;
-        $data['custom_unrelated_flag'] = 'preserve_me';
-        $data['cash'] = 999; // simulate legacy leftover
-        $setting->update(['data' => $data]);
-
-        $altInventory = ChartOfAccount::query()->create([
-            'code' => '1090',
-            'name' => 'مخزون فرع الإسكندرية',
-            'account_type' => AccountType::ASSET->value,
-            'account_purpose' => AccountPurpose::GENERAL->value,
-        ]);
-
-        $ownerCurrent = ChartOfAccount::query()->create([
-            'code' => '3002',
-            'name' => 'جاري المالك',
-            'account_type' => AccountType::EQUITY->value,
-            'account_purpose' => AccountPurpose::GENERAL->value,
-        ]);
-
-        $this->putJson('/api/settings/accounting', [
-            'settings' => [
-                'inventory' => $altInventory->id,
-                'owner_current' => $ownerCurrent->id,
-            ],
-        ])->assertOk()
-            ->assertJsonPath('data.data.inventory', $altInventory->id)
-            ->assertJsonPath('data.data.owner_current', $ownerCurrent->id);
-
-        // Clear optional owner_current -> allowed
-        $this->putJson('/api/settings/accounting', [
-            'settings' => [
-                'owner_current' => null,
-            ],
-        ])->assertOk()
-            ->assertJsonPath('data.data.owner_current', null);
-
-        $setting->refresh();
-        $this->assertSame($altInventory->id, $setting->data['inventory']);
-        $this->assertNull($setting->data['owner_current']);
-        $this->assertSame('preserve_me', $setting->data['custom_unrelated_flag']);
-        $this->assertArrayNotHasKey('cash', $setting->data);
-    }
-
-    public function test_rejects_obsolete_keys_wrong_types_contact_accounts_duplicates_and_null_required_keys(): void
-    {
-        $costOfGoods = ChartOfAccount::query()->where('code', '5001')->firstOrFail();
-        $capital = ChartOfAccount::query()->where('code', '3001')->firstOrFail();
-
-        // Obsolete keys rejected
-        foreach (['cash', 'bank', 'accounts_receivable', 'accounts_payable', 'unknown_key'] as $invalidKey) {
-            $this->putJson('/api/settings/accounting', [
-                'settings' => [$invalidKey => $costOfGoods->id],
-            ])->assertUnprocessable()
-                ->assertJsonValidationErrors(["settings.{$invalidKey}"]);
-        }
-
-        // Wrong AccountType -> rejected
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['sales_revenue' => $costOfGoods->id],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.sales_revenue']);
-
-        // Mandatory key cannot be nulled -> rejected
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['inventory' => null],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.inventory']);
-
-        // Duplicate account assignment (assigning capital account to owner_current too) -> rejected
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['owner_current' => $capital->id],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.owner_current']);
-
-        // Cash or bank purpose Asset account cannot be selected for inventory -> rejected
-        $cashAccount = ChartOfAccount::query()->where('code', '1001')->firstOrFail();
-        $bankAccount = ChartOfAccount::query()->where('code', '1002')->firstOrFail();
-
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['inventory' => $cashAccount->id],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.inventory']);
-
-        $this->putJson('/api/settings/accounting', [
-            'settings' => ['inventory' => $bankAccount->id],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['settings.inventory']);
+        $this->putJson('/api/settings/accounting', ['settings' => ['accounts_receivable' => null]])->assertForbidden();
     }
 }

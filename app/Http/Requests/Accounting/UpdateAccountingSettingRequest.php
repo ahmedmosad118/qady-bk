@@ -21,7 +21,7 @@ class UpdateAccountingSettingRequest extends FormRequest
     {
         return [
             'settings' => ['required', 'array', 'min:1'],
-            'settings.*' => ['nullable', 'integer', Rule::exists('chart_of_accounts', 'id')],
+            'settings.*' => ['nullable', 'integer', Rule::exists('accounts', 'id')],
         ];
     }
 

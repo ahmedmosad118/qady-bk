@@ -4,23 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services\Accounting;
 
-use App\Enums\AccountPurpose;
-use App\Models\ChartOfAccount;
+use App\Enums\Accounting\AccountTypeCode;
+use App\Models\Account;
 use App\Models\Setting;
-use App\Services\SettingService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountingSettingService
 {
-    public function __construct(
-        protected SettingService $settingService,
-    ) {}
-
     /**
      * Retrieve the accounting settings record without exposing obsolete keys
-     * or overwriting existing user selections.
+     * or overwriting existing JSON entries.
      */
     public function getSettings(): Setting
     {
@@ -34,11 +29,6 @@ class AccountingSettingService
             return $existing;
         }
 
-        $defaults = $this->resolveDefaultAccountIds();
-        if ($defaults !== []) {
-            return $this->settingService->getByType(AccountingSettingRegistry::SETTING_TYPE, $defaults);
-        }
-
         return new Setting([
             'type' => AccountingSettingRegistry::SETTING_TYPE,
             'data' => [],
@@ -46,7 +36,7 @@ class AccountingSettingService
     }
 
     /**
-     * Return structured settings entries with hydrated account info and metadata.
+     * Return structured settings entries for active keys only with hydrated account info.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -55,43 +45,47 @@ class AccountingSettingService
         $setting = $this->getSettings();
         $data = is_array($setting->data) ? $setting->data : [];
 
-        $accountIds = array_values(array_unique(array_filter(
-            array_map(static fn (mixed $v): int => is_numeric($v) ? (int) $v : 0, $data),
-            static fn (int $id): bool => $id > 0
-        )));
+        $accountIds = [];
+        foreach (AccountingSettingRegistry::keys() as $key) {
+            $val = $data[$key] ?? null;
+            if (is_numeric($val) && (int) $val > 0) {
+                $accountIds[] = (int) $val;
+            }
+        }
+        $accountIds = array_values(array_unique($accountIds));
 
-        /** @var Collection<int, ChartOfAccount> $accounts */
+        /** @var Collection<int, Account> $accounts */
         $accounts = $accountIds === []
             ? new Collection
-            : ChartOfAccount::query()
+            : Account::query()
+                ->with('accountType:id,code,name')
                 ->whereIn('id', $accountIds)
-                ->get(['id', 'code', 'name', 'account_type', 'account_purpose'])
+                ->get(['id', 'account_type_id', 'code', 'name', 'is_active'])
                 ->keyBy('id');
 
         $result = [];
         foreach (AccountingSettingRegistry::definitions() as $key => $def) {
             $rawId = $data[$key] ?? null;
             $accountId = is_numeric($rawId) && (int) $rawId > 0 ? (int) $rawId : null;
-            /** @var ChartOfAccount|null $account */
+            /** @var Account|null $account */
             $account = $accountId !== null ? $accounts->get($accountId) : null;
-            $purpose = $account?->account_purpose ?? AccountPurpose::GENERAL;
+            $typeCode = $account?->accountType?->code;
 
             $result[] = [
                 'key' => $key,
                 'label' => AccountingSettingRegistry::label($key),
                 'description' => AccountingSettingRegistry::description($key),
                 'account_type' => $def['account_type']->value,
-                'account_type_label' => $def['account_type']->label(),
+                'account_type_label' => AccountingSettingRegistry::accountTypeLabel($def['account_type']),
                 'required' => $def['required'],
                 'account_id' => $account?->id,
                 'account' => $account ? [
                     'id' => $account->id,
                     'code' => $account->code,
                     'name' => $account->name,
-                    'account_type' => $account->account_type->value,
-                    'account_type_label' => $account->account_type->label(),
-                    'account_purpose' => $purpose->value,
-                    'account_purpose_label' => $purpose->label(),
+                    'account_type' => $typeCode,
+                    'account_type_label' => $account->accountType?->name ?? '',
+                    'is_active' => (bool) $account->is_active,
                 ] : null,
             ];
         }
@@ -100,35 +94,44 @@ class AccountingSettingService
     }
 
     /**
-     * Return compatible selectable accounts per accounting setting key in constant queries.
+     * Return compatible active accounts per active accounting setting key in a single query.
      *
      * @return array<string, array<int, array<string, mixed>>>
      */
     public function getCompatibleAccountsByKey(): array
     {
-        $accounts = ChartOfAccount::query()
-            ->where('account_purpose', AccountPurpose::GENERAL->value)
+        $typeCodes = array_values(array_unique(array_map(
+            static fn (array $def): string => $def['account_type']->value,
+            AccountingSettingRegistry::definitions()
+        )));
+
+        $accounts = Account::query()
+            ->where('is_active', true)
+            ->whereHas('accountType', static function ($query) use ($typeCodes): void {
+                $query->whereIn('code', $typeCodes);
+            })
+            ->with('accountType:id,code,name')
             ->orderBy('code')
-            ->get(['id', 'code', 'name', 'account_type', 'account_purpose']);
+            ->get(['id', 'account_type_id', 'code', 'name', 'is_active']);
+
+        $byTypeCode = [];
+        foreach ($accounts as $account) {
+            $code = $account->accountType?->code;
+            if ($code === null) {
+                continue;
+            }
+
+            $byTypeCode[$code][] = [
+                'id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->name,
+                'account_type' => $code,
+            ];
+        }
 
         $grouped = [];
         foreach (AccountingSettingRegistry::definitions() as $key => $def) {
-            $compatible = [];
-            foreach ($accounts as $account) {
-                if ($account->account_type !== $def['account_type']) {
-                    continue;
-                }
-
-                $compatible[] = [
-                    'id' => $account->id,
-                    'code' => $account->code,
-                    'name' => $account->name,
-                    'account_type' => $account->account_type->value,
-                    'account_purpose' => AccountPurpose::GENERAL->value,
-                ];
-            }
-
-            $grouped[$key] = $compatible;
+            $grouped[$key] = $byTypeCode[$def['account_type']->value] ?? [];
         }
 
         return $grouped;
@@ -146,8 +149,8 @@ class AccountingSettingService
     }
 
     /**
-     * Validate and atomically update accounting settings while stripping obsolete keys
-     * and preserving unrelated setting entries.
+     * Validate and atomically update active accounting settings while preserving
+     * all existing JSON entries (including legacy keys and unrelated settings).
      *
      * @param  array<string, mixed>  $input
      */
@@ -159,9 +162,9 @@ class AccountingSettingService
                 ->lockForUpdate()
                 ->first();
 
-            $existingData = $this->stripObsoleteKeys(
-                is_array($existingSetting?->data) ? $existingSetting->data : []
-            );
+            $existingData = $existingSetting
+                ? $this->stripObsoleteKeys(is_array($existingSetting->data) ? $existingSetting->data : [])
+                : [];
             $definitions = AccountingSettingRegistry::definitions();
             $errors = [];
 
@@ -209,7 +212,7 @@ class AccountingSettingService
     }
 
     /**
-     * Check whether an account is currently referenced by any accounting setting.
+     * Check whether an account is currently referenced by any active accounting setting.
      */
     public function isAccountLinkedToAnySetting(int $accountId): bool
     {
@@ -232,7 +235,7 @@ class AccountingSettingService
 
     /**
      * @param  array<string, mixed>  $candidateData
-     * @param  array<string, array<string, mixed>>  $definitions
+     * @param  array<string, array{key: string, account_type: AccountTypeCode, required: bool}>  $definitions
      */
     private function validateCandidateAccounts(array $candidateData, array $definitions): void
     {
@@ -245,10 +248,11 @@ class AccountingSettingService
         }
         $settingAccountIds = array_values(array_unique($settingAccountIds));
 
-        /** @var Collection<int, ChartOfAccount> $accounts */
+        /** @var Collection<int, Account> $accounts */
         $accounts = $settingAccountIds === []
             ? new Collection
-            : ChartOfAccount::query()
+            : Account::query()
+                ->with('accountType:id,code,name')
                 ->whereIn('id', $settingAccountIds)
                 ->lockForUpdate()
                 ->get()
@@ -265,18 +269,18 @@ class AccountingSettingService
 
             $accountId = (int) $rawId;
             $label = AccountingSettingRegistry::label($key);
-            /** @var ChartOfAccount|null $account */
+            /** @var Account|null $account */
             $account = $accounts->get($accountId);
 
             if (! $account) {
                 $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_not_found', ['label' => $label])];
-            } elseif ($account->account_type !== $def['account_type']) {
+            } elseif (! $account->is_active) {
+                $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_inactive', ['label' => $label])];
+            } elseif ($account->accountType?->code !== $def['account_type']->value) {
                 $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_type_mismatch', [
                     'label' => $label,
-                    'type' => $def['account_type']->label(),
+                    'type' => AccountingSettingRegistry::accountTypeLabel($def['account_type']),
                 ])];
-            } elseif (($account->account_purpose ?? AccountPurpose::GENERAL) !== AccountPurpose::GENERAL) {
-                $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_cannot_be_cash_or_bank', ['label' => $label])];
             } elseif (isset($assignedAccounts[$account->id])) {
                 $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_account_duplicate', ['label' => $label])];
             } else {
@@ -300,63 +304,5 @@ class AccountingSettingService
         }
 
         return $data;
-    }
-
-    /**
-     * Resolve default setting IDs from existing chart rows when settings row does not exist yet.
-     *
-     * @return array<string, ?int>
-     */
-    private function resolveDefaultAccountIds(): array
-    {
-        $definitionsByKey = [];
-        foreach (DefaultChartOfAccountsRegistry::accounts() as $entry) {
-            $definitionsByKey[$entry['key']] = $entry;
-        }
-
-        $codes = [];
-        foreach (AccountingSettingRegistry::definitions() as $def) {
-            $chartKey = $def['default_chart_key'];
-            if ($chartKey !== null && isset($definitionsByKey[$chartKey])) {
-                $codes[] = $definitionsByKey[$chartKey]['code'];
-            }
-        }
-
-        if ($codes === []) {
-            return [];
-        }
-
-        $accountsByCode = ChartOfAccount::query()
-            ->whereIn('code', $codes)
-            ->get(['id', 'code', 'account_type'])
-            ->keyBy('code');
-
-        $resolved = [];
-        foreach (AccountingSettingRegistry::definitions() as $settingKey => $def) {
-            $chartKey = $def['default_chart_key'];
-            if ($chartKey === null) {
-                $resolved[$settingKey] = null;
-
-                continue;
-            }
-
-            $entry = $definitionsByKey[$chartKey] ?? null;
-            if (! $entry) {
-                continue;
-            }
-
-            $acc = $accountsByCode->get($entry['code']);
-            if ($acc && $acc->account_type === $def['account_type']) {
-                $resolved[$settingKey] = $acc->id;
-            }
-        }
-
-        foreach (AccountingSettingRegistry::requiredKeys() as $reqKey) {
-            if (! isset($resolved[$reqKey])) {
-                return [];
-            }
-        }
-
-        return $resolved;
     }
 }

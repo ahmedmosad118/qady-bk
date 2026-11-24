@@ -155,6 +155,9 @@ class AccountingSeeder extends Seeder
             ['code' => 'CSH', 'name' => 'دفتر النقدية', 'type' => JournalType::Cash->value],
             ['code' => 'BNK', 'name' => 'دفتر البنك', 'type' => JournalType::Bank->value],
             ['code' => 'MSC', 'name' => 'دفتر اليومية العامة', 'type' => JournalType::Miscellaneous->value],
+            ['code' => 'ADJST', 'name' => 'التسويات', 'type' => JournalType::Miscellaneous->value],
+            ['code' => 'STJ', 'name' => 'دفتر تقييم المخزون', 'type' => JournalType::Miscellaneous->value],
+            ['code' => 'OPBJ', 'name' => 'الأرصدة الافتتاحية', 'type' => JournalType::Miscellaneous->value],
         ];
 
         $existing = Journal::query()

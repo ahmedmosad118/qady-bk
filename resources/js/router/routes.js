@@ -29,6 +29,7 @@ import PaymentMethodsView from '../views/accounting/PaymentMethodsView.vue';
 import JournalsView from '../views/accounting/JournalsView.vue';
 import FiscalYearsView from '../views/accounting/FiscalYearsView.vue';
 import AccountingPeriodsView from '../views/accounting/AccountingPeriodsView.vue';
+import AccountingSettingsView from '../views/accounting/AccountingSettingsView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ComingSoonView from '../views/ComingSoonView.vue';
 
@@ -245,6 +246,12 @@ const routes = [
         name: 'accounting.paymentMethods',
         component: PaymentMethodsView,
         meta: { titleKey: 'nav.paymentMethods', permission: 'accounting.settings.view' },
+      },
+      {
+        path: 'accounting/settings',
+        name: 'accounting.settings',
+        component: AccountingSettingsView,
+        meta: { titleKey: 'nav.accountingSettings', permission: 'accounting.settings.view' },
       },
     ],
   },
