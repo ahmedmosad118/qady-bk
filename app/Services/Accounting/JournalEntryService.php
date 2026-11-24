@@ -106,9 +106,19 @@ class JournalEntryService
      */
     public function create(array $data, ?User $user = null): JournalEntry
     {
-        return DB::transaction(function () use ($data, $user): JournalEntry {
-            $this->assertDraftStatusRequested($data);
+        $this->assertDraftStatusRequested($data);
 
+        return $this->persistNewEntry($data, $user);
+    }
+
+    /**
+     * Persist a new journal entry and its lines inside a single transaction.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function persistNewEntry(array $data, ?User $user = null): JournalEntry
+    {
+        return DB::transaction(function () use ($data, $user): JournalEntry {
             $entryDate = Carbon::parse((string) $data['entry_date'])->toDateString();
             $this->validateAccountingContext(
                 (int) $data['journal_id'],
