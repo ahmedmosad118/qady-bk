@@ -120,6 +120,7 @@ export const navigation = [
           { label: 'nav.journals', to: '/accounting/journals' },
           { label: 'nav.fiscalYears', to: '/accounting/fiscal-years' },
           { label: 'nav.accountingPeriods', to: '/accounting/accounting-periods' },
+          { label: 'nav.journalEntries', to: '/accounting/journal-entries' },
           { label: 'nav.paymentMethods', to: '/accounting/payment-methods', permission: 'accounting.settings.view' },
           { label: 'nav.accountingSettings', to: '/accounting/settings', permission: 'accounting.settings.view' },
         ],

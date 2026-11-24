@@ -51,3 +51,27 @@ export function updateAccountingPeriod(id, payload) {
 export function deleteAccountingPeriod(id) {
   return api.delete(`/accounting/accounting-periods/${id}`);
 }
+
+export function fetchJournalEntries(params = {}) {
+  return api.get('/accounting/journal-entries', { params });
+}
+
+export function fetchJournalEntry(id) {
+  return api.get(`/accounting/journal-entries/${id}`);
+}
+
+export function createJournalEntry(payload) {
+  return api.post('/accounting/journal-entries', payload);
+}
+
+export function updateJournalEntry(id, payload) {
+  return api.put(`/accounting/journal-entries/${id}`, payload);
+}
+
+export function deleteJournalEntry(id) {
+  return api.delete(`/accounting/journal-entries/${id}`);
+}
+
+export function postJournalEntry(id) {
+  return api.post(`/accounting/journal-entries/${id}/post`);
+}

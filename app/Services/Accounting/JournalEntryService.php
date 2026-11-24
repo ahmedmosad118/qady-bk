@@ -240,6 +240,20 @@ class JournalEntryService
                 $locked->entry_date->toDateString(),
             );
 
+            $rawLines = $locked->lines()
+                ->orderBy('line_number')
+                ->get(['account_id', 'line_number', 'label', 'debit', 'credit'])
+                ->map(static fn (JournalEntryLine $line): array => [
+                    'account_id' => $line->account_id,
+                    'line_number' => $line->line_number,
+                    'label' => $line->label,
+                    'debit' => $line->debit,
+                    'credit' => $line->credit,
+                ])
+                ->all();
+
+            $this->validateAndPrepareLines($rawLines);
+
             $locked->update([
                 'status' => JournalEntryStatus::Posted->value,
                 'posted_by' => $user?->id,
