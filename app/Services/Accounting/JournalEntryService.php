@@ -122,6 +122,14 @@ class JournalEntryService
         Model $source,
         ?User $user = null,
     ): JournalEntry {
+        $sourceKey = $source->getKey();
+
+        if (! $source->exists || $sourceKey === null || $sourceKey === '' || $sourceKey === 0) {
+            throw ValidationException::withMessages([
+                'source' => ['The source model must be persisted with a valid primary key.'],
+            ]);
+        }
+
         return $this->persistNewEntry(
             data: $data,
             user: $user,

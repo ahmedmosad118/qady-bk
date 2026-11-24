@@ -213,4 +213,41 @@ class JournalEntryCreateFromSourceTest extends TestCase
         $this->assertNull($entry->posted_at);
         $this->assertSame($this->user->id, $entry->created_by);
     }
+
+    public function test_create_from_source_rejects_unsaved_model_without_persisting_records(): void
+    {
+        $unsavedInvoice = new PurchaseInvoice;
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            app(JournalEntryService::class)->createFromSource(
+                $this->validPayload(),
+                $unsavedInvoice,
+                $this->user,
+            );
+        } finally {
+            $this->assertSame(0, JournalEntry::query()->count());
+            $this->assertSame(0, JournalEntryLine::query()->count());
+        }
+    }
+
+    public function test_create_from_source_rejects_model_without_valid_primary_key(): void
+    {
+        $invalidSource = new PurchaseInvoice;
+        $invalidSource->exists = true;
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            app(JournalEntryService::class)->createFromSource(
+                $this->validPayload(),
+                $invalidSource,
+                $this->user,
+            );
+        } finally {
+            $this->assertSame(0, JournalEntry::query()->count());
+            $this->assertSame(0, JournalEntryLine::query()->count());
+        }
+    }
 }
