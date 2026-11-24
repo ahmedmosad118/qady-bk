@@ -8,6 +8,7 @@ use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\InventoryReturnDirection;
 use App\Enums\StockAdjustmentDirection;
+use App\Models\Concerns\LogsModelActivity;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use LogicException;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'document_number',
@@ -51,7 +53,16 @@ use LogicException;
 ])]
 class InventoryDocument extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsModelActivity, SoftDeletes;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('inventory_document');
+    }
 
     /**
      * @return array<string, string>

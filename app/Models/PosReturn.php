@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 use LogicException;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'return_number',
@@ -27,7 +29,17 @@ use LogicException;
 ])]
 class PosReturn extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logExcept(['client_uuid'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('pos_return');
+    }
 
     /**
      * @return array<string, string>
@@ -100,7 +112,7 @@ class PosReturn extends Model
     {
         static::creating(function (PosReturn $return): void {
             if (empty($return->return_number)) {
-                $return->return_number = 'TMP-' . Str::uuid()->toString();
+                $return->return_number = 'TMP-'.Str::uuid()->toString();
             }
         });
 

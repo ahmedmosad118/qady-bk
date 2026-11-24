@@ -46,6 +46,7 @@ return [
         'Accounting Settings' => 'Accounting Settings',
         'Users' => 'Users',
         'Roles' => 'Roles',
+        'Activity Log' => 'Activity Log',
     ],
 
     'actions' => [
@@ -72,5 +73,6 @@ return [
         'start' => 'Start Stocktake',
         'count' => 'Record Counts',
         'review_results' => 'Review Variances & Results',
+        'clear' => 'Clear Log',
     ],
 ];

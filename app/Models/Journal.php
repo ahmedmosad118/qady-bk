@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\Accounting\JournalType;
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'code',
@@ -16,6 +18,17 @@ use Illuminate\Database\Eloquent\Model;
 ])]
 class Journal extends Model
 {
+    use LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('journal');
+    }
+
     /**
      * @return array<string, string>
      */

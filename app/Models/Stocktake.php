@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\StocktakeScope;
 use App\Enums\StocktakeStatus;
+use App\Models\Concerns\LogsModelActivity;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 use LogicException;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'stocktake_number',
@@ -41,7 +43,16 @@ use LogicException;
 ])]
 class Stocktake extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('stocktake');
+    }
 
     /**
      * @return array<string, string>

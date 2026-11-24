@@ -8,6 +8,7 @@ import LoginView from '../views/auth/LoginView.vue';
 import HomeView from '../views/HomeView.vue';
 import UsersView from '../views/team/UsersView.vue';
 import RolesView from '../views/team/RolesView.vue';
+import ActivitiesView from '../views/team/ActivitiesView.vue';
 import ProductsView from '../views/catalog/ProductsView.vue';
 import BarcodePrintView from '../views/catalog/BarcodePrintView.vue';
 import ProductCategoriesView from '../views/catalog/ProductCategoriesView.vue';
@@ -80,6 +81,12 @@ const routes = [
         name: 'roles',
         component: RolesView,
         meta: { titleKey: 'nav.roles', permission: 'roles.view' },
+      },
+      {
+        path: 'activities',
+        name: 'activities',
+        component: ActivitiesView,
+        meta: { titleKey: 'nav.activityLogs', permission: 'activities.view' },
       },
       {
         path: 'products',

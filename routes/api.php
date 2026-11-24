@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Accounting\AccountingPeriodController;
 use App\Http\Controllers\Api\Accounting\AccountingSettingController;
 use App\Http\Controllers\Api\Accounting\FiscalYearController;
 use App\Http\Controllers\Api\Accounting\JournalController;
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
@@ -61,6 +62,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/roles/{role}', [RoleController::class, 'show']);
     Route::put('/roles/{role}', [RoleController::class, 'update']);
     Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
+
+    // Activity Log (Audit Trail)
+    Route::get('/activities', [ActivityController::class, 'index']);
+    Route::delete('/activities/clear', [ActivityController::class, 'clearAll']);
 
     // Books (products) and their categories.
     Route::get('/products', [ProductController::class, 'index']);

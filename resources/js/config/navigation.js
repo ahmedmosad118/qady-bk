@@ -141,6 +141,7 @@ export const navigation = [
         items: [
           { label: 'nav.users', to: '/users', permission: 'users.view' },
           { label: 'nav.roles', to: '/roles', permission: 'roles.view' },
+          { label: 'nav.activityLogs', to: '/activities', permission: 'activities.view' },
           { label: 'nav.settings', to: '/settings', permission: ['purchase_settings.view', 'accounting.settings.view'] },
         ],
       },

@@ -10,7 +10,7 @@ $categories = [
     'Inventory' => ['Warehouses', 'Inventory Documents', 'Warehouse Stocks', 'Stocktaking'],
     'Expenses' => ['Expense Categories', 'General Expenses'],
     'Accounting' => ['Chart of Accounts', 'Accounting Settings'],
-    'Administration' => ['Users', 'Roles'],
+    'Administration' => ['Users', 'Roles', 'Activity Log'],
 ];
 
 $modules = [
@@ -269,6 +269,16 @@ $modules = [
             'create',
             'update',
             'delete',
+        ],
+    ],
+    [
+        'name' => 'Activity Log',
+        'slug' => 'Activity Log',
+        'model' => 'Activity',
+        'prefix' => 'activities',
+        'actions' => [
+            'view',
+            'clear',
         ],
     ],
 ];

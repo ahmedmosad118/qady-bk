@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'shift_number',
@@ -26,7 +28,16 @@ use Illuminate\Support\Str;
 ])]
 class PosShift extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('pos_shift');
+    }
 
     /**
      * @return array<string, string>
@@ -119,7 +130,7 @@ class PosShift extends Model
     {
         static::creating(function (PosShift $shift): void {
             if (empty($shift->shift_number)) {
-                $shift->shift_number = 'TMP-' . Str::uuid()->toString();
+                $shift->shift_number = 'TMP-'.Str::uuid()->toString();
             }
         });
 

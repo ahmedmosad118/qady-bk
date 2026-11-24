@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\PosShiftTransactionType;
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'shift_id',
@@ -24,7 +26,16 @@ use LogicException;
 ])]
 class PosShiftTransaction extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('pos_shift_transaction');
+    }
 
     public const TYPE_CASH_SALE = PosShiftTransactionType::CASH_SALE->value;
 

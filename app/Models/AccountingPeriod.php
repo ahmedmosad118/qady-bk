@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\Accounting\AccountingPeriodStatus;
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'fiscal_year_id',
@@ -21,6 +23,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class AccountingPeriod extends Model
 {
+    use LogsModelActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('accounting_period');
+    }
+
     /**
      * @return array<string, string>
      */

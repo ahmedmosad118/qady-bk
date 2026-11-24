@@ -8,6 +8,7 @@ use App\Enums\DiscountType;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PurchaseInvoiceStatus;
+use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use LogicException;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable([
     'invoice_number',
@@ -38,7 +40,16 @@ use LogicException;
 ])]
 class PurchaseInvoice extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsModelActivity, SoftDeletes;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('purchase_invoice');
+    }
 
     /**
      * @return array<string, string>
@@ -197,7 +208,7 @@ class PurchaseInvoice extends Model
     {
         static::creating(function (PurchaseInvoice $invoice): void {
             if (empty($invoice->invoice_number)) {
-                $invoice->invoice_number = 'TMP-' . Str::uuid()->toString();
+                $invoice->invoice_number = 'TMP-'.Str::uuid()->toString();
             }
         });
 

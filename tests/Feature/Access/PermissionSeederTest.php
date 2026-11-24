@@ -58,7 +58,7 @@ class PermissionSeederTest extends TestCase
             }
         }
 
-        $this->assertCount(82, $seenNames);
+        $this->assertCount(84, $seenNames);
     }
 
     public function test_permissions_table_seeder_seeds_all_permissions_idempotently(): void
@@ -68,8 +68,8 @@ class PermissionSeederTest extends TestCase
 
         $permissions = Permission::query()->ordered()->get();
 
-        $this->assertCount(82, $permissions);
-        $this->assertSame(82, $permissions->pluck('name')->unique()->count());
+        $this->assertCount(84, $permissions);
+        $this->assertSame(84, $permissions->pluck('name')->unique()->count());
         $this->assertTrue($permissions->every(static fn (Permission $p): bool => $p->guard_name === 'web'));
         $this->assertTrue($permissions->every(static fn (Permission $p): bool => ! empty($p->category) && ! empty($p->slug) && ! empty($p->module) && ! empty($p->module_name) && ! empty($p->action) && $p->sort_order > 0));
 
@@ -98,7 +98,7 @@ class PermissionSeederTest extends TestCase
         $this->assertNotNull($superAdmin);
         $this->assertTrue($superAdmin->isSuperAdmin());
         $this->assertTrue($superAdmin->isSystemRole());
-        $this->assertCount(82, $superAdmin->permissions);
+        $this->assertCount(84, $superAdmin->permissions);
 
         $this->assertTrue($admin->fresh()->isSuperAdmin());
         $this->assertTrue($admin->fresh()->hasRole('Super Admin'));

@@ -46,6 +46,7 @@ return [
         'Accounting Settings' => 'إعدادات الحسابات',
         'Users' => 'المستخدمون',
         'Roles' => 'الأدوار والصلاحيات',
+        'Activity Log' => 'سجل الأنشطة',
     ],
 
     'actions' => [
@@ -72,5 +73,6 @@ return [
         'start' => 'بدء الجرد',
         'count' => 'تنفيذ العد',
         'review_results' => 'مراجعة الفروقات والنتائج',
+        'clear' => 'مسح السجل',
     ],
 ];
