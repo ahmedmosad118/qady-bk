@@ -103,24 +103,6 @@
             </div>
           </div>
 
-          <!-- Month Filter -->
-          <div>
-            <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('activities.filterByMonth') }}</label>
-            <div class="relative">
-              <select
-                v-model="monthFilter"
-                class="h-11 w-full cursor-pointer appearance-none rounded-xl border border-[var(--border)] bg-[var(--bg)] pe-9 ps-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)]"
-                :aria-label="$t('activities.filterByMonth')"
-              >
-                <option value="">{{ $t('activities.allMonths') }}</option>
-                <option v-for="mb in monthlyBreakdown" :key="mb.key" :value="mb.key">
-                  {{ mb.label }}
-                </option>
-              </select>
-              <ChevronDown class="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" aria-hidden="true" />
-            </div>
-          </div>
-
           <!-- Date Range -->
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -148,6 +130,9 @@
         v-if="loading || items.length"
         :items="items"
         :loading="loading"
+        :can-delete="canDelete"
+        :deleting-id="deletingId"
+        @delete="handleDeleteOne"
       />
 
       <div v-else-if="loadError" class="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -188,7 +173,7 @@ import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import PaginationBar from '../../components/ui/PaginationBar.vue';
 import ActivityTable from '../../components/activities/ActivityTable.vue';
-import { clearAllActivities, fetchActivities } from '../../services/activityApi';
+import { clearAllActivities, deleteActivity, fetchActivities } from '../../services/activityApi';
 import { confirmDelete } from '../../services/alert';
 import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
@@ -198,36 +183,35 @@ const { t } = useI18n();
 const authStore = useAuthStore();
 const notify = useNotificationStore();
 
+const canDelete = computed(() => authStore.hasPermission('activities.delete'));
 const canClear = computed(() => authStore.hasPermission('activities.clear'));
 
 const items = ref([]);
-const analytics = ref(null);
+const filtersMeta = ref({ modules: [], users: [] });
 const meta = ref({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
 const loading = ref(false);
 const clearing = ref(false);
+const deletingId = ref(null);
 const loadError = ref('');
 
 const search = ref('');
 const eventFilter = ref('');
 const moduleFilter = ref('');
 const causerFilter = ref('');
-const monthFilter = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
 const currentPage = ref(1);
 
 let searchTimer = null;
 
-const modulesList = computed(() => analytics.value?.modules_list || []);
-const usersList = computed(() => analytics.value?.users_list || []);
-const monthlyBreakdown = computed(() => analytics.value?.monthly_breakdown || []);
+const modulesList = computed(() => filtersMeta.value?.modules || []);
+const usersList = computed(() => filtersMeta.value?.users || []);
 
 const activeFiltersCount = computed(() => {
   let count = 0;
   if (eventFilter.value) count++;
   if (moduleFilter.value) count++;
   if (causerFilter.value) count++;
-  if (monthFilter.value) count++;
   if (dateFrom.value || dateTo.value) count++;
   return count;
 });
@@ -241,7 +225,6 @@ function buildQueryParams() {
   if (eventFilter.value) params.event = eventFilter.value;
   if (moduleFilter.value) params.module = moduleFilter.value;
   if (causerFilter.value) params.causer_id = Number(causerFilter.value);
-  if (monthFilter.value) params.month = monthFilter.value;
   if (dateFrom.value) params.date_from = dateFrom.value;
   if (dateTo.value) params.date_to = dateTo.value;
   return params;
@@ -255,7 +238,7 @@ async function loadActivities() {
     const payload = response.data || {};
     items.value = payload.data || [];
     meta.value = payload.meta || { current_page: 1, last_page: 1, per_page: 15, total: 0 };
-    analytics.value = payload.analytics || null;
+    filtersMeta.value = payload.filters || { modules: [], users: [] };
   } catch (err) {
     loadError.value = extractApiError(err, t('activities.loadError'));
   } finally {
@@ -278,11 +261,33 @@ function resetFilters() {
   eventFilter.value = '';
   moduleFilter.value = '';
   causerFilter.value = '';
-  monthFilter.value = '';
   dateFrom.value = '';
   dateTo.value = '';
   currentPage.value = 1;
   loadActivities();
+}
+
+async function handleDeleteOne(item) {
+  const confirmed = await confirmDelete({
+    title: t('activities.deleteConfirmTitle'),
+    text: t('activities.deleteConfirmText'),
+    confirmButtonText: t('activities.deleteConfirmBtn'),
+  });
+  if (!confirmed) return;
+
+  deletingId.value = item.id;
+  try {
+    await deleteActivity(item.id);
+    notify.success(t('activities.deletedSuccess'));
+    if (items.value.length === 1 && currentPage.value > 1) {
+      currentPage.value -= 1;
+    }
+    await loadActivities();
+  } catch (err) {
+    notify.error(extractApiError(err, t('activities.loadError')));
+  } finally {
+    deletingId.value = null;
+  }
 }
 
 async function handleClearAll() {

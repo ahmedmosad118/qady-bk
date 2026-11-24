@@ -20,6 +20,7 @@
             <th class="px-5 py-3.5 text-start">{{ $t('activities.colChanges') }}</th>
             <th class="px-5 py-3.5 text-start">{{ $t('activities.colBy') }}</th>
             <th class="px-5 py-3.5 text-start">{{ $t('activities.colCreatedAt') }}</th>
+            <th v-if="canDelete" class="px-5 py-3.5 text-end">{{ $t('activities.colActions') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--border)] text-sm">
@@ -107,6 +108,20 @@
             <td class="whitespace-nowrap px-5 py-3.5 align-top text-xs font-medium text-[var(--muted)]">
               {{ formatDateTime(item.created_at, locale) }}
             </td>
+
+            <!-- Delete Action -->
+            <td v-if="canDelete" class="whitespace-nowrap px-5 py-3.5 align-top text-end">
+              <button
+                type="button"
+                :disabled="deletingId === item.id"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:text-rose-400 cursor-pointer"
+                :title="$t('activities.deleteOne')"
+                :aria-label="$t('activities.deleteOne')"
+                @click="$emit('delete', item)"
+              >
+                <Trash2 class="h-4 w-4" aria-hidden="true" />
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -157,17 +172,31 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2 pt-1 text-xs text-[var(--muted)]">
-          <template v-if="item.causer">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--crimson-soft)] text-[11px] font-bold text-[var(--crimson)]">
-              {{ item.causer.initial }}
+        <div class="flex items-center justify-between gap-2 pt-1 text-xs text-[var(--muted)]">
+          <div class="flex items-center gap-2">
+            <template v-if="item.causer">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--crimson-soft)] text-[11px] font-bold text-[var(--crimson)]">
+                {{ item.causer.initial }}
+              </span>
+              <span class="font-semibold text-[var(--text)]">{{ item.causer.name }}</span>
+            </template>
+            <span v-else class="inline-flex items-center gap-1">
+              <Bot class="h-3.5 w-3.5" aria-hidden="true" />
+              {{ $t('activities.system') }}
             </span>
-            <span class="font-semibold text-[var(--text)]">{{ item.causer.name }}</span>
-          </template>
-          <span v-else class="inline-flex items-center gap-1">
-            <Bot class="h-3.5 w-3.5" aria-hidden="true" />
-            {{ $t('activities.system') }}
-          </span>
+          </div>
+
+          <button
+            v-if="canDelete"
+            type="button"
+            :disabled="deletingId === item.id"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-45 dark:hover:text-rose-400 cursor-pointer"
+            :title="$t('activities.deleteOne')"
+            :aria-label="$t('activities.deleteOne')"
+            @click="$emit('delete', item)"
+          >
+            <Trash2 class="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
       </div>
     </div>
@@ -218,7 +247,17 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  canDelete: {
+    type: Boolean,
+    default: false,
+  },
+  deletingId: {
+    type: [Number, String],
+    default: null,
+  },
 });
+
+defineEmits(['delete']);
 
 const { locale, t } = useI18n();
 const expandedKeys = ref(new Set());

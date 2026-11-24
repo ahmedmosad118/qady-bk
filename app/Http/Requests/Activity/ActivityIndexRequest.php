@@ -27,7 +27,6 @@ class ActivityIndexRequest extends FormRequest
             'event' => ['nullable', 'string', 'in:created,updated,deleted'],
             'module' => ['nullable', 'string', 'max:100'],
             'causer_id' => ['nullable', 'integer', 'exists:users,id'],
-            'month' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ];

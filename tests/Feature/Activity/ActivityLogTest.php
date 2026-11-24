@@ -12,11 +12,9 @@ use App\Models\PosShift;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\User;
-use App\Services\Activity\ActivityService;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -61,7 +59,7 @@ class ActivityLogTest extends TestCase
             ->first();
 
         $this->assertNotNull($activity);
-        $this->assertSame('updated', $activity->event);
+        $this->assertSame('updated', $activity->event_key);
         $this->assertSame($admin->id, $activity->causer_id);
 
         $props = $activity->getNormalizedProperties();
@@ -92,7 +90,8 @@ class ActivityLogTest extends TestCase
             ->where('log_name', 'product')
             ->where('subject_id', $product->id)
             ->orderBy('id')
-            ->pluck('event')
+            ->get()
+            ->pluck('event_key')
             ->all();
 
         $this->assertSame(['created', 'updated', 'deleted'], $events);
@@ -132,18 +131,15 @@ class ActivityLogTest extends TestCase
 
         $this->assertNotNull($saleActivity);
         $this->assertSame('pos_sale', $saleActivity->subject_type);
-        $this->assertSame('created', $saleActivity->event);
+        $this->assertSame('created', $saleActivity->event_key);
+        $this->assertSame('INV-0001', $saleActivity->subject_name);
+        $this->assertSame("/invoices?showId={$sale->id}", $saleActivity->link);
         $this->assertArrayNotHasKey('client_uuid', $saleActivity->getNormalizedProperties()['attributes'] ?? []);
     }
 
-    public function test_activity_service_filters_and_computes_analytics_across_months_and_modules(): void
+    public function test_activity_model_formats_row_changes_and_resolves_soft_deleted_subjects(): void
     {
         App::setLocale('en');
-
-        $alice = User::factory()->create(['name' => 'Alice Editor']);
-        $bob = User::factory()->create(['name' => 'Bob Cashier']);
-
-        Activity::query()->delete();
 
         $cat = ProductCategory::query()->create(['name' => 'History', 'is_active' => true]);
         $prod = Product::query()->create([
@@ -155,95 +151,38 @@ class ActivityLogTest extends TestCase
             'show_in_shop' => true,
         ]);
 
-        Activity::query()->delete();
+        $prod->update(['selling_price' => '25.00', 'is_active' => false]);
+        $prod->delete();
 
-        $a1 = Activity::query()->create([
-            'log_name' => 'product',
-            'description' => 'created',
-            'event' => 'created',
-            'subject_type' => Product::class,
-            'subject_id' => $prod->id,
-            'causer_type' => User::class,
-            'causer_id' => $alice->id,
-            'properties' => ['attributes' => ['name' => 'Soft Deleted Book']],
-        ]);
-        $a1->forceFill(['created_at' => now()->startOfMonth()->addDay()])->saveQuietly();
+        $updateActivity = Activity::query()
+            ->where('log_name', 'product')
+            ->where('subject_id', $prod->id)
+            ->where('event', 'updated')
+            ->firstOrFail();
 
-        $a2 = Activity::query()->create([
-            'log_name' => 'product',
-            'description' => 'updated',
-            'event' => 'updated',
-            'subject_type' => Product::class,
-            'subject_id' => $prod->id,
-            'causer_type' => User::class,
-            'causer_id' => $alice->id,
-            'properties' => [
-                'old' => ['selling_price' => '20.00'],
-                'attributes' => ['selling_price' => '25.00'],
-            ],
-        ]);
-        $a2->forceFill(['created_at' => now()->startOfMonth()->addDays(2)])->saveQuietly();
+        $this->assertSame('Soft Deleted Book', $updateActivity->subject_name);
+        $this->assertSame("/products?showId={$prod->id}", $updateActivity->link);
 
-        $prevMonthDate = now()->subMonthNoOverflow()->startOfMonth()->addDays(3);
-        $a3 = Activity::query()->create([
-            'log_name' => 'user',
-            'description' => 'deleted',
-            'event' => 'deleted',
-            'subject_type' => User::class,
-            'subject_id' => $bob->id,
-            'causer_type' => User::class,
-            'causer_id' => $bob->id,
-            'properties' => ['old' => ['name' => 'Bob Cashier']],
-        ]);
-        $a3->forceFill(['created_at' => $prevMonthDate])->saveQuietly();
+        $changeKeys = array_column($updateActivity->row_changes, 'key');
+        $this->assertSame(['selling_price', 'is_active'], $changeKeys);
 
-        $prod->delete(); // soft delete after removing extra log
-        Activity::query()->where('id', '>', $a3->id)->delete();
+        $activeDiff = collect($updateActivity->row_changes)->firstWhere('key', 'is_active');
+        $this->assertSame('Yes', $activeDiff['old']);
+        $this->assertSame('No', $activeDiff['new']);
 
-        /** @var ActivityService $service */
-        $service = app(ActivityService::class);
+        $deleteActivity = Activity::query()
+            ->where('log_name', 'product')
+            ->where('subject_id', $prod->id)
+            ->where('event', 'deleted')
+            ->firstOrFail();
 
-        $allResult = $service->index([], 15);
-        $analytics = $allResult['analytics'];
-
-        $this->assertSame(3, $analytics['total_activities']);
-        $this->assertSame(1, $analytics['created_count']);
-        $this->assertSame(1, $analytics['updated_count']);
-        $this->assertSame(1, $analytics['deleted_count']);
-        $this->assertSame(2, $analytics['this_month_count']);
-        $this->assertSame(now()->format('Y-m'), $analytics['most_active_month']['key']);
-        $this->assertCount(2, $analytics['monthly_breakdown']);
-        $this->assertSame($alice->id, $analytics['top_user']['user_id']);
-        $this->assertSame('product', $analytics['top_module']['key']);
-
-        // Filter by module + event
-        $filtered = $service->index(['module' => 'product', 'event' => 'updated'], 15);
-        $this->assertSame(1, $filtered['paginator']->total());
-        $this->assertSame('Soft Deleted Book', $filtered['items'][0]['subject_name']);
-        $this->assertSame(2, $filtered['analytics']['filtered_stats']['total']);
-        $this->assertSame(1, $filtered['analytics']['filtered_stats']['created']);
-        $this->assertSame(1, $filtered['analytics']['filtered_stats']['updated']);
-
-        // Filter by month (previous month)
-        $prevMonthKey = $prevMonthDate->format('Y-m');
-        $monthFiltered = $service->index(['month' => $prevMonthKey], 15);
-        $this->assertSame(1, $monthFiltered['paginator']->total());
-        $this->assertSame($bob->id, $monthFiltered['items'][0]['causer']['id']);
-
-        // Search by causer name
-        $searchResult = $service->index(['search' => 'Alice'], 15);
-        $this->assertSame(2, $searchResult['paginator']->total());
-
-        // Batch query count check (no N+1 per row)
-        DB::enableQueryLog();
-        $service->index([], 15);
-        $queries = DB::getQueryLog();
-        DB::disableQueryLog();
-        $this->assertLessThan(20, count($queries));
+        $this->assertNull($deleteActivity->link);
     }
 
-    public function test_activity_endpoints_enforce_authentication_permissions_and_validation(): void
+    public function test_activity_endpoints_support_filters_index_delete_one_and_clear_all(): void
     {
+        App::setLocale('en');
+
         $this->getJson('/api/activities')->assertUnauthorized();
         $this->deleteJson('/api/activities/clear')->assertUnauthorized();
 
@@ -251,44 +190,69 @@ class ActivityLogTest extends TestCase
         $this->getJson('/api/activities')->assertForbidden();
         $this->deleteJson('/api/activities/clear')->assertForbidden();
 
-        // Admin user with activities.view sees general activity log across all users, but cannot clear
-        $adminViewer = $this->actingAsUserWithPermissions(['activities.view'], ['name' => 'Admin Viewer']);
-        ProductCategory::query()->create(['name' => 'Science', 'is_active' => true]);
+        // Admin user with activities.view sees activity log & can filter, but cannot delete one or clear all
+        $alice = User::factory()->create(['name' => 'Alice Editor']);
+        $this->actingAsUserWithPermissions(['activities.view'], ['name' => 'Admin Viewer']);
+
+        Activity::query()->delete();
+
+        $cat = ProductCategory::query()->create(['name' => 'Science', 'is_active' => true]);
+        $cat->update(['name' => 'Science Updated']);
+
+        Activity::query()->create([
+            'log_name' => 'user',
+            'description' => 'created',
+            'event' => 'created',
+            'subject_type' => User::class,
+            'subject_id' => $alice->id,
+            'causer_type' => User::class,
+            'causer_id' => $alice->id,
+            'properties' => ['attributes' => ['name' => 'Alice Editor']],
+        ]);
+
+        $firstId = (int) Activity::query()->orderBy('id')->value('id');
 
         $this->getJson('/api/activities')
             ->assertOk()
             ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.total', 3)
             ->assertJsonStructure([
                 'success',
                 'data',
                 'meta' => ['current_page', 'last_page', 'per_page', 'total'],
-                'analytics' => [
-                    'total_activities',
-                    'created_count',
-                    'updated_count',
-                    'deleted_count',
-                    'this_month_count',
-                    'most_active_month',
-                    'monthly_breakdown',
-                    'top_user',
-                    'top_users_list',
-                    'top_module',
-                    'filtered_stats',
-                    'modules_list',
-                    'users_list',
-                ],
+                'filters' => ['modules', 'users'],
             ]);
 
-        $this->getJson('/api/activities?month=invalid-month')
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['month']);
+        // Filter by module + event
+        $this->getJson('/api/activities?module=product_category&event=updated')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.subject_name', 'Science Updated');
 
+        // Filter by causer_id & search
+        $this->getJson("/api/activities?causer_id={$alice->id}&search=Alice")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.causer.name', 'Alice Editor');
+
+        // Validation error on bad date range
         $this->getJson('/api/activities?date_from=2026-11-20&date_to=2026-11-10')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['date_to']);
 
+        $this->deleteJson("/api/activities/{$firstId}")->assertForbidden();
         $this->deleteJson('/api/activities/clear')->assertForbidden();
-        $this->assertGreaterThan(0, Activity::query()->count());
+
+        // User with activities.delete can delete a single activity record
+        $this->actingAsUserWithPermissions(['activities.view', 'activities.delete']);
+        $countBeforeDelete = Activity::query()->count();
+
+        $this->deleteJson("/api/activities/{$firstId}")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame($countBeforeDelete - 1, Activity::query()->count());
+        $this->assertDatabaseMissing('activity_log', ['id' => $firstId]);
 
         // Super Admin can clear all activity logs
         $this->actingAsSuperAdmin();
@@ -297,6 +261,5 @@ class ActivityLogTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertSame(0, Activity::query()->count());
-        $this->assertNotNull($adminViewer->id);
     }
 }

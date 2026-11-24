@@ -109,7 +109,7 @@ final class ExcelSheetStyler
                     hiddenOffset: $hiddenOffset,
                 );
 
-                if (self::needsHiddenRange($options)) {
+                if (self::needsRangeSheet($options)) {
                     $hiddenOffset++;
                 }
             }
@@ -146,17 +146,25 @@ final class ExcelSheetStyler
         $validation->setErrorTitle((string) __('excel.validation_prompt.list_error_title', [], $locale));
         $validation->setError((string) __('excel.validation_prompt.list_error_message', [], $locale));
 
-        if (self::needsHiddenRange($options)) {
-            $hiddenColumn = Coordinate::stringFromColumnIndex(27 + $hiddenOffset);
-            $sheet->getColumnDimension($hiddenColumn)->setVisible(false);
+        if (self::needsRangeSheet($options)) {
+            $spreadsheet = $sheet->getParent();
+            $listsSheetTitle = 'Lists';
+            $listsSheet = $spreadsheet->getSheetByName($listsSheetTitle);
+
+            if ($listsSheet === null) {
+                $listsSheet = $spreadsheet->createSheet();
+                $listsSheet->setTitle($listsSheetTitle);
+            }
+
+            $listColumn = Coordinate::stringFromColumnIndex(1 + $hiddenOffset);
 
             foreach ($options as $optionIndex => $optionValue) {
                 $rowNumber = $optionIndex + 1;
-                $sheet->getCell("{$hiddenColumn}{$rowNumber}")->setValue($optionValue);
+                $listsSheet->getCell("{$listColumn}{$rowNumber}")->setValue($optionValue);
             }
 
             $endRow = count($options);
-            $validation->setFormula1("={$hiddenColumn}1:{$hiddenColumn}{$endRow}");
+            $validation->setFormula1("{$listsSheetTitle}!\${$listColumn}\$1:\${$listColumn}\${$endRow}");
         } else {
             $escaped = array_map(
                 static fn (string $option): string => str_replace('"', '""', $option),
@@ -169,27 +177,22 @@ final class ExcelSheetStyler
             $sheet->getCell("{$colLetter}2")->setValue($defaultValue);
         }
 
-        for ($row = 2; $row <= $validationRows; $row++) {
-            $sheet->getCell("{$colLetter}{$row}")->setDataValidation(clone $validation);
-        }
+        $sheet->setDataValidation("{$colLetter}2:{$colLetter}{$validationRows}", $validation);
     }
 
     /**
+     * Excel inline list validation supports up to 255 characters and forbids commas inside items.
+     *
      * @param  list<string>  $options
      */
-    private static function needsHiddenRange(array $options): bool
+    private static function needsRangeSheet(array $options): bool
     {
-        if (count($options) > 4) {
-            return true;
-        }
-
-        $joined = implode(',', $options);
-        if (mb_strlen($joined) > 200) {
+        if (mb_strlen(implode(',', $options)) > 240) {
             return true;
         }
 
         foreach ($options as $option) {
-            if (str_contains($option, ',')) {
+            if (str_contains($option, ',') || str_contains($option, '"')) {
                 return true;
             }
         }

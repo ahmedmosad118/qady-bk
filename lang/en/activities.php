@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'deleted' => 'Activity log record deleted successfully.',
     'cleared' => 'All activity logs have been cleared successfully.',
     'only_super_admin_can_clear' => 'Only Super Admin can clear activity logs.',
 

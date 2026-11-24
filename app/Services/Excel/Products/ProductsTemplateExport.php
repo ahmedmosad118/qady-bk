@@ -113,7 +113,7 @@ class ProductsTemplateExport implements FromCollection, WithEvents, WithHeadings
         }
 
         return [
-            'labels' => $labels,
+            'labels' => array_values(array_unique($labels)),
             'lookup' => $lookup,
         ];
     }

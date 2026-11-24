@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Activity Log (Audit Trail)
     Route::get('/activities', [ActivityController::class, 'index']);
     Route::delete('/activities/clear', [ActivityController::class, 'clearAll']);
+    Route::delete('/activities/{activity}', [ActivityController::class, 'destroy']);
 
     // Books (products) and their categories.
     Route::get('/products', [ProductController::class, 'index']);

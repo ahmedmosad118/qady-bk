@@ -32,7 +32,7 @@ class RoleManagementTest extends TestCase
         $response = $this->getJson('/api/permissions')
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('meta.total', 84);
+            ->assertJsonPath('meta.total', 85);
 
         $categories = $response->json('data');
         $this->assertCount(8, $categories);
@@ -50,7 +50,7 @@ class RoleManagementTest extends TestCase
         }
 
         $this->assertSame(21, $moduleCount);
-        $this->assertSame(84, $permissionCount);
+        $this->assertSame(85, $permissionCount);
 
         $catalogCategory = collect($categories)->firstWhere('key', 'Catalog');
         $this->assertSame('المنتجات', $catalogCategory['label']);

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'deleted' => 'تم حذف سجل النشاط بنجاح.',
     'cleared' => 'تم مسح سجل الأنشطة بنجاح.',
     'only_super_admin_can_clear' => 'مسح سجل الأنشطة متاح للسوبر أدمن فقط.',
 

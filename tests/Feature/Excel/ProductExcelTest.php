@@ -67,7 +67,12 @@ class ProductExcelTest extends TestCase
     {
         $this->actingAsSuperAdmin();
 
-        ProductCategory::factory()->create(['name' => 'القانون المدني', 'is_active' => true]);
+        for ($i = 1; $i <= 15; $i++) {
+            ProductCategory::factory()->create([
+                'name' => "تصنيف الكتب القانونية رقم {$i}",
+                'is_active' => true,
+            ]);
+        }
         ProductCategory::factory()->inactive()->create(['name' => 'تصنيف معطل']);
 
         $response = $this->withHeaders(['X-Locale' => 'ar'])
@@ -76,13 +81,21 @@ class ProductExcelTest extends TestCase
         $response->assertOk();
 
         $spreadsheet = IOFactory::load($response->getFile()->getPathname());
-        $sheet = $spreadsheet->getActiveSheet();
+        $sheet = $spreadsheet->getSheet(0);
 
+        $this->assertSame(0, $spreadsheet->getActiveSheetIndex());
         $this->assertTrue($sheet->getRightToLeft());
         $this->assertSame((string) __('excel.products.columns.name', [], 'ar'), $sheet->getCell('A1')->getValue());
         $this->assertSame((string) __('excel.products.columns.is_active', [], 'ar'), $sheet->getCell('K1')->getValue());
-        $this->assertSame(DataValidation::TYPE_LIST, $sheet->getCell('C2')->getDataValidation()->getType());
+
+        $categoryValidation = $sheet->getCell('C2')->getDataValidation();
+        $this->assertSame(DataValidation::TYPE_LIST, $categoryValidation->getType());
+        $this->assertSame('Lists!$A$1:$A$15', $categoryValidation->getFormula1());
         $this->assertSame(DataValidation::TYPE_LIST, $sheet->getCell('K2')->getDataValidation()->getType());
+
+        $listsSheet = $spreadsheet->getSheetByName('Lists');
+        $this->assertNotNull($listsSheet);
+        $this->assertSame('visible', $listsSheet->getSheetState());
     }
 
     public function test_products_export_applies_filters_and_escapes_formula_injection(): void

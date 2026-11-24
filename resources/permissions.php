@@ -278,6 +278,7 @@ $modules = [
         'prefix' => 'activities',
         'actions' => [
             'view',
+            'delete',
             'clear',
         ],
     ],
