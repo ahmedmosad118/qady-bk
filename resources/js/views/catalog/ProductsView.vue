@@ -4,6 +4,15 @@
     <PageHeader :title="$t('products.title')" :subtitle="$t('products.subtitle')">
       <template #actions>
         <button
+          v-if="canImportProducts || canExportProducts"
+          type="button"
+          class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-bold text-[var(--text)] transition-colors hover:bg-[var(--bg)]"
+          @click="showExcelModal = true"
+        >
+          <FileSpreadsheet class="h-[18px] w-[18px] text-[var(--crimson)]" aria-hidden="true" />
+          <span>{{ $t('excel.importExport') }}</span>
+        </button>
+        <button
           type="button"
           class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)]"
           @click="openCreate"
@@ -392,6 +401,20 @@
         :related-options="{ category_id: categoryOptions }"
       />
     </CrudModal>
+
+    <!-- Excel Import / Export Modal -->
+    <ExcelImportExportModal
+      :show="showExcelModal"
+      type="products"
+      :title="$t('excel.productsModalTitle')"
+      :export-params="exportParams"
+      :can-import="canImportProducts"
+      :can-export="canExportProducts"
+      template-filename="products_template.xlsx"
+      export-filename="products_export.xlsx"
+      @close="showExcelModal = false"
+      @imported="handleExcelImported"
+    />
   </div>
 </template>
 
@@ -406,6 +429,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  FileSpreadsheet,
   Pencil,
   Plus,
   Printer,
@@ -416,6 +440,7 @@ import {
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import alertService from '../../services/alert';
+import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
@@ -424,9 +449,11 @@ import StatusBadge from '../../components/ui/StatusBadge.vue';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import CrudModal from '../../components/crud/CrudModal.vue';
 import CrudForm from '../../components/crud/CrudForm.vue';
+import ExcelImportExportModal from '../../components/common/ExcelImportExportModal.vue';
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 
 const schema = {
@@ -465,11 +492,27 @@ const totalRecords = ref(0);
 const lastPage = ref(1);
 
 const showModal = ref(false);
+const showExcelModal = ref(false);
 const modalMode = ref('create');
 const modalLoading = ref(false);
 const activeRecordId = ref(null);
 const formData = ref({});
 const formErrors = ref({});
+
+const canImportProducts = computed(() => authStore.hasPermission('products.create'));
+const canExportProducts = computed(() => authStore.hasPermission('products.view'));
+
+const exportParams = computed(() => ({
+  search: search.value.trim() || undefined,
+  category_id: categoryFilter.value !== 'all' ? categoryFilter.value : undefined,
+  is_active: statusFilter.value === 'all' ? undefined : statusFilter.value === 'active',
+  show_in_shop: shopFilter.value === 'all' ? undefined : shopFilter.value === 'visible',
+}));
+
+const handleExcelImported = async () => {
+  page.value = 1;
+  await Promise.all([loadProducts(), loadCategories()]);
+};
 
 const categoryOptions = computed(() => {
   return categoryTree.value.flatMap((category) => [

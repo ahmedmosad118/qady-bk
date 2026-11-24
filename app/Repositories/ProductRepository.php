@@ -11,11 +11,12 @@ use Illuminate\Database\Eloquent\Builder;
 class ProductRepository
 {
     /**
-     * Get paginated products with eager-loaded relations and applied filters.
+     * Build the base filtered query for listing and exporting products.
      *
      * @param  array<string, mixed>  $filters
+     * @return Builder<Product>
      */
-    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    public function filteredQuery(array $filters = []): Builder
     {
         $query = Product::query()
             ->with('category:id,name,parent_id')
@@ -36,15 +37,15 @@ class ProductRepository
             });
         }
 
-        if (isset($filters['category_id']) && $filters['category_id'] !== '' && $filters['category_id'] !== null) {
+        if (isset($filters['category_id']) && $filters['category_id'] !== '') {
             $query->where('category_id', (int) $filters['category_id']);
         }
 
-        if (isset($filters['is_active']) && $filters['is_active'] !== '' && $filters['is_active'] !== null) {
+        if (isset($filters['is_active']) && $filters['is_active'] !== '') {
             $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
         }
 
-        if (isset($filters['show_in_shop']) && $filters['show_in_shop'] !== '' && $filters['show_in_shop'] !== null) {
+        if (isset($filters['show_in_shop']) && $filters['show_in_shop'] !== '') {
             $query->where('show_in_shop', filter_var($filters['show_in_shop'], FILTER_VALIDATE_BOOLEAN));
         }
 
@@ -54,9 +55,19 @@ class ProductRepository
 
         $sortOrder = strtolower((string) ($filters['sort_order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
 
+        return $query->orderBy($sortBy, $sortOrder);
+    }
+
+    /**
+     * Get paginated products with eager-loaded relations and applied filters.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
         $limit = min(max($perPage, 1), 100);
 
-        return $query->orderBy($sortBy, $sortOrder)->paginate($limit);
+        return $this->filteredQuery($filters)->paginate($limit);
     }
 
     /**

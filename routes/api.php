@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactAddressController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\ExcelController;
 use App\Http\Controllers\Api\Expense\ExpenseAttachmentController;
 use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
 use App\Http\Controllers\Api\Expense\ExpenseController;
@@ -80,6 +81,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/product-categories', [ProductCategoryController::class, 'store']);
     Route::put('/product-categories/{category}', [ProductCategoryController::class, 'update']);
     Route::delete('/product-categories/{category}', [ProductCategoryController::class, 'destroy']);
+
+    // Excel Import & Export
+    Route::prefix('excel')->group(function () {
+        Route::get('/template/{type}', [ExcelController::class, 'downloadTemplate']);
+        Route::get('/export/{type}', [ExcelController::class, 'export']);
+        Route::post('/import/{type}', [ExcelController::class, 'import']);
+    });
 
     // Contacts (Customers & Suppliers) and Contact Addresses.
     Route::get('/contacts', [ContactController::class, 'index']);
