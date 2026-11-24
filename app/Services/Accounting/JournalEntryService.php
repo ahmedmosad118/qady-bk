@@ -20,8 +20,11 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class JournalEntryService
 {
@@ -130,12 +133,33 @@ class JournalEntryService
             ]);
         }
 
-        return $this->persistNewEntry(
-            data: $data,
-            user: $user,
-            status: JournalEntryStatus::Posted,
-            source: $source,
-        );
+        $sourceType = $source->getMorphClass();
+        $existing = $this->findBySource($sourceType, $sourceKey);
+
+        if ($existing !== null) {
+            return $this->getDetails($existing);
+        }
+
+        try {
+            return $this->persistNewEntry(
+                data: $data,
+                user: $user,
+                status: JournalEntryStatus::Posted,
+                source: $source,
+            );
+        } catch (UniqueConstraintViolationException|QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $existing = $this->findBySource($sourceType, $sourceKey, lock: true);
+
+            if ($existing !== null) {
+                return $this->getDetails($existing);
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -569,6 +593,41 @@ class JournalEntryService
         }
 
         return $prepared;
+    }
+
+    protected function findBySource(string $sourceType, mixed $sourceId, bool $lock = false): ?JournalEntry
+    {
+        $query = JournalEntry::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
+    }
+
+    private function isUniqueConstraintViolation(Throwable $exception): bool
+    {
+        if ($exception instanceof UniqueConstraintViolationException) {
+            return true;
+        }
+
+        if (! $exception instanceof QueryException) {
+            return false;
+        }
+
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+        $message = mb_strtolower($exception->getMessage());
+
+        if ($sqlState === '23505' || $driverCode === 1062 || $driverCode === 2067) {
+            return true;
+        }
+
+        return $sqlState === '23000'
+            && (str_contains($message, 'unique constraint') || str_contains($message, 'duplicate entry'));
     }
 
     /**

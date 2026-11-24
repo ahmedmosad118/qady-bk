@@ -9,6 +9,7 @@ use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\Accounting\JournalEntryStatus;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
+use App\Models\Expense;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
@@ -16,9 +17,13 @@ use App\Models\JournalEntryLine;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Services\Accounting\JournalEntryService;
+use App\Services\Support\DocumentSequenceGenerator;
 use Database\Seeders\AccountingSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Mockery;
+use PDOException;
 use Tests\TestCase;
 
 class JournalEntryCreateFromSourceTest extends TestCase
@@ -249,5 +254,170 @@ class JournalEntryCreateFromSourceTest extends TestCase
             $this->assertSame(0, JournalEntry::query()->count());
             $this->assertSame(0, JournalEntryLine::query()->count());
         }
+    }
+
+    public function test_repeated_calls_with_same_source_return_same_entry_without_extra_lines_or_sequence_gap(): void
+    {
+        $invoice1 = PurchaseInvoice::factory()->create();
+        $invoice2 = PurchaseInvoice::factory()->create();
+        $service = app(JournalEntryService::class);
+
+        $first = $service->createFromSource($this->validPayload(), $invoice1, $this->user);
+        $second = $service->createFromSource($this->validPayload(), $invoice1, $this->user);
+        $third = $service->createFromSource($this->validPayload(), $invoice2, $this->user);
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame($first->entry_number, $second->entry_number);
+        $this->assertSame(2, JournalEntry::query()->count());
+        $this->assertSame(4, JournalEntryLine::query()->count());
+        $this->assertSame('JE-2026-00001', $first->entry_number);
+        $this->assertSame('JE-2026-00002', $third->entry_number);
+    }
+
+    public function test_different_source_types_with_same_numeric_id_create_separate_entries(): void
+    {
+        $invoice = PurchaseInvoice::factory()->create();
+        $expense = Expense::factory()->create(['id' => $invoice->id]);
+
+        $service = app(JournalEntryService::class);
+
+        $invoiceEntry = $service->createFromSource($this->validPayload(), $invoice, $this->user);
+        $expenseEntry = $service->createFromSource($this->validPayload(), $expense, $this->user);
+
+        $this->assertNotSame($invoiceEntry->id, $expenseEntry->id);
+        $this->assertSame($invoice->id, $invoiceEntry->source_id);
+        $this->assertSame($expense->id, $expenseEntry->source_id);
+        $this->assertNotSame($invoiceEntry->source_type, $expenseEntry->source_type);
+        $this->assertSame(2, JournalEntry::query()->count());
+    }
+
+    public function test_different_records_of_same_source_type_create_separate_entries(): void
+    {
+        $invoice1 = PurchaseInvoice::factory()->create();
+        $invoice2 = PurchaseInvoice::factory()->create();
+        $service = app(JournalEntryService::class);
+
+        $entry1 = $service->createFromSource($this->validPayload(), $invoice1, $this->user);
+        $entry2 = $service->createFromSource($this->validPayload(), $invoice2, $this->user);
+
+        $this->assertNotSame($entry1->id, $entry2->id);
+        $this->assertSame(2, JournalEntry::query()->count());
+    }
+
+    public function test_direct_database_duplicate_source_insert_is_rejected_by_unique_constraint(): void
+    {
+        $invoice = PurchaseInvoice::factory()->create();
+        app(JournalEntryService::class)->createFromSource($this->validPayload(), $invoice, $this->user);
+
+        $this->expectException(QueryException::class);
+
+        JournalEntry::query()->create([
+            'journal_id' => $this->journal->id,
+            'fiscal_year_id' => $this->fiscalYear->id,
+            'accounting_period_id' => $this->period->id,
+            'entry_number' => 'JE-2026-99999',
+            'entry_date' => '2026-11-25',
+            'source_type' => $invoice->getMorphClass(),
+            'source_id' => $invoice->id,
+            'status' => JournalEntryStatus::Posted->value,
+            'created_by' => $this->user->id,
+        ]);
+    }
+
+    public function test_multiple_manual_entries_with_null_source_fields_can_coexist(): void
+    {
+        $service = app(JournalEntryService::class);
+
+        $first = $service->create($this->validPayload(), $this->user);
+        $second = $service->create($this->validPayload(), $this->user);
+
+        $this->assertNotSame($first->id, $second->id);
+        $this->assertNull($first->source_type);
+        $this->assertNull($first->source_id);
+        $this->assertNull($second->source_type);
+        $this->assertNull($second->source_id);
+        $this->assertSame(2, JournalEntry::query()->count());
+    }
+
+    public function test_simulated_unique_constraint_collision_recovers_and_returns_existing_entry(): void
+    {
+        $invoice = PurchaseInvoice::factory()->create();
+        $existing = app(JournalEntryService::class)->createFromSource($this->validPayload(), $invoice, $this->user);
+
+        $service = Mockery::mock(JournalEntryService::class, [app(DocumentSequenceGenerator::class)])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+
+        $service->shouldReceive('findBySource')
+            ->once()
+            ->with($invoice->getMorphClass(), $invoice->id)
+            ->andReturn(null);
+
+        $service->shouldReceive('findBySource')
+            ->once()
+            ->with($invoice->getMorphClass(), $invoice->id, true)
+            ->andReturn($existing);
+
+        $recovered = $service->createFromSource($this->validPayload(), $invoice, $this->user);
+
+        $this->assertSame($existing->id, $recovered->id);
+        $this->assertSame($existing->entry_number, $recovered->entry_number);
+        $this->assertSame(1, JournalEntry::query()->count());
+    }
+
+    public function test_unrelated_database_exception_is_not_swallowed_as_duplicate(): void
+    {
+        $invoice = PurchaseInvoice::factory()->create();
+
+        $pdoException = new PDOException('SQLSTATE[23000]: Integrity constraint violation: 1452 Cannot add or update a child row: a foreign key constraint fails');
+        $pdoException->errorInfo = ['23000', 1452, 'Cannot add or update a child row: a foreign key constraint fails'];
+        $queryException = new QueryException('mysql', 'insert into journal_entries ...', [], $pdoException);
+
+        $sequenceMock = Mockery::mock(DocumentSequenceGenerator::class);
+        $sequenceMock->shouldReceive('next')
+            ->once()
+            ->andThrow($queryException);
+
+        $service = new JournalEntryService($sequenceMock);
+
+        $this->expectException(QueryException::class);
+        $service->createFromSource($this->validPayload(), $invoice, $this->user);
+    }
+
+    public function test_failed_persistence_rolls_back_and_subsequent_retry_succeeds(): void
+    {
+        $invoice = PurchaseInvoice::factory()->create();
+        $service = app(JournalEntryService::class);
+
+        $unbalancedPayload = $this->validPayload([
+            'lines' => [
+                [
+                    'account_id' => $this->accounts[0]->id,
+                    'label' => 'مدين',
+                    'debit' => 500.00,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $this->accounts[1]->id,
+                    'label' => 'دائن',
+                    'debit' => 0,
+                    'credit' => 400.00,
+                ],
+            ],
+        ]);
+
+        try {
+            $service->createFromSource($unbalancedPayload, $invoice, $this->user);
+            $this->fail('Expected ValidationException was not thrown.');
+        } catch (ValidationException) {
+            $this->assertSame(0, JournalEntry::query()->count());
+            $this->assertSame(0, JournalEntryLine::query()->count());
+        }
+
+        $retried = $service->createFromSource($this->validPayload(), $invoice, $this->user);
+
+        $this->assertSame(JournalEntryStatus::Posted, $retried->status);
+        $this->assertSame(1, JournalEntry::query()->count());
+        $this->assertSame(2, JournalEntryLine::query()->count());
     }
 }

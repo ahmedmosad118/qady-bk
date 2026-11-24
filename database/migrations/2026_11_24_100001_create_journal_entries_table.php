@@ -41,7 +41,7 @@ return new class extends Migration
                 $table->timestamps();
 
                 $table->index('entry_date', 'journal_entries_entry_date_index');
-                $table->index(['source_type', 'source_id'], 'journal_entries_source_index');
+                $table->unique(['source_type', 'source_id'], 'journal_entries_source_unique');
                 $table->index('status', 'journal_entries_status_index');
                 $table->index('journal_id', 'journal_entries_journal_id_index');
                 $table->index('fiscal_year_id', 'journal_entries_fiscal_year_id_index');

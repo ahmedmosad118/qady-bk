@@ -70,7 +70,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
         $entryIndexes = collect(Schema::getIndexes('journal_entries'))->pluck('name')->all();
         foreach ([
             'journal_entries_entry_date_index',
-            'journal_entries_source_index',
+            'journal_entries_source_unique',
             'journal_entries_status_index',
             'journal_entries_journal_id_index',
             'journal_entries_fiscal_year_id_index',
@@ -78,6 +78,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
         ] as $indexName) {
             $this->assertContains($indexName, $entryIndexes);
         }
+        $this->assertNotContains('journal_entries_source_index', $entryIndexes);
 
         $lineIndexes = collect(Schema::getIndexes('journal_entry_lines'))->pluck('name')->all();
         foreach ([
@@ -163,15 +164,14 @@ class JournalEntrySchemaAndModelsTest extends TestCase
         $this->assertTrue($line1->journalEntry->is($entry));
         $this->assertTrue($line1->account->is($accounts[0]));
 
-        // Multiple journal entries may reference the same polymorphic source (no unique constraint).
         $secondEntry = JournalEntry::query()->create([
             'journal_id' => $journal->id,
             'fiscal_year_id' => $fiscalYear->id,
             'accounting_period_id' => $period->id,
             'entry_number' => 'JE-2026-0002',
             'entry_date' => '2026-11-24',
-            'source_type' => $journal->getMorphClass(),
-            'source_id' => $journal->id,
+            'source_type' => $creator->getMorphClass(),
+            'source_id' => $creator->id,
             'status' => JournalEntryStatus::Posted,
         ]);
 
