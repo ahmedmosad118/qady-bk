@@ -51,6 +51,7 @@ export const navigation = [
         items: [
           { label: 'nav.purchaseOrders', to: '/purchase-orders', permission: 'purchase_orders.view' },
           { label: 'nav.purchaseInvoices', to: '/purchase-invoices', permission: 'purchase_invoices.view' },
+          { label: 'nav.supplierPayments', to: '/supplier-payments' },
           { label: 'nav.suppliers', to: '/suppliers', permission: 'contacts.view' },
         ],
       },

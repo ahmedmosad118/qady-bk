@@ -23,6 +23,7 @@ import PosReturnsView from '../views/pos/management/PosReturnsView.vue';
 import PosShiftsView from '../views/pos/management/PosShiftsView.vue';
 import PurchaseOrdersView from '../views/purchases/PurchaseOrdersView.vue';
 import PurchaseInvoicesView from '../views/purchases/PurchaseInvoicesView.vue';
+import SupplierPaymentsView from '../views/purchases/SupplierPaymentsView.vue';
 import ExpensesView from '../views/expenses/ExpensesView.vue';
 import ExpenseCategoriesView from '../views/expenses/ExpenseCategoriesView.vue';
 import ChartOfAccountsView from '../views/accounting/ChartOfAccountsView.vue';
@@ -138,6 +139,12 @@ const routes = [
         name: 'purchase-invoices',
         component: PurchaseInvoicesView,
         meta: { titleKey: 'nav.purchaseInvoices', permission: 'purchase_invoices.view' },
+      },
+      {
+        path: 'supplier-payments',
+        name: 'supplier-payments',
+        component: SupplierPaymentsView,
+        meta: { titleKey: 'nav.supplierPayments' },
       },
       {
         path: 'invoices',
