@@ -1149,6 +1149,7 @@ export default {
     editCategory: 'Edit {name}',
     deleteCategory: 'Delete {name}',
     loadError: 'Could not load the category tree. Please try again.',
+    accountsLoadError: 'Could not load stock input accounts. Please try again.',
     loadErrorTitle: "Couldn't load data",
     retry: 'Retry',
     deleteTitle: 'Confirm category deletion',

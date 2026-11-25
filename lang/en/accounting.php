@@ -62,6 +62,8 @@ return [
         'delete_linked_to_payment_method' => 'Cannot delete an account linked to a payment method.',
         'delete_linked_to_contact' => 'Cannot delete an account linked to a contact.',
         'delete_linked_to_product_category' => 'Cannot delete an account linked to a product category.',
+        'product_category_account_cannot_deactivate' => 'Cannot deactivate an account linked to a product category.',
+        'product_category_account_must_be_current_assets' => 'An account linked to a product category must remain of type current_assets.',
         'account_type_inactive' => 'The selected account type is inactive.',
         'system_account_type_locked' => 'Cannot change the account type of a system account.',
         'system_account_code_locked' => 'Cannot change the code of a system account.',

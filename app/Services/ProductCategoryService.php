@@ -87,6 +87,7 @@ class ProductCategoryService
 
         $account = Account::query()
             ->with('accountType:id,code')
+            ->lockForUpdate()
             ->find((int) $accountId);
 
         if (! $account) {

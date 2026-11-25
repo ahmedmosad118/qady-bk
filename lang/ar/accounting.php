@@ -62,6 +62,8 @@ return [
         'delete_linked_to_payment_method' => 'لا يمكن حذف حساب مرتبط بطريقة دفع.',
         'delete_linked_to_contact' => 'لا يمكن حذف حساب مرتبط بعميل أو مورد.',
         'delete_linked_to_product_category' => 'لا يمكن حذف حساب مرتبط بفئة منتجات.',
+        'product_category_account_cannot_deactivate' => 'لا يمكن تعطيل حساب مرتبط بفئة منتجات.',
+        'product_category_account_must_be_current_assets' => 'يجب أن يظل الحساب المرتبط بفئة منتجات من نوع الأصول المتداولة (current_assets).',
         'account_type_inactive' => 'نوع الحساب المحدد غير نشط.',
         'system_account_type_locked' => 'لا يمكن تغيير نوع حساب نظامي.',
         'system_account_code_locked' => 'لا يمكن تغيير كود حساب نظامي.',

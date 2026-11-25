@@ -1149,6 +1149,7 @@ export default {
     editCategory: 'تعديل {name}',
     deleteCategory: 'حذف {name}',
     loadError: 'تعذّر تحميل شجرة الأقسام. يرجى المحاولة مرة أخرى.',
+    accountsLoadError: 'تعذّر تحميل حسابات وسيط استلام المخزون. يرجى المحاولة مرة أخرى.',
     loadErrorTitle: 'تعذّر تحميل البيانات',
     retry: 'إعادة المحاولة',
     deleteTitle: 'تأكيد حذف القسم',

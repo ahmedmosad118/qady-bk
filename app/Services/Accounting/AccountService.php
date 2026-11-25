@@ -151,6 +151,16 @@ class AccountService
                 ->with('accountClass:id,code,name')
                 ->findOrFail($targetTypeId);
 
+            $linkedToProductCategory = ProductCategory::query()
+                ->where('stock_input_account_id', $locked->id)
+                ->exists();
+
+            if ($linkedToProductCategory && ! $targetIsActive) {
+                throw ValidationException::withMessages([
+                    'is_active' => [(string) __('accounting.errors.product_category_account_cannot_deactivate')],
+                ]);
+            }
+
             if ($targetTypeId !== $locked->account_type_id) {
                 if (! $accountType->is_active) {
                     throw ValidationException::withMessages([
@@ -165,6 +175,12 @@ class AccountService
                 if ($linkedToPaymentMethod && $accountType->code !== AccountTypeCode::BankCash->value) {
                     throw ValidationException::withMessages([
                         'account_type_id' => [(string) __('accounting.errors.payment_method_account_must_be_bank_cash')],
+                    ]);
+                }
+
+                if ($linkedToProductCategory && $accountType->code !== AccountTypeCode::CurrentAssets->value) {
+                    throw ValidationException::withMessages([
+                        'account_type_id' => [(string) __('accounting.errors.product_category_account_must_be_current_assets')],
                     ]);
                 }
             }

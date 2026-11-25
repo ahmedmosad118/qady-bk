@@ -353,4 +353,95 @@ class ProductCategoryTest extends TestCase
             $this->assertTrue($item['is_active']);
         }
     }
+
+    public function test_account_linked_to_product_category_cannot_be_deactivated_or_changed_to_non_current_assets(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        $fixedAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::FixedAssets->value)
+            ->firstOrFail();
+
+        $linkedAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1395',
+            'name' => 'حساب وسيط محمي',
+            'is_active' => true,
+            'is_system' => false,
+        ]);
+
+        ProductCategory::factory()->create([
+            'stock_input_account_id' => $linkedAccount->id,
+        ]);
+
+        // Cannot deactivate linked account
+        $this->putJson("/api/accounting/accounts/{$linkedAccount->id}", [
+            'is_active' => false,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_active']);
+
+        // Cannot change type to non-current_assets
+        $this->putJson("/api/accounting/accounts/{$linkedAccount->id}", [
+            'account_type_id' => $fixedAssetsType->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account_type_id']);
+
+        // Can still update name, code, and reconcile
+        $this->putJson("/api/accounting/accounts/{$linkedAccount->id}", [
+            'name' => 'حساب وسيط محدث',
+            'code' => '1394',
+            'reconcile' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'حساب وسيط محدث')
+            ->assertJsonPath('data.code', '1394')
+            ->assertJsonPath('data.reconcile', true);
+    }
+
+    public function test_accounts_endpoint_paginates_and_searches_beyond_100_current_assets_accounts(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        $rows = [];
+        for ($i = 1; $i <= 105; $i++) {
+            $rows[] = [
+                'account_type_id' => $currentAssetsType->id,
+                'code' => '135'.str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'name' => "حساب أصول متداولة {$i}",
+                'is_active' => true,
+                'is_system' => false,
+                'reconcile' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        Account::query()->insert($rows);
+
+        $page1 = $this->getJson('/api/accounting/accounts?account_type_code=current_assets&is_active=1&per_page=100&page=1')
+            ->assertOk();
+        $this->assertCount(100, $page1->json('data'));
+        $this->assertGreaterThan(100, $page1->json('meta.total'));
+        $this->assertSame(2, $page1->json('meta.last_page'));
+
+        $page2 = $this->getJson('/api/accounting/accounts?account_type_code=current_assets&is_active=1&per_page=100&page=2')
+            ->assertOk();
+        $this->assertNotEmpty($page2->json('data'));
+
+        $searchRes = $this->getJson('/api/accounting/accounts?account_type_code=current_assets&is_active=1&search=135105&per_page=10')
+            ->assertOk();
+        $this->assertCount(1, $searchRes->json('data'));
+        $this->assertSame('135105', $searchRes->json('data.0.code'));
+    }
 }

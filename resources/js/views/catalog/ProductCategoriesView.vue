@@ -290,13 +290,30 @@
         :errors="formErrors"
         :related-options="{
           parent_id: parentOptions,
-          stock_input_account_id: stockInputAccountOptions,
         }"
       >
         <template #extra-fields>
           <p v-if="parentLocked" class="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm font-medium text-[var(--muted)]">
             {{ $t('productCategories.parentLockedHint') }}
           </p>
+          <div
+            v-if="stockInputAccountsError"
+            class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-[var(--crimson)]/25 bg-[var(--crimson-soft)] px-3.5 py-2.5 text-sm font-semibold text-[var(--crimson)]"
+            role="alert"
+          >
+            <span class="flex items-center gap-2">
+              <AlertCircle class="h-4 w-4 shrink-0" aria-hidden="true" />
+              {{ stockInputAccountsError }}
+            </span>
+            <button
+              type="button"
+              class="shrink-0 underline underline-offset-4 disabled:opacity-50"
+              :disabled="retryingStockInputAccounts"
+              @click="retryLoadStockInputAccounts"
+            >
+              {{ $t('productCategories.retry') }}
+            </button>
+          </div>
         </template>
       </CrudForm>
     </CrudModal>
@@ -333,6 +350,7 @@ import {
 } from 'lucide-vue-next';
 import api from '../../services/api';
 import alertService from '../../services/alert';
+import { createPaginatedFetcher } from '../../utils/selectFetchers';
 import { useAuthStore } from '../../stores/auth';
 import { useNotificationStore } from '../../stores/notification';
 import FilterChip from '../../components/ui/FilterChip.vue';
@@ -349,7 +367,8 @@ const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 
 const tree = ref([]);
-const stockInputAccounts = ref([]);
+const stockInputAccountsError = ref('');
+const retryingStockInputAccounts = ref(false);
 const loading = ref(true);
 const loadError = ref('');
 
@@ -432,6 +451,51 @@ const parentLocked = computed(() => {
   return row.level === 1 || (row.children || []).length > 0;
 });
 
+const selectedStockInputAccountOption = computed(() => {
+  const account = editingRow.value?.stock_input_account;
+  if (!account) return null;
+
+  return {
+    value: account.id,
+    label: `${account.code} — ${account.name}`,
+  };
+});
+
+const stockInputAccountsFetcher = createPaginatedFetcher(
+  '/accounting/accounts',
+  () => ({
+    account_type_code: 'current_assets',
+    is_active: 1,
+  }),
+  (account) => ({
+    value: account.id,
+    label: `${account.code} — ${account.name}`,
+  })
+);
+
+const fetchStockInputAccountOptions = async (query) => {
+  stockInputAccountsError.value = '';
+
+  try {
+    return await stockInputAccountsFetcher(query);
+  } catch (err) {
+    stockInputAccountsError.value = t('productCategories.accountsLoadError');
+    throw err;
+  }
+};
+
+const retryLoadStockInputAccounts = async () => {
+  retryingStockInputAccounts.value = true;
+
+  try {
+    await fetchStockInputAccountOptions({ search: '', page: 1, perPage: 10 });
+  } catch {
+    // Error state is already set by fetchStockInputAccountOptions.
+  } finally {
+    retryingStockInputAccounts.value = false;
+  }
+};
+
 const schema = computed(() => ({
   fields: [
     { name: 'name', label: 'productCategories.fields.name', type: 'text', required: true, col: 12 },
@@ -450,6 +514,8 @@ const schema = computed(() => ({
       type: 'select',
       col: 12,
       placeholder: 'productCategories.noStockInputAccount',
+      fetchOptions: fetchStockInputAccountOptions,
+      selectedOptionData: selectedStockInputAccountOption.value,
     },
     { name: 'is_active', label: 'productCategories.fields.isActive', type: 'boolean', col: 12, default: true },
   ],
@@ -459,13 +525,6 @@ const parentOptions = computed(() =>
   tree.value
     .filter((category) => category.id !== activeRecordId.value)
     .map((category) => ({ value: category.id, label: category.name }))
-);
-
-const stockInputAccountOptions = computed(() =>
-  stockInputAccounts.value.map((account) => ({
-    value: account.id,
-    label: `${account.code} — ${account.name}`,
-  }))
 );
 
 const editingRow = computed(() => allRows.value.find((row) => row.id === activeRecordId.value) || null);
@@ -499,25 +558,11 @@ const loadCategories = async () => {
   }
 };
 
-const loadStockInputAccounts = async () => {
-  try {
-    const response = await api.get('/accounting/accounts', {
-      params: {
-        account_type_code: 'current_assets',
-        is_active: 1,
-        per_page: 100,
-      },
-    });
-    stockInputAccounts.value = response.data?.data || [];
-  } catch {
-    stockInputAccounts.value = [];
-  }
-};
-
 const openCreate = () => {
   modalMode.value = 'create';
   activeRecordId.value = null;
   formErrors.value = {};
+  stockInputAccountsError.value = '';
   formData.value = {
     name: '',
     parent_id: null,
@@ -531,6 +576,7 @@ const openEdit = (category) => {
   modalMode.value = 'edit';
   activeRecordId.value = category.id;
   formErrors.value = {};
+  stockInputAccountsError.value = '';
   formData.value = {
     name: category.name ?? '',
     parent_id: category.parent_id ?? null,
@@ -650,8 +696,5 @@ const resetFilters = () => {
   scopeFilter.value = 'all';
 };
 
-onMounted(() => {
-  loadCategories();
-  loadStockInputAccounts();
-});
+onMounted(loadCategories);
 </script>

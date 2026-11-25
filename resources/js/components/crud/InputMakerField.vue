@@ -75,6 +75,8 @@
       <SearchableSelect
         :model-value="modelValue"
         :options="computedOptions"
+        :fetch-options="field.fetchOptions || null"
+        :selected-option-data="field.selectedOptionData || null"
         :placeholder="formatLabel(field.placeholder) || formatLabel(field.label)"
         :search-placeholder="$t('common.search')"
         :disabled="field.readonly"
