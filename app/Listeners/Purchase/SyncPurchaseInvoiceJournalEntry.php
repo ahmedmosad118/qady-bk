@@ -51,8 +51,12 @@ class SyncPurchaseInvoiceJournalEntry
 
     public function handlePosted(PurchaseInvoicePosted $event): void
     {
-        // Re-validate accounting mappings and generated payload before posting the linked journal entry.
-        $this->buildEntryPayload($event->invoice);
+        $payload = $this->buildEntryPayload($event->invoice);
+
+        $this->journalEntryService->updateDraftForPurchaseInvoice(
+            $event->invoice,
+            $payload,
+        );
 
         $this->journalEntryService->postForPurchaseInvoice(
             $event->invoice,
@@ -77,15 +81,10 @@ class SyncPurchaseInvoiceJournalEntry
      */
     public function buildEntryPayload(PurchaseInvoice $invoice): array
     {
-        if (! $invoice->relationLoaded('items')) {
-            $invoice->load([
-                'items' => static fn ($q) => $q->orderBy('id'),
-                'items.product:id,name,category_id',
-                'items.product.category:id,name,stock_input_account_id',
-            ]);
-        }
-
         $invoice->loadMissing([
+            'items' => static fn ($q) => $q->orderBy('id'),
+            'items.product:id,name,category_id',
+            'items.product.category:id,name,stock_input_account_id',
             'supplier:id,name,payable_account_id',
         ]);
 
@@ -455,11 +454,9 @@ class SyncPurchaseInvoiceJournalEntry
             'number' => $invoice->invoice_number,
         ]);
 
-        if (! $invoice->relationLoaded('expenses')) {
-            $invoice->load([
-                'expenses' => static fn ($q) => $q->orderBy('id'),
-            ]);
-        }
+        $invoice->loadMissing([
+            'expenses' => static fn ($q) => $q->orderBy('id'),
+        ]);
 
         $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
         $expenseLines = [];

@@ -12,6 +12,7 @@ use App\Enums\Accounting\JournalType;
 use App\Enums\Accounting\PurchaseExpensesTreatment;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\PurchaseInvoiceStatus;
+use App\Listeners\Purchase\SyncPurchaseInvoiceJournalEntry;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
 use App\Models\AccountType;
@@ -1197,5 +1198,184 @@ class PurchaseInvoiceAccountingTest extends TestCase
         $this->assertSame('نقل وتخليص', $entry->lines[1]->label);
         $this->assertSame('75.00', $entry->lines[1]->debit);
         $this->assertSame('275.00', $entry->lines[2]->credit);
+    }
+
+    public function test_posting_synchronizes_existing_draft_journal_entry_with_updated_category_mapping(): void
+    {
+        $category = ProductCategory::factory()->create([
+            'stock_input_account_id' => $this->stockInputAccount->id,
+        ]);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'name' => 'كتاب المرافعات',
+            'is_active' => true,
+        ]);
+        $supplier = $this->createSupplier();
+
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 150],
+            ],
+        ])->assertCreated();
+
+        $invoiceId = $res->json('data.id');
+
+        $draftEntry = JournalEntry::query()
+            ->with('lines')
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $invoiceId)
+            ->firstOrFail();
+
+        $this->assertSame(JournalEntryStatus::Draft, $draftEntry->status);
+        $originalEntryId = $draftEntry->id;
+        $originalEntryNumber = $draftEntry->entry_number;
+
+        // Create a new active CurrentAssets account and reassign the category's stock input account.
+        $currentAssetsType = AccountType::query()->where('code', AccountTypeCode::CurrentAssets->value)->firstOrFail();
+        $updatedStockAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1149',
+            'name' => 'مخزون الكتب القانونية المحدث',
+            'is_active' => true,
+        ]);
+        $category->update(['stock_input_account_id' => $updatedStockAccount->id]);
+
+        $this->postJson("/api/purchase-invoices/{$invoiceId}/post")
+            ->assertOk()
+            ->assertJsonPath('data.status', PurchaseInvoiceStatus::POSTED->value);
+
+        $this->assertSame(
+            1,
+            JournalEntry::query()
+                ->where('source_type', 'purchase_invoice')
+                ->where('source_id', $invoiceId)
+                ->count()
+        );
+
+        $postedEntry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->findOrFail($originalEntryId);
+
+        $this->assertSame($originalEntryId, $postedEntry->id);
+        $this->assertSame($originalEntryNumber, $postedEntry->entry_number);
+        $this->assertSame(JournalEntryStatus::Posted, $postedEntry->status);
+        $this->assertNotNull($postedEntry->posted_at);
+        $this->assertCount(2, $postedEntry->lines);
+        $this->assertSame($updatedStockAccount->id, $postedEntry->lines[0]->account_id);
+        $this->assertSame('300.00', $postedEntry->lines[0]->debit);
+        $this->assertSame($this->payableAccount->id, $postedEntry->lines[1]->account_id);
+        $this->assertSame('300.00', $postedEntry->lines[1]->credit);
+    }
+
+    public function test_posting_with_invalid_mapping_fails_and_rolls_back_invoice_and_journal_entry_to_draft(): void
+    {
+        $currentAssetsType = AccountType::query()->where('code', AccountTypeCode::CurrentAssets->value)->firstOrFail();
+        $categoryAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1148',
+            'name' => 'حساب مخزون مخصص',
+            'is_active' => true,
+        ]);
+
+        $category = ProductCategory::factory()->create([
+            'stock_input_account_id' => $categoryAccount->id,
+        ]);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'name' => 'كتاب الدستور',
+            'is_active' => true,
+        ]);
+        $supplier = $this->createSupplier();
+
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 200],
+            ],
+        ])->assertCreated();
+
+        $invoiceId = $res->json('data.id');
+        $entry = JournalEntry::query()
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $invoiceId)
+            ->firstOrFail();
+
+        $this->assertSame(JournalEntryStatus::Draft, $entry->status);
+
+        // Invalidate the accounting mapping by deactivating the category's stock input account.
+        $categoryAccount->update(['is_active' => false]);
+
+        $this->postJson("/api/purchase-invoices/{$invoiceId}/post")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock_input_account_id']);
+
+        $invoice = PurchaseInvoice::query()->findOrFail($invoiceId);
+        $entry->refresh();
+
+        $this->assertSame(PurchaseInvoiceStatus::DRAFT, $invoice->status);
+        $this->assertNull($invoice->posted_by);
+        $this->assertNull($invoice->posted_at);
+        $this->assertSame(JournalEntryStatus::Draft, $entry->status);
+        $this->assertNull($entry->posted_by);
+        $this->assertNull($entry->posted_at);
+    }
+
+    public function test_build_entry_payload_loads_nested_product_and_category_when_items_already_loaded(): void
+    {
+        $currentAssetsType = AccountType::query()->where('code', AccountTypeCode::CurrentAssets->value)->firstOrFail();
+        $customCategoryAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1147',
+            'name' => 'مخزون كتب متخصصة',
+            'is_active' => true,
+        ]);
+
+        $category = ProductCategory::factory()->create([
+            'stock_input_account_id' => $customCategoryAccount->id,
+        ]);
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'name' => 'موسوعة القانون',
+            'is_active' => true,
+        ]);
+        $supplier = $this->createSupplier();
+
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 125],
+            ],
+        ])->assertCreated();
+
+        $invoiceId = $res->json('data.id');
+
+        /** @var PurchaseInvoice $invoiceWithItemsOnly */
+        $invoiceWithItemsOnly = PurchaseInvoice::query()
+            ->with('items')
+            ->findOrFail($invoiceId);
+
+        $this->assertTrue($invoiceWithItemsOnly->relationLoaded('items'));
+        $this->assertFalse($invoiceWithItemsOnly->items->first()->relationLoaded('product'));
+
+        /** @var SyncPurchaseInvoiceJournalEntry $listener */
+        $listener = app(SyncPurchaseInvoiceJournalEntry::class);
+        $payload = $listener->buildEntryPayload($invoiceWithItemsOnly);
+
+        $this->assertTrue($invoiceWithItemsOnly->items->first()->relationLoaded('product'));
+        $this->assertTrue($invoiceWithItemsOnly->items->first()->product->relationLoaded('category'));
+        $this->assertSame($customCategoryAccount->id, $payload['lines'][0]['account_id']);
+        $this->assertSame('250.00', $payload['lines'][0]['debit']);
+        $this->assertSame($this->payableAccount->id, $payload['lines'][1]['account_id']);
+        $this->assertSame('250.00', $payload['lines'][1]['credit']);
     }
 }
