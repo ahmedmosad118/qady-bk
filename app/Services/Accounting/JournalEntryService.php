@@ -14,7 +14,6 @@ use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
-use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
@@ -22,6 +21,7 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -280,24 +280,17 @@ class JournalEntryService
     }
 
     /**
-     * Create a draft journal entry linked to a persisted Draft PurchaseInvoice (idempotent).
+     * Create a draft journal entry linked to a persisted source model (idempotent).
      *
      * @param  array<string, mixed>  $data
      */
-    public function createDraftForPurchaseInvoice(
+    public function createDraftForSource(
         array $data,
-        PurchaseInvoice $invoice,
+        Model $source,
         ?User $user = null,
     ): JournalEntry {
-        $sourceKey = $invoice->getKey();
-
-        if (! $invoice->exists || $sourceKey === null || $sourceKey === '' || $sourceKey === 0) {
-            throw ValidationException::withMessages([
-                'source' => ['The source purchase invoice must be persisted with a valid primary key.'],
-            ]);
-        }
-
-        $sourceType = $invoice->getMorphClass();
+        $sourceKey = $this->assertPersistedSource($source);
+        $sourceType = $source->getMorphClass();
         $existing = $this->findBySource($sourceType, $sourceKey, lock: true);
 
         if ($existing !== null) {
@@ -309,7 +302,7 @@ class JournalEntryService
                 data: $data,
                 user: $user,
                 status: JournalEntryStatus::Draft,
-                source: $invoice,
+                source: $source,
             );
         } catch (UniqueConstraintViolationException|QueryException $exception) {
             if (! $this->isUniqueConstraintViolation($exception)) {
@@ -327,20 +320,15 @@ class JournalEntryService
     }
 
     /**
-     * Update the linked draft journal entry from its source PurchaseInvoice.
+     * Update the linked draft journal entry from its persisted source model.
      *
      * @param  array<string, mixed>  $data
      */
-    public function updateDraftForPurchaseInvoice(PurchaseInvoice $invoice, array $data): JournalEntry
+    public function updateDraftForSource(Model $source, array $data): JournalEntry
     {
-        return DB::transaction(function () use ($invoice, $data): JournalEntry {
-            if (! $invoice->exists || ! $invoice->isDraft()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
-                ]);
-            }
-
-            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+        return DB::transaction(function () use ($source, $data): JournalEntry {
+            $sourceKey = $this->assertPersistedSource($source);
+            $locked = $this->findBySource($source->getMorphClass(), $sourceKey, lock: true);
 
             if ($locked === null) {
                 throw ValidationException::withMessages([
@@ -348,7 +336,7 @@ class JournalEntryService
                 ]);
             }
 
-            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+            $this->assertEntryBelongsToSource($locked, $source);
 
             if (! $locked->isDraft()) {
                 throw ValidationException::withMessages([
@@ -387,18 +375,13 @@ class JournalEntryService
     }
 
     /**
-     * Post the linked draft journal entry from its source PurchaseInvoice.
+     * Post the linked draft journal entry from its persisted source model.
      */
-    public function postForPurchaseInvoice(PurchaseInvoice $invoice, User $user): JournalEntry
+    public function postForSource(Model $source, User $user): JournalEntry
     {
-        return DB::transaction(function () use ($invoice, $user): JournalEntry {
-            if (! $invoice->exists || ! $invoice->isDraft()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.invoice_already_posted')],
-                ]);
-            }
-
-            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+        return DB::transaction(function () use ($source, $user): JournalEntry {
+            $sourceKey = $this->assertPersistedSource($source);
+            $locked = $this->findBySource($source->getMorphClass(), $sourceKey, lock: true);
 
             if ($locked === null) {
                 throw ValidationException::withMessages([
@@ -406,25 +389,26 @@ class JournalEntryService
                 ]);
             }
 
-            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+            $this->assertEntryBelongsToSource($locked, $source);
 
             return $this->postEntryInternal($locked, $user);
         });
     }
 
     /**
-     * Delete the linked draft journal entry when its source PurchaseInvoice is cancelled or deleted.
+     * Delete the linked draft journal entry when its source document is cancelled or deleted.
      */
-    public function deleteDraftForPurchaseInvoice(PurchaseInvoice $invoice): void
+    public function deleteDraftForSource(Model $source): void
     {
-        DB::transaction(function () use ($invoice): void {
-            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+        DB::transaction(function () use ($source): void {
+            $sourceKey = $this->assertPersistedSource($source);
+            $locked = $this->findBySource($source->getMorphClass(), $sourceKey, lock: true);
 
             if ($locked === null) {
                 return;
             }
 
-            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+            $this->assertEntryBelongsToSource($locked, $source);
 
             if (! $locked->isDraft()) {
                 throw ValidationException::withMessages([
@@ -565,20 +549,33 @@ class JournalEntryService
 
     private function assertNotPurchaseInvoiceSource(JournalEntry $entry): void
     {
-        $morphAlias = (new PurchaseInvoice)->getMorphClass();
+        $purchaseInvoiceClass = Relation::getMorphedModel('purchase_invoice') ?? 'App\\Models\\PurchaseInvoice';
 
-        if ($entry->source_type === $morphAlias || $entry->source_type === PurchaseInvoice::class) {
+        if ($entry->source_type === 'purchase_invoice' || $entry->source_type === $purchaseInvoiceClass) {
             throw ValidationException::withMessages([
                 'source' => [(string) __('accounting.errors.journal_entry_purchase_invoice_managed_only')],
             ]);
         }
     }
 
-    private function assertEntryBelongsToPurchaseInvoice(JournalEntry $entry, PurchaseInvoice $invoice): void
+    private function assertPersistedSource(Model $source): mixed
     {
-        $expectedType = $invoice->getMorphClass();
+        $sourceKey = $source->getKey();
 
-        if ($entry->source_type !== $expectedType || (int) $entry->source_id !== (int) $invoice->getKey()) {
+        if (! $source->exists || $sourceKey === null || $sourceKey === '' || $sourceKey === 0) {
+            throw ValidationException::withMessages([
+                'source' => ['The source model must be persisted with a valid primary key.'],
+            ]);
+        }
+
+        return $sourceKey;
+    }
+
+    private function assertEntryBelongsToSource(JournalEntry $entry, Model $source): void
+    {
+        $expectedType = $source->getMorphClass();
+
+        if ($entry->source_type !== $expectedType || (int) $entry->source_id !== (int) $source->getKey()) {
             throw ValidationException::withMessages([
                 'source' => [(string) __('accounting.errors.journal_entry_missing_for_source')],
             ]);

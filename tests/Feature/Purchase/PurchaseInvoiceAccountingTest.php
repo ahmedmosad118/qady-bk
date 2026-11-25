@@ -638,7 +638,7 @@ class PurchaseInvoiceAccountingTest extends TestCase
 
         $this->expectException(ValidationException::class);
 
-        app(JournalEntryService::class)->postForPurchaseInvoice($invoiceModel, $this->user);
+        app(JournalEntryService::class)->postForSource($invoiceModel, $this->user);
     }
 
     public function test_journals_api_returns_only_active_purchase_journals(): void

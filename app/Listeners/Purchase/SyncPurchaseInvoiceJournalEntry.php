@@ -32,7 +32,7 @@ class SyncPurchaseInvoiceJournalEntry
     {
         $payload = $this->buildEntryPayload($event->invoice);
 
-        $this->journalEntryService->createDraftForPurchaseInvoice(
+        $this->journalEntryService->createDraftForSource(
             $payload,
             $event->invoice,
             $event->user,
@@ -43,7 +43,7 @@ class SyncPurchaseInvoiceJournalEntry
     {
         $payload = $this->buildEntryPayload($event->invoice);
 
-        $this->journalEntryService->updateDraftForPurchaseInvoice(
+        $this->journalEntryService->updateDraftForSource(
             $event->invoice,
             $payload,
         );
@@ -53,12 +53,12 @@ class SyncPurchaseInvoiceJournalEntry
     {
         $payload = $this->buildEntryPayload($event->invoice);
 
-        $this->journalEntryService->updateDraftForPurchaseInvoice(
+        $this->journalEntryService->updateDraftForSource(
             $event->invoice,
             $payload,
         );
 
-        $this->journalEntryService->postForPurchaseInvoice(
+        $this->journalEntryService->postForSource(
             $event->invoice,
             $event->user,
         );
@@ -66,12 +66,12 @@ class SyncPurchaseInvoiceJournalEntry
 
     public function handleCancelled(PurchaseInvoiceCancelled $event): void
     {
-        $this->journalEntryService->deleteDraftForPurchaseInvoice($event->invoice);
+        $this->journalEntryService->deleteDraftForSource($event->invoice);
     }
 
     public function handleDeleted(PurchaseInvoiceDeleted $event): void
     {
-        $this->journalEntryService->deleteDraftForPurchaseInvoice($event->invoice);
+        $this->journalEntryService->deleteDraftForSource($event->invoice);
     }
 
     /**
