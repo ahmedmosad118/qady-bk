@@ -25,5 +25,8 @@ return [
     'parent_must_be_top_level' => 'التصنيف الأب يجب أن يكون تصنيفًا رئيسيًا فقط.',
     'parent_invalid' => 'لا يمكن أن يكون التصنيف أبًا لنفسه.',
     'delete_has_children' => 'لا يمكن حذف تصنيف لديه تصنيفات فرعية.',
+    'stock_input_account_not_found' => 'حساب وسيط استلام المخزون المحدد غير موجود.',
+    'stock_input_account_inactive' => 'حساب وسيط استلام المخزون المحدد غير نشط.',
+    'stock_input_account_invalid_type' => 'يجب أن يكون حساب وسيط استلام المخزون من نوع الأصول المتداولة (current_assets).',
 
 ];

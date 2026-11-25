@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Product;
 
+use App\Models\Account;
 use App\Models\ProductCategory;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,11 @@ class StoreProductCategoryRequest extends FormRequest
                 'integer',
                 Rule::exists(ProductCategory::class, 'id')->where('parent_id', null),
             ],
+            'stock_input_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists(Account::class, 'id'),
+            ],
         ];
     }
 
@@ -44,6 +50,7 @@ class StoreProductCategoryRequest extends FormRequest
     {
         return [
             'parent_id.exists' => __('products.parent_must_be_top_level'),
+            'stock_input_account_id.exists' => __('products.stock_input_account_not_found'),
         ];
     }
 

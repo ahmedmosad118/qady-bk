@@ -25,5 +25,8 @@ return [
     'parent_must_be_top_level' => 'The parent category must be a top-level category.',
     'parent_invalid' => 'A category cannot be its own parent.',
     'delete_has_children' => 'Cannot delete a category that still has subcategories.',
+    'stock_input_account_not_found' => 'The selected stock input account does not exist.',
+    'stock_input_account_inactive' => 'The selected stock input account must be active.',
+    'stock_input_account_invalid_type' => 'The stock input account must be of type current_assets.',
 
 ];

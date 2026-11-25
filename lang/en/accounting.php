@@ -61,6 +61,7 @@ return [
         'delete_linked_to_settings' => 'Cannot delete an account linked to accounting settings.',
         'delete_linked_to_payment_method' => 'Cannot delete an account linked to a payment method.',
         'delete_linked_to_contact' => 'Cannot delete an account linked to a contact.',
+        'delete_linked_to_product_category' => 'Cannot delete an account linked to a product category.',
         'account_type_inactive' => 'The selected account type is inactive.',
         'system_account_type_locked' => 'Cannot change the account type of a system account.',
         'system_account_code_locked' => 'Cannot change the code of a system account.',

@@ -11,10 +11,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 
-#[Fillable(['name', 'parent_id', 'is_active'])]
+#[Fillable(['name', 'parent_id', 'stock_input_account_id', 'is_active'])]
 class ProductCategory extends Model
 {
     use HasFactory, LogsModelActivity;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'parent_id' => 'integer',
+            'stock_input_account_id' => 'integer',
+            'is_active' => 'boolean',
+        ];
+    }
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -39,6 +51,14 @@ class ProductCategory extends Model
     public function children(): HasMany
     {
         return $this->hasMany(ProductCategory::class, 'parent_id');
+    }
+
+    /**
+     * The stock input interim account linked to this category.
+     */
+    public function stockInputAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'stock_input_account_id');
     }
 
     /**

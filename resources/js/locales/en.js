@@ -1154,11 +1154,13 @@ export default {
     deleteTitle: 'Confirm category deletion',
     deleteConfirm: 'Delete {name}? This action cannot be undone.',
     noParent: 'Main category',
+    noStockInputAccount: 'No stock input account',
     topLevelOnly: 'Choose a main category only',
     parentLockedHint: 'The parent category cannot be changed for this category.',
     fields: {
       name: 'Category name',
       parent: 'Parent category',
+      stockInputAccount: 'Stock Input Account',
       isActive: 'Active category',
     },
   },

@@ -10,6 +10,7 @@ use App\Models\AccountClass;
 use App\Models\AccountType;
 use App\Models\Contact;
 use App\Models\PaymentMethod;
+use App\Models\ProductCategory;
 use App\Repositories\AccountRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -216,6 +217,12 @@ class AccountService
             if ($linkedToContact) {
                 throw ValidationException::withMessages([
                     'account' => [(string) __('accounting.errors.delete_linked_to_contact')],
+                ]);
+            }
+
+            if (ProductCategory::query()->where('stock_input_account_id', $locked->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'account' => [(string) __('accounting.errors.delete_linked_to_product_category')],
                 ]);
             }
 

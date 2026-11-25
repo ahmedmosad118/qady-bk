@@ -54,6 +54,7 @@ class AccountController extends Controller implements HasMiddleware
         $filters = [
             'account_class_id' => $request->input('account_class_id'),
             'account_type_id' => $request->input('account_type_id'),
+            'account_type_code' => $request->input('account_type_code'),
             'is_active' => $request->input('is_active'),
             'search' => $request->input('search'),
             'sort_by' => $request->input('sort_by'),

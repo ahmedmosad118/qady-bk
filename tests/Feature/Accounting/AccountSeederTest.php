@@ -25,8 +25,8 @@ class AccountSeederTest extends TestCase
     {
         $this->seed(AccountingSeeder::class);
 
-        $this->assertSame(38, Account::query()->count());
-        $this->assertSame(7, Account::query()->where('is_system', true)->count());
+        $this->assertSame(39, Account::query()->count());
+        $this->assertSame(8, Account::query()->where('is_system', true)->count());
 
         $accounts = Account::query()->with('accountType.accountClass')->get()->keyBy('code');
 
@@ -34,7 +34,7 @@ class AccountSeederTest extends TestCase
         $countsByClass = $accounts->groupBy(fn (Account $a): string => $a->accountType->accountClass->code)
             ->map->count();
 
-        $this->assertSame(10, $countsByClass[AccountClassCode::Asset->value]);
+        $this->assertSame(11, $countsByClass[AccountClassCode::Asset->value]);
         $this->assertSame(6, $countsByClass[AccountClassCode::Liability->value]);
         $this->assertSame(4, $countsByClass[AccountClassCode::Equity->value]);
         $this->assertSame(4, $countsByClass[AccountClassCode::Income->value]);
@@ -55,7 +55,7 @@ class AccountSeederTest extends TestCase
         $this->assertSame('owner_current', $ownerCurrent->system_key);
         $this->assertNull($ownerCurrent->normal_balance_override);
 
-        // Verify all 7 system_keys exist
+        // Verify all 8 system_keys exist
         $systemKeys = Account::query()->where('is_system', true)->pluck('system_key')->sort()->values()->all();
         $this->assertSame([
             'capital',
@@ -65,7 +65,17 @@ class AccountSeederTest extends TestCase
             'owner_current',
             'sales_returns',
             'sales_revenue',
+            'stock_input',
         ], $systemKeys);
+
+        $stockInput = $accounts->get('1303');
+        $this->assertNotNull($stockInput);
+        $this->assertSame('حساب وسيط استلام المخزون', $stockInput->name);
+        $this->assertSame(AccountTypeCode::CurrentAssets->value, $stockInput->accountType->code);
+        $this->assertSame(NormalBalance::Debit, $stockInput->normal_balance_override);
+        $this->assertTrue($stockInput->is_system);
+        $this->assertFalse($stockInput->reconcile);
+        $this->assertSame('stock_input', $stockInput->system_key);
 
         // No fiscal years or periods created
         $this->assertSame(0, FiscalYear::query()->count());
@@ -75,7 +85,7 @@ class AccountSeederTest extends TestCase
     public function test_account_seeder_is_idempotent_and_preserves_user_edits(): void
     {
         $this->seed(AccountingSeeder::class);
-        $this->assertSame(38, Account::query()->count());
+        $this->assertSame(39, Account::query()->count());
 
         $cash = Account::query()->where('code', '1101')->firstOrFail();
         $cash->update([
@@ -93,8 +103,8 @@ class AccountSeederTest extends TestCase
         // Re-run seeder
         $this->seed(AccountSeeder::class);
 
-        $this->assertSame(38, Account::query()->count());
-        $this->assertSame(7, Account::query()->where('is_system', true)->count());
+        $this->assertSame(39, Account::query()->count());
+        $this->assertSame(8, Account::query()->where('is_system', true)->count());
 
         $cash->refresh();
         $this->assertSame('خزينة الفرع الرئيسي المعدلة', $cash->name);
@@ -104,6 +114,24 @@ class AccountSeederTest extends TestCase
         $capital->refresh();
         $this->assertSame('رأس المال المعدل', $capital->name);
         $this->assertSame('3199', $capital->code);
+    }
+
+    public function test_account_seeder_does_not_reactivate_or_overwrite_stock_input_account(): void
+    {
+        $this->seed(AccountingSeeder::class);
+
+        $stockInput = Account::query()->where('system_key', 'stock_input')->firstOrFail();
+        $stockInput->update([
+            'name' => 'حساب وسيط معدل',
+            'is_active' => false,
+        ]);
+
+        $this->seed(AccountSeeder::class);
+
+        $this->assertSame(1, Account::query()->where('system_key', 'stock_input')->count());
+        $stockInput->refresh();
+        $this->assertSame('حساب وسيط معدل', $stockInput->name);
+        $this->assertFalse($stockInput->is_active);
     }
 
     public function test_account_seeder_throws_when_account_type_is_missing(): void

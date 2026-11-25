@@ -2,9 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Accounting\AccountTypeCode;
+use App\Models\Account;
+use App\Models\AccountType;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\User;
+use Database\Seeders\AccountingSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -143,5 +148,209 @@ class ProductCategoryTest extends TestCase
             'category_id' => null,
             'deleted_at' => null,
         ]);
+    }
+
+    public function test_category_can_be_created_with_stock_input_account(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $stockInputAccount = Account::query()->where('system_key', 'stock_input')->firstOrFail();
+
+        $created = $this->postJson('/api/product-categories', [
+            'name' => 'كتب التفسير',
+            'is_active' => true,
+            'stock_input_account_id' => $stockInputAccount->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.stock_input_account_id', $stockInputAccount->id)
+            ->json('data');
+
+        $this->assertDatabaseHas('product_categories', [
+            'id' => $created['id'],
+            'stock_input_account_id' => $stockInputAccount->id,
+        ]);
+
+        $this->getJson('/api/product-categories')
+            ->assertOk()
+            ->assertJsonPath('data.0.stock_input_account_id', $stockInputAccount->id)
+            ->assertJsonPath('data.0.stock_input_account.id', $stockInputAccount->id);
+    }
+
+    public function test_category_stock_input_account_can_be_updated_and_cleared(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        $firstAccount = Account::query()->where('system_key', 'stock_input')->firstOrFail();
+        $secondAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1399',
+            'name' => 'حساب وسيط استلام مخصص',
+            'is_active' => true,
+            'is_system' => false,
+        ]);
+
+        $category = ProductCategory::factory()->create([
+            'stock_input_account_id' => $firstAccount->id,
+        ]);
+
+        $this->putJson("/api/product-categories/{$category->id}", [
+            'name' => $category->name,
+            'is_active' => true,
+            'stock_input_account_id' => $secondAccount->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.stock_input_account_id', $secondAccount->id);
+
+        $this->assertDatabaseHas('product_categories', [
+            'id' => $category->id,
+            'stock_input_account_id' => $secondAccount->id,
+        ]);
+
+        $this->putJson("/api/product-categories/{$category->id}", [
+            'name' => $category->name,
+            'is_active' => true,
+            'stock_input_account_id' => null,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.stock_input_account_id', null);
+
+        $this->assertDatabaseHas('product_categories', [
+            'id' => $category->id,
+            'stock_input_account_id' => null,
+        ]);
+    }
+
+    public function test_category_allows_null_stock_input_account(): void
+    {
+        $this->actingUser();
+
+        $this->postJson('/api/product-categories', [
+            'name' => 'كتب عامة',
+            'is_active' => true,
+            'stock_input_account_id' => null,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.stock_input_account_id', null);
+    }
+
+    public function test_non_existent_stock_input_account_is_rejected(): void
+    {
+        $this->actingUser();
+
+        $this->postJson('/api/product-categories', [
+            'name' => 'فئة بحساب غير موجود',
+            'is_active' => true,
+            'stock_input_account_id' => 999999,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock_input_account_id']);
+    }
+
+    public function test_inactive_stock_input_account_is_rejected(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        $inactiveAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1398',
+            'name' => 'حساب وسيط معطل',
+            'is_active' => false,
+            'is_system' => false,
+        ]);
+
+        $this->postJson('/api/product-categories', [
+            'name' => 'فئة بحساب معطل',
+            'is_active' => true,
+            'stock_input_account_id' => $inactiveAccount->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock_input_account_id']);
+    }
+
+    public function test_non_current_assets_stock_input_account_is_rejected(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $cashAccount = Account::query()->where('code', '1101')->firstOrFail();
+
+        $this->postJson('/api/product-categories', [
+            'name' => 'فئة بحساب غير متوافق',
+            'is_active' => true,
+            'stock_input_account_id' => $cashAccount->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock_input_account_id']);
+    }
+
+    public function test_account_linked_to_product_category_cannot_be_deleted(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        $customAccount = Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1397',
+            'name' => 'حساب وسيط مرتبط',
+            'is_active' => true,
+            'is_system' => false,
+        ]);
+
+        ProductCategory::factory()->create([
+            'stock_input_account_id' => $customAccount->id,
+        ]);
+
+        $this->deleteJson("/api/accounting/accounts/{$customAccount->id}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['account']);
+
+        $this->assertDatabaseHas('accounts', ['id' => $customAccount->id]);
+
+        $this->expectException(QueryException::class);
+        $customAccount->delete();
+    }
+
+    public function test_accounts_endpoint_filters_active_current_assets_accounts(): void
+    {
+        $this->actingUser();
+        $this->seed(AccountingSeeder::class);
+
+        $currentAssetsType = AccountType::query()
+            ->where('code', AccountTypeCode::CurrentAssets->value)
+            ->firstOrFail();
+
+        Account::query()->create([
+            'account_type_id' => $currentAssetsType->id,
+            'code' => '1396',
+            'name' => 'حساب أصول متداولة معطل',
+            'is_active' => false,
+            'is_system' => false,
+        ]);
+
+        $response = $this->getJson('/api/accounting/accounts?account_type_code=current_assets&is_active=1&per_page=100')
+            ->assertOk();
+
+        $items = $response->json('data');
+        $this->assertNotEmpty($items);
+
+        foreach ($items as $item) {
+            $this->assertSame(AccountTypeCode::CurrentAssets->value, $item['account_type']['code']);
+            $this->assertTrue($item['is_active']);
+        }
     }
 }

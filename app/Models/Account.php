@@ -80,4 +80,12 @@ class Account extends Model
     {
         return $this->hasMany(PaymentMethod::class, 'account_id');
     }
+
+    /**
+     * Product categories using this account as their stock input account.
+     */
+    public function stockInputProductCategories(): HasMany
+    {
+        return $this->hasMany(ProductCategory::class, 'stock_input_account_id');
+    }
 }

@@ -1154,11 +1154,13 @@ export default {
     deleteTitle: 'تأكيد حذف القسم',
     deleteConfirm: 'هل تريد حذف {name}؟ لا يمكن التراجع عن هذا الإجراء.',
     noParent: 'قسم رئيسي',
+    noStockInputAccount: 'بدون حساب وسيط',
     topLevelOnly: 'اختر قسماً رئيسياً فقط',
     parentLockedHint: 'لا يمكن تغيير القسم الأب لهذا القسم.',
     fields: {
       name: 'اسم القسم',
       parent: 'القسم الأب',
+      stockInputAccount: 'حساب وسيط استلام المخزون',
       isActive: 'قسم نشط',
     },
   },

@@ -46,10 +46,16 @@ class AccountRepository
                 'paymentMethods',
                 'receivableContacts',
                 'payableContacts',
+                'stockInputProductCategories',
             ]);
 
         if (! empty($filters['account_type_id'])) {
             $query->where('account_type_id', (int) $filters['account_type_id']);
+        } elseif (! empty($filters['account_type_code'])) {
+            $typeCode = (string) $filters['account_type_code'];
+            $query->whereHas('accountType', static function (Builder $q) use ($typeCode): void {
+                $q->where('code', $typeCode);
+            });
         } elseif (! empty($filters['account_class_id'])) {
             $classId = (int) $filters['account_class_id'];
             $query->whereHas('accountType', static function (Builder $q) use ($classId): void {
@@ -98,6 +104,7 @@ class AccountRepository
             'paymentMethods',
             'receivableContacts',
             'payableContacts',
+            'stockInputProductCategories',
         ]);
 
         return $this->transformAccount($account);
@@ -110,7 +117,8 @@ class AccountRepository
     {
         $hasLinks = (bool) ($account->payment_methods_exists ?? false)
             || (bool) ($account->receivable_contacts_exists ?? false)
-            || (bool) ($account->payable_contacts_exists ?? false);
+            || (bool) ($account->payable_contacts_exists ?? false)
+            || (bool) ($account->stock_input_product_categories_exists ?? false);
 
         return [
             'id' => $account->id,

@@ -288,7 +288,10 @@
         :schema="schema"
         :form-data="formData"
         :errors="formErrors"
-        :related-options="{ parent_id: parentOptions }"
+        :related-options="{
+          parent_id: parentOptions,
+          stock_input_account_id: stockInputAccountOptions,
+        }"
       >
         <template #extra-fields>
           <p v-if="parentLocked" class="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-sm font-medium text-[var(--muted)]">
@@ -346,6 +349,7 @@ const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
 
 const tree = ref([]);
+const stockInputAccounts = ref([]);
 const loading = ref(true);
 const loadError = ref('');
 
@@ -440,6 +444,13 @@ const schema = computed(() => ({
       readonly: parentLocked.value,
       help_text: parentLocked.value ? 'productCategories.topLevelOnly' : null,
     },
+    {
+      name: 'stock_input_account_id',
+      label: 'productCategories.fields.stockInputAccount',
+      type: 'select',
+      col: 12,
+      placeholder: 'productCategories.noStockInputAccount',
+    },
     { name: 'is_active', label: 'productCategories.fields.isActive', type: 'boolean', col: 12, default: true },
   ],
 }));
@@ -448,6 +459,13 @@ const parentOptions = computed(() =>
   tree.value
     .filter((category) => category.id !== activeRecordId.value)
     .map((category) => ({ value: category.id, label: category.name }))
+);
+
+const stockInputAccountOptions = computed(() =>
+  stockInputAccounts.value.map((account) => ({
+    value: account.id,
+    label: `${account.code} — ${account.name}`,
+  }))
 );
 
 const editingRow = computed(() => allRows.value.find((row) => row.id === activeRecordId.value) || null);
@@ -481,11 +499,31 @@ const loadCategories = async () => {
   }
 };
 
+const loadStockInputAccounts = async () => {
+  try {
+    const response = await api.get('/accounting/accounts', {
+      params: {
+        account_type_code: 'current_assets',
+        is_active: 1,
+        per_page: 100,
+      },
+    });
+    stockInputAccounts.value = response.data?.data || [];
+  } catch {
+    stockInputAccounts.value = [];
+  }
+};
+
 const openCreate = () => {
   modalMode.value = 'create';
   activeRecordId.value = null;
   formErrors.value = {};
-  formData.value = { name: '', parent_id: null, is_active: true };
+  formData.value = {
+    name: '',
+    parent_id: null,
+    stock_input_account_id: null,
+    is_active: true,
+  };
   showModal.value = true;
 };
 
@@ -496,6 +534,7 @@ const openEdit = (category) => {
   formData.value = {
     name: category.name ?? '',
     parent_id: category.parent_id ?? null,
+    stock_input_account_id: category.stock_input_account_id ?? null,
     is_active: !!category.is_active,
   };
   showModal.value = true;
@@ -611,5 +650,8 @@ const resetFilters = () => {
   scopeFilter.value = 'all';
 };
 
-onMounted(loadCategories);
+onMounted(() => {
+  loadCategories();
+  loadStockInputAccounts();
+});
 </script>

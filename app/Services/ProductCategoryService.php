@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\Accounting\AccountTypeCode;
+use App\Models\Account;
 use App\Models\ProductCategory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,11 @@ class ProductCategoryService
         return ProductCategory::query()
             ->whereNull('parent_id')
             ->with([
-                'children' => fn ($q) => $q->orderBy('name')->withCount(['products' => fn ($pq) => $pq->active()]),
+                'stockInputAccount:id,code,name,is_active',
+                'children' => fn ($q) => $q
+                    ->with('stockInputAccount:id,code,name,is_active')
+                    ->orderBy('name')
+                    ->withCount(['products' => fn ($pq) => $pq->active()]),
             ])
             ->withCount(['products' => fn ($q) => $q->active()])
             ->orderBy('name')
@@ -33,7 +39,16 @@ class ProductCategoryService
      */
     public function create(array $data): ProductCategory
     {
-        return DB::transaction(fn () => ProductCategory::create($data));
+        return DB::transaction(function () use ($data): ProductCategory {
+            $account = $this->resolveStockInputAccount($data['stock_input_account_id'] ?? null);
+            $category = ProductCategory::create($data);
+
+            if ($account !== null) {
+                $category->setRelation('stockInputAccount', $account);
+            }
+
+            return $category;
+        });
     }
 
     /**
@@ -43,11 +58,56 @@ class ProductCategoryService
      */
     public function update(ProductCategory $category, array $data): ProductCategory
     {
-        return DB::transaction(function () use ($category, $data) {
+        return DB::transaction(function () use ($category, $data): ProductCategory {
+            $account = array_key_exists('stock_input_account_id', $data)
+                ? $this->resolveStockInputAccount($data['stock_input_account_id'])
+                : null;
+
             $category->update($data);
 
-            return $category->fresh();
+            $fresh = $category->fresh();
+            if ($account !== null) {
+                $fresh?->setRelation('stockInputAccount', $account);
+            } elseif ($fresh && $fresh->stock_input_account_id !== null) {
+                $fresh->load('stockInputAccount:id,code,name,is_active');
+            }
+
+            return $fresh ?? $category;
         });
+    }
+
+    /**
+     * Ensure the given stock input account exists, is active, and has type current_assets.
+     */
+    private function resolveStockInputAccount(mixed $accountId): ?Account
+    {
+        if ($accountId === null || $accountId === '') {
+            return null;
+        }
+
+        $account = Account::query()
+            ->with('accountType:id,code')
+            ->find((int) $accountId);
+
+        if (! $account) {
+            throw ValidationException::withMessages([
+                'stock_input_account_id' => [(string) __('products.stock_input_account_not_found')],
+            ]);
+        }
+
+        if (! $account->is_active) {
+            throw ValidationException::withMessages([
+                'stock_input_account_id' => [(string) __('products.stock_input_account_inactive')],
+            ]);
+        }
+
+        if ($account->accountType?->code !== AccountTypeCode::CurrentAssets->value) {
+            throw ValidationException::withMessages([
+                'stock_input_account_id' => [(string) __('products.stock_input_account_invalid_type')],
+            ]);
+        }
+
+        return $account;
     }
 
     /**
