@@ -41,9 +41,10 @@ return new class extends Migration
         $foreignKeys = Schema::getForeignKeys('journal_entries');
         foreach ($foreignKeys as $fk) {
             if (in_array('contact_id', $fk['columns'], true)) {
-                Schema::table('journal_entries', function (Blueprint $table) use ($fk): void {
-                    $table->dropForeign($fk['name']);
+                Schema::table('journal_entries', function (Blueprint $table): void {
+                    $table->dropForeign(['contact_id']);
                 });
+                break;
             }
         }
 
@@ -64,7 +65,7 @@ return new class extends Migration
         });
     }
 
-    private function backfillPurchaseInvoiceContacts(): void
+    public function backfillPurchaseInvoiceContacts(): void
     {
         if (! Schema::hasTable('purchase_invoices')) {
             return;

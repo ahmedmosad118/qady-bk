@@ -261,6 +261,15 @@ class JournalEntrySourceDraftLifecycleTest extends TestCase
         $this->assertSame($contact1->id, $created->contact_id);
         $this->assertSame($contact1->id, $created->contact?->id);
 
+        // 1. Omitted contact_id preserves the existing value
+        $preserved = $service->updateDraftForSource(
+            $source,
+            $this->validPayload(['reference' => 'SRC-OMITTED-CONTACT']),
+        );
+        $this->assertSame($created->id, $preserved->id);
+        $this->assertSame($contact1->id, $preserved->contact_id);
+
+        // 2. Valid contact_id replaces the existing value
         $updated = $service->updateDraftForSource(
             $source,
             $this->validPayload(['contact_id' => $contact2->id]),
@@ -268,9 +277,24 @@ class JournalEntrySourceDraftLifecycleTest extends TestCase
         $this->assertSame($created->id, $updated->id);
         $this->assertSame($contact2->id, $updated->contact_id);
 
-        // Clearing contact_id via source update sets it to null
-        $cleared = $service->updateDraftForSource($source, $this->validPayload());
+        // 3. Explicit null clears contact_id
+        $cleared = $service->updateDraftForSource(
+            $source,
+            $this->validPayload(['contact_id' => null]),
+        );
+        $this->assertSame($created->id, $cleared->id);
         $this->assertNull($cleared->contact_id);
+
+        // 4. Invalid contact_id is rejected
+        try {
+            $service->updateDraftForSource(
+                $source,
+                $this->validPayload(['contact_id' => 999999]),
+            );
+            $this->fail('Expected ValidationException for invalid contact_id.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('contact_id', $e->errors());
+        }
 
         // Calling source-managed operations with a different source identity is rejected
         $this->expectException(ValidationException::class);

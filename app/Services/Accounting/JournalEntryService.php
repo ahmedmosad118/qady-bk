@@ -358,7 +358,9 @@ class JournalEntryService
             );
 
             $preparedLines = $this->validateAndPrepareLines($data['lines'] ?? []);
-            $contactId = $this->resolveOptionalContactId($data['contact_id'] ?? null);
+            $contactId = array_key_exists('contact_id', $data)
+                ? $this->resolveOptionalContactId($data['contact_id'])
+                : $locked->contact_id;
 
             $locked->update([
                 'journal_id' => (int) $data['journal_id'],

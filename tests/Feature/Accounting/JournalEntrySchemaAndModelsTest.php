@@ -254,6 +254,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
         $creator = User::factory()->create();
         $supplier1 = Contact::factory()->create(['is_supplier' => true]);
         $supplier2 = Contact::factory()->create(['is_supplier' => true]);
+        $existingContact = Contact::factory()->create(['is_supplier' => true]);
 
         $invoice1 = PurchaseInvoice::factory()->create([
             'supplier_id' => $supplier1->id,
@@ -265,16 +266,18 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'journal_id' => $journal->id,
             'created_by' => $creator->id,
         ]);
+        $invoice3 = PurchaseInvoice::factory()->create([
+            'supplier_id' => $supplier1->id,
+            'journal_id' => $journal->id,
+            'created_by' => $creator->id,
+        ]);
         $expense = Expense::factory()->create(['created_by' => $creator->id]);
-
-        // Roll back contact_id column, seed historical rows without contact_id, and re-run up().
-        $migration->down();
-        $this->assertFalse(Schema::hasColumn('journal_entries', 'contact_id'));
 
         $aliasEntryId = DB::table('journal_entries')->insertGetId([
             'journal_id' => $journal->id,
             'fiscal_year_id' => $fiscalYear->id,
             'accounting_period_id' => $period->id,
+            'contact_id' => null,
             'entry_number' => 'JE-BF-001',
             'entry_date' => '2026-11-10',
             'source_type' => 'purchase_invoice',
@@ -287,6 +290,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'journal_id' => $journal->id,
             'fiscal_year_id' => $fiscalYear->id,
             'accounting_period_id' => $period->id,
+            'contact_id' => null,
             'entry_number' => 'JE-BF-002',
             'entry_date' => '2026-11-11',
             'source_type' => PurchaseInvoice::class,
@@ -295,11 +299,38 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'created_by' => $creator->id,
         ]);
 
+        $preservedEntryId = DB::table('journal_entries')->insertGetId([
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+            'contact_id' => $existingContact->id,
+            'entry_number' => 'JE-BF-003',
+            'entry_date' => '2026-11-11',
+            'source_type' => 'purchase_invoice',
+            'source_id' => $invoice3->id,
+            'status' => JournalEntryStatus::Posted->value,
+            'created_by' => $creator->id,
+        ]);
+
+        $missingSourceEntryId = DB::table('journal_entries')->insertGetId([
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+            'contact_id' => null,
+            'entry_number' => 'JE-BF-004',
+            'entry_date' => '2026-11-12',
+            'source_type' => 'purchase_invoice',
+            'source_id' => 999999,
+            'status' => JournalEntryStatus::Draft->value,
+            'created_by' => $creator->id,
+        ]);
+
         $unrelatedEntryId = DB::table('journal_entries')->insertGetId([
             'journal_id' => $journal->id,
             'fiscal_year_id' => $fiscalYear->id,
             'accounting_period_id' => $period->id,
-            'entry_number' => 'JE-BF-003',
+            'contact_id' => null,
+            'entry_number' => 'JE-BF-005',
             'entry_date' => '2026-11-12',
             'source_type' => $expense->getMorphClass(),
             'source_id' => $expense->id,
@@ -307,11 +338,12 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'created_by' => $creator->id,
         ]);
 
-        $migration->up();
-        $this->assertTrue(Schema::hasColumn('journal_entries', 'contact_id'));
+        $migration->backfillPurchaseInvoiceContacts();
 
         $this->assertSame($supplier1->id, JournalEntry::query()->findOrFail($aliasEntryId)->contact_id);
         $this->assertSame($supplier2->id, JournalEntry::query()->findOrFail($fqcnEntryId)->contact_id);
+        $this->assertSame($existingContact->id, JournalEntry::query()->findOrFail($preservedEntryId)->contact_id);
+        $this->assertNull(JournalEntry::query()->findOrFail($missingSourceEntryId)->contact_id);
         $this->assertNull(JournalEntry::query()->findOrFail($unrelatedEntryId)->contact_id);
     }
 }
