@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Expense\ExpenseAttachmentController;
 use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
 use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\InventoryDocumentController;
+use App\Http\Controllers\Api\Payment\SupplierPaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosDashboardController;
 use App\Http\Controllers\Api\Pos\PosPaymentMethodController;
@@ -126,6 +127,18 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::delete('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'destroy']);
     Route::post('/purchase-invoices/{purchase_invoice}/post', [PurchaseInvoiceController::class, 'post']);
     Route::post('/purchase-invoices/{purchase_invoice}/cancel', [PurchaseInvoiceController::class, 'cancel']);
+
+    // Supplier Payments
+    Route::prefix('supplier-payments')->name('supplier-payments.')->group(function () {
+        Route::get('/', [SupplierPaymentController::class, 'index'])->name('index');
+        Route::post('/', [SupplierPaymentController::class, 'store'])->name('store');
+        Route::get('/outstanding-invoices', [SupplierPaymentController::class, 'outstandingInvoices'])->name('outstanding-invoices');
+        Route::get('/{payment}', [SupplierPaymentController::class, 'show'])->name('show');
+        Route::put('/{payment}', [SupplierPaymentController::class, 'update'])->name('update');
+        Route::delete('/{payment}', [SupplierPaymentController::class, 'destroy'])->name('destroy');
+        Route::post('/{payment}/post', [SupplierPaymentController::class, 'post'])->name('post');
+        Route::post('/{payment}/cancel', [SupplierPaymentController::class, 'cancel'])->name('cancel');
+    });
 
     // Settings (Purchase & Accounting Settings)
     Route::get('/settings/purchase', [PurchaseSettingController::class, 'show']);

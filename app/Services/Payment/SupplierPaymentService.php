@@ -26,6 +26,8 @@ use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -33,9 +35,115 @@ class SupplierPaymentService
 {
     public const TRANSACTION_ATTEMPTS = 3;
 
+    /** @var list<string> */
+    private const ALLOWED_SORT_COLUMNS = [
+        'id',
+        'payment_number',
+        'payment_date',
+        'amount',
+        'status',
+        'created_at',
+    ];
+
     public function __construct(
         protected DocumentSequenceGenerator $sequenceGenerator,
     ) {}
+
+    /**
+     * Paginate supplier payments with server-side filters and safe sorting.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        $perPage = min(max($perPage, 1), 100);
+
+        $query = Payment::query()
+            ->where('payment_type', PaymentType::SEND->value)
+            ->where('related_type', PaymentRelatedType::SUPPLIER->value)
+            ->with([
+                'contact:id,name',
+                'paymentMethod:id,name,type',
+                'journal:id,code,name,type',
+                'creator:id,name',
+                'postedBy:id,name',
+                'cancelledBy:id,name',
+                'journalEntry:id,entry_number,status,source_type,source_id,entry_date,posted_at',
+            ])
+            ->withCount('allocations');
+
+        $this->applyFilters($query, $filters);
+        $this->applySorting($query, $filters);
+
+        return $query->paginate($perPage);
+    }
+
+    /**
+     * Load a single supplier payment with all related details.
+     */
+    public function getDetails(Payment $payment): Payment
+    {
+        return $this->loadPaymentRelations($payment->id);
+    }
+
+    /**
+     * List posted Purchase Invoices with positive outstanding balances for an active supplier.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getOutstandingInvoicesForSupplier(int $supplierId): array
+    {
+        $supplier = $this->resolveActiveSupplier($supplierId);
+
+        $invoices = PurchaseInvoice::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('status', PurchaseInvoiceStatus::POSTED->value)
+            ->orderBy('invoice_date')
+            ->orderBy('id')
+            ->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total']);
+
+        if ($invoices->isEmpty()) {
+            return [];
+        }
+
+        $invoiceIds = $invoices->pluck('id')->all();
+        $morphType = (new PurchaseInvoice)->getMorphClass();
+
+        // Only POSTED payment allocations reduce invoice outstanding balances; advances without allocations are excluded.
+        $postedPaidByInvoice = PaymentAllocation::query()
+            ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
+            ->where('payment_allocations.allocatable_type', $morphType)
+            ->whereIn('payment_allocations.allocatable_id', $invoiceIds)
+            ->where('payments.status', PaymentStatus::POSTED->value)
+            ->groupBy('payment_allocations.allocatable_id')
+            ->selectRaw('payment_allocations.allocatable_id, COALESCE(SUM(payment_allocations.allocated_amount), 0) as paid_total')
+            ->pluck('paid_total', 'allocatable_id');
+
+        $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+        $result = [];
+
+        foreach ($invoices as $invoice) {
+            $total = Decimal::fromNumeric($invoice->total, Decimal::MONEY_SCALE);
+            $paid = Decimal::fromNumeric($postedPaidByInvoice->get($invoice->id, 0), Decimal::MONEY_SCALE);
+            $outstanding = Decimal::sub($total, $paid, Decimal::MONEY_SCALE);
+
+            if (Decimal::comp($outstanding, $zero, Decimal::MONEY_SCALE) <= 0) {
+                continue;
+            }
+
+            $result[] = [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_date' => $invoice->invoice_date?->toDateString(),
+                'due_date' => $invoice->due_date?->toDateString(),
+                'total' => $total,
+                'paid_amount' => $paid,
+                'outstanding_amount' => $outstanding,
+            ];
+        }
+
+        return $result;
+    }
 
     /**
      * Create a Draft Supplier Payment, its allocations, and its linked Draft Journal Entry atomically.
@@ -569,5 +677,80 @@ class SupplierPaymentService
                 'journalEntry.lines.account:id,code,name',
             ])
             ->findOrFail($paymentId);
+    }
+
+    /**
+     * @param  Builder<Payment>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    private function applyFilters(Builder $query, array $filters): void
+    {
+        if (! empty($filters['search'])) {
+            $search = trim((string) $filters['search']);
+            $query->where(static function (Builder $q) use ($search): void {
+                $q->where('payment_number', 'like', "%{$search}%")
+                    ->orWhere('reference', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhereHas('contact', static function (Builder $contactQuery) use ($search): void {
+                        $contactQuery->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if (! empty($filters['payment_number'])) {
+            $number = trim((string) $filters['payment_number']);
+            $query->where('payment_number', 'like', "%{$number}%");
+        }
+
+        $supplierId = $filters['contact_id'] ?? $filters['supplier_id'] ?? null;
+        if (! empty($supplierId)) {
+            $query->where('contact_id', (int) $supplierId);
+        }
+
+        if (! empty($filters['status'])) {
+            $query->where('status', (string) $filters['status']);
+        }
+
+        if (! empty($filters['payment_date'])) {
+            $query->whereDate('payment_date', (string) $filters['payment_date']);
+        }
+
+        if (! empty($filters['payment_date_from'])) {
+            $query->whereDate('payment_date', '>=', (string) $filters['payment_date_from']);
+        }
+
+        if (! empty($filters['payment_date_to'])) {
+            $query->whereDate('payment_date', '<=', (string) $filters['payment_date_to']);
+        }
+
+        if (! empty($filters['payment_method_id'])) {
+            $query->where('payment_method_id', (int) $filters['payment_method_id']);
+        }
+
+        if (! empty($filters['journal_id'])) {
+            $query->where('journal_id', (int) $filters['journal_id']);
+        }
+    }
+
+    /**
+     * @param  Builder<Payment>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    private function applySorting(Builder $query, array $filters): void
+    {
+        $sortBy = (string) ($filters['sort_by'] ?? '');
+        $sortOrder = strtolower((string) ($filters['sort_order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (in_array($sortBy, self::ALLOWED_SORT_COLUMNS, true)) {
+            $query->orderBy($sortBy, $sortOrder);
+            if ($sortBy !== 'id') {
+                $query->orderBy('id', $sortOrder);
+            }
+
+            return;
+        }
+
+        $query->orderByDesc('payment_date')
+            ->orderByDesc('id');
     }
 }

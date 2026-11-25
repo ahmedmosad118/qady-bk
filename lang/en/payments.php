@@ -30,4 +30,11 @@ return [
     'labels' => [
         'supplier_payment_entry_description' => 'Supplier payment :number',
     ],
+    'messages' => [
+        'created' => 'Supplier payment draft created successfully.',
+        'updated' => 'Supplier payment draft updated successfully.',
+        'posted' => 'Supplier payment posted successfully.',
+        'cancelled' => 'Supplier payment cancelled successfully.',
+        'deleted' => 'Supplier payment deleted successfully.',
+    ],
 ];
