@@ -10,8 +10,11 @@ use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Repositories\PurchaseOrderRepository;
 use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class PurchaseOrderService
 {
@@ -21,21 +24,32 @@ class PurchaseOrderService
         protected PurchaseDocumentCalculator $calculator,
         protected PurchaseSupplierResolver $supplierResolver,
         protected PurchaseLineWriter $lineWriter,
+        protected PurchaseAttachmentService $attachmentService,
     ) {}
 
     /**
-     * Calculate items and totals via the shared pure calculator.
+     * Calculate items, expenses, and totals via the shared pure calculator.
      *
      * `subtotal` is the gross items total before any discount (same meaning as on purchase invoices):
-     * total = subtotal - item discounts - order discount.
+     * total = subtotal - item discounts - order discount + additional_expenses_total.
      *
-     * @param array<int, array<string, mixed>> $rawItems
-     * @return array{items: array<int, array<string, mixed>>, subtotal: string, discount_value: string, discount_amount: string, total: string}
+     * @param  array<int, array<string, mixed>>  $rawItems
+     * @param  array<int, array<string, mixed>>  $rawExpenses
+     * @return array{
+     *     items: array<int, array<string, mixed>>,
+     *     expenses: array<int, array<string, mixed>>,
+     *     subtotal: string,
+     *     discount_value: string,
+     *     discount_amount: string,
+     *     additional_expenses_total: string,
+     *     total: string
+     * }
      */
     public function calculateOrderData(
         array $rawItems,
         ?string $discountType = null,
-        mixed $discountValue = null
+        mixed $discountValue = null,
+        array $rawExpenses = []
     ): array {
         $products = Product::query()
             ->whereIn('id', $this->calculator->productIds($rawItems))
@@ -47,14 +61,17 @@ class PurchaseOrderService
             $products,
             $discountType,
             $discountValue,
+            $rawExpenses,
             unitName: 'قطعة',
         );
 
         return [
             'items' => $calc['items'],
+            'expenses' => $calc['expenses'],
             'subtotal' => $calc['subtotal'],
             'discount_value' => $calc['discount_value'],
             'discount_amount' => $calc['discount_amount'],
+            'additional_expenses_total' => $calc['additional_expenses_total'],
             'total' => $calc['total'],
         ];
     }
@@ -62,94 +79,133 @@ class PurchaseOrderService
     /**
      * Create a new purchase order.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createOrder(array $data, User $user): PurchaseOrder
     {
-        return DB::transaction(function () use ($data, $user): PurchaseOrder {
-            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+        $trackedFiles = [];
 
-            $calc = $this->calculateOrderData(
-                $data['items'],
-                $data['discount_type'] ?? null,
-                $data['discount_value'] ?? null
-            );
+        try {
+            return DB::transaction(function () use ($data, $user, &$trackedFiles): PurchaseOrder {
+                $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
 
-            $orderDate = ! empty($data['order_date']) ? Carbon::parse($data['order_date']) : Carbon::today();
+                $calc = $this->calculateOrderData(
+                    $data['items'],
+                    $data['discount_type'] ?? null,
+                    $data['discount_value'] ?? null,
+                    $data['expenses'] ?? []
+                );
 
-            $order = PurchaseOrder::query()->create([
-                'order_number' => $this->numberService->placeholder(),
-                'supplier_id' => $supplier->id,
-                'order_date' => $orderDate->toDateString(),
-                'expected_delivery_date' => ! empty($data['expected_delivery_date'])
-                    ? Carbon::parse($data['expected_delivery_date'])->toDateString()
-                    : null,
-                'status' => PurchaseOrderStatus::DRAFT,
-                'notes' => $data['notes'] ?? null,
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => $data['discount_type'] ?? null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
-                'total' => $calc['total'],
-                'created_by' => $user->id,
-            ]);
+                $orderDate = ! empty($data['order_date']) ? Carbon::parse($data['order_date']) : Carbon::today();
 
-            $this->numberService->assignOrderNumber($order);
+                /** @var PurchaseOrder $order */
+                $order = PurchaseOrder::query()->create([
+                    'order_number' => $this->numberService->placeholder(),
+                    'supplier_id' => $supplier->id,
+                    'order_date' => $orderDate->toDateString(),
+                    'expected_delivery_date' => ! empty($data['expected_delivery_date'])
+                        ? Carbon::parse($data['expected_delivery_date'])->toDateString()
+                        : null,
+                    'status' => PurchaseOrderStatus::DRAFT,
+                    'notes' => $data['notes'] ?? null,
+                    'subtotal' => $calc['subtotal'],
+                    'discount_type' => $data['discount_type'] ?? null,
+                    'discount_value' => $calc['discount_value'],
+                    'discount_amount' => $calc['discount_amount'],
+                    'additional_expenses_total' => $calc['additional_expenses_total'],
+                    'total' => $calc['total'],
+                    'created_by' => $user->id,
+                ]);
 
-            $this->lineWriter->insertOrderItems($order, $calc['items']);
+                $this->numberService->assignOrderNumber($order);
 
-            return $this->repository->findWithRelations($order->id);
-        });
+                $this->lineWriter->insertOrderItems($order, $calc['items']);
+                $this->lineWriter->insertOrderExpenses($order, $calc['expenses']);
+
+                if (($data['attachment'] ?? null) instanceof UploadedFile) {
+                    $order->update($this->attachmentService->storeFile($order, 'orders', $data['attachment'], $trackedFiles));
+                }
+
+                return $this->repository->findWithRelations($order->id);
+            });
+        } catch (Throwable $e) {
+            $this->attachmentService->deleteStoredFiles($trackedFiles);
+            throw $e;
+        }
     }
 
     /**
      * Update an existing draft purchase order.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function updateOrder(PurchaseOrder $order, array $data, User $user): PurchaseOrder
     {
-        return DB::transaction(function () use ($order, $data): PurchaseOrder {
-            // Lock order for update
-            /** @var PurchaseOrder $lockedOrder */
-            $lockedOrder = PurchaseOrder::query()->lockForUpdate()->findOrFail($order->id);
+        $trackedFiles = [];
 
-            if (! $lockedOrder->isDraft()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.order_not_editable')],
+        try {
+            return DB::transaction(function () use ($order, $data, &$trackedFiles): PurchaseOrder {
+                /** @var PurchaseOrder $lockedOrder */
+                $lockedOrder = PurchaseOrder::query()->lockForUpdate()->findOrFail($order->id);
+
+                if (! $lockedOrder->isDraft()) {
+                    throw ValidationException::withMessages([
+                        'status' => [(string) __('purchases.errors.order_not_editable')],
+                    ]);
+                }
+
+                $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+
+                $calc = $this->calculateOrderData(
+                    $data['items'],
+                    $data['discount_type'] ?? null,
+                    $data['discount_value'] ?? null,
+                    $data['expenses'] ?? []
+                );
+
+                $orderDate = ! empty($data['order_date']) ? Carbon::parse($data['order_date']) : Carbon::today();
+
+                $lockedOrder->update([
+                    'supplier_id' => $supplier->id,
+                    'order_date' => $orderDate->toDateString(),
+                    'expected_delivery_date' => ! empty($data['expected_delivery_date'])
+                        ? Carbon::parse($data['expected_delivery_date'])->toDateString()
+                        : null,
+                    'notes' => $data['notes'] ?? null,
+                    'subtotal' => $calc['subtotal'],
+                    'discount_type' => $data['discount_type'] ?? null,
+                    'discount_value' => $calc['discount_value'],
+                    'discount_amount' => $calc['discount_amount'],
+                    'additional_expenses_total' => $calc['additional_expenses_total'],
+                    'total' => $calc['total'],
                 ]);
-            }
 
-            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+                // Replace line items & additional expenses
+                $lockedOrder->items()->delete();
+                $this->lineWriter->insertOrderItems($lockedOrder, $calc['items']);
 
-            $calc = $this->calculateOrderData(
-                $data['items'],
-                $data['discount_type'] ?? null,
-                $data['discount_value'] ?? null
-            );
+                $lockedOrder->expenses()->delete();
+                $this->lineWriter->insertOrderExpenses($lockedOrder, $calc['expenses']);
 
-            $orderDate = ! empty($data['order_date']) ? Carbon::parse($data['order_date']) : Carbon::today();
+                $oldFilesToDelete = [];
+                $newFile = ($data['attachment'] ?? null) instanceof UploadedFile ? $data['attachment'] : null;
+                $removeAttachment = (bool) ($data['remove_attachment'] ?? false);
+                $this->attachmentService->applyAttachmentUpdate(
+                    $lockedOrder,
+                    'orders',
+                    $newFile,
+                    $removeAttachment,
+                    $trackedFiles,
+                    $oldFilesToDelete,
+                );
+                $this->attachmentService->schedulePhysicalDeletion($oldFilesToDelete);
 
-            $lockedOrder->update([
-                'supplier_id' => $supplier->id,
-                'order_date' => $orderDate->toDateString(),
-                'expected_delivery_date' => ! empty($data['expected_delivery_date'])
-                    ? Carbon::parse($data['expected_delivery_date'])->toDateString()
-                    : null,
-                'notes' => $data['notes'] ?? null,
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => $data['discount_type'] ?? null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
-                'total' => $calc['total'],
-            ]);
-
-            // Replace line items
-            $lockedOrder->items()->delete();
-            $this->lineWriter->insertOrderItems($lockedOrder, $calc['items']);
-
-            return $this->repository->findWithRelations($lockedOrder->id);
-        });
+                return $this->repository->findWithRelations($lockedOrder->id);
+            });
+        } catch (Throwable $e) {
+            $this->attachmentService->deleteStoredFiles($trackedFiles);
+            throw $e;
+        }
     }
 
     /**
@@ -167,9 +223,26 @@ class PurchaseOrderService
                 ]);
             }
 
+            $attachmentTarget = $this->attachmentService->captureTarget($lockedOrder);
+
             $lockedOrder->items()->delete();
-            return (bool) $lockedOrder->delete();
+            $lockedOrder->expenses()->delete();
+            $deleted = (bool) $lockedOrder->delete();
+
+            if ($attachmentTarget !== null) {
+                $this->attachmentService->schedulePhysicalDeletion([$attachmentTarget]);
+            }
+
+            return $deleted;
         });
+    }
+
+    /**
+     * Stream the attached file for a purchase order.
+     */
+    public function streamAttachment(PurchaseOrder $order, bool $download = false): StreamedResponse
+    {
+        return $this->attachmentService->streamResponse($order, $download);
     }
 
     /**
@@ -206,7 +279,7 @@ class PurchaseOrderService
             $this->supplierResolver->assertUsable($lockedOrder->supplier);
 
             // Mark converted atomically
-            $lockedOrder->status       = PurchaseOrderStatus::CONVERTED;
+            $lockedOrder->status = PurchaseOrderStatus::CONVERTED;
             $lockedOrder->confirmed_at = Carbon::now();
             $lockedOrder->confirmed_by = $user->id;
             $lockedOrder->save();
@@ -241,8 +314,8 @@ class PurchaseOrderService
             }
 
             if (! empty($reason)) {
-                $prefix = $lockedOrder->notes ? $lockedOrder->notes . "\n" : '';
-                $lockedOrder->notes = $prefix . __('purchases.messages.cancellation_reason_note', ['reason' => $reason]);
+                $prefix = $lockedOrder->notes ? $lockedOrder->notes."\n" : '';
+                $lockedOrder->notes = $prefix.__('purchases.messages.cancellation_reason_note', ['reason' => $reason]);
             }
 
             $lockedOrder->status = PurchaseOrderStatus::CANCELLED;

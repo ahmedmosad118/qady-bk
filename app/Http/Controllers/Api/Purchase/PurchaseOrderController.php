@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseOrderController extends Controller implements HasMiddleware
 {
@@ -170,5 +171,25 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             'message' => __('purchases.messages.order_cancelled'),
             'data' => $order,
         ]);
+    }
+
+    /**
+     * Stream the purchase order's attached file inline.
+     */
+    public function viewAttachment(PurchaseOrder $purchase_order): StreamedResponse
+    {
+        $this->authorize('view', $purchase_order);
+
+        return $this->purchaseOrderService->streamAttachment($purchase_order, false);
+    }
+
+    /**
+     * Download the purchase order's attached file.
+     */
+    public function downloadAttachment(PurchaseOrder $purchase_order): StreamedResponse
+    {
+        $this->authorize('view', $purchase_order);
+
+        return $this->purchaseOrderService->streamAttachment($purchase_order, true);
     }
 }

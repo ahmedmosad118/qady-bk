@@ -33,7 +33,9 @@ use App\Services\InventoryDocumentWorkflowService;
 use Database\Seeders\AccountingSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -1130,5 +1132,87 @@ class PurchaseInvoiceTest extends TestCase
                 ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
             ],
         ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+    }
+
+    public function test_purchase_invoice_attachment_lifecycle_and_order_expenses_copy(): void
+    {
+        Storage::fake('local');
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct('كتاب الأصول', 100.00);
+        $today = now()->toDateString();
+
+        // 1. Create a confirmed PO with additional expenses
+        $poRes = $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => $today,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'شحن أمر الشراء', 'amount' => '40.00', 'notes' => 'تفاصيل'],
+            ],
+        ])->assertCreated();
+
+        $poId = (int) $poRes->json('data.id');
+        $this->postJson("/api/purchase-orders/{$poId}/confirm")->assertOk();
+
+        // 2. Convert PO -> Invoice while attaching a file (without overriding expenses)
+        $invoiceFile = UploadedFile::fake()->create('supplier-invoice.pdf', 150, 'application/pdf');
+        $invRes = $this->post("/api/purchase-invoices/from-purchase-order/{$poId}", [
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'attachment' => $invoiceFile,
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $invoiceId = (int) $invRes->json('data.id');
+        $invRes->assertJsonPath('data.additional_expenses_total', '40.00')
+            ->assertJsonPath('data.total', '240.00')
+            ->assertJsonPath('data.expenses.0.name', 'شحن أمر الشراء')
+            ->assertJsonPath('data.has_attachment', true)
+            ->assertJsonPath('data.attachment_original_name', 'supplier-invoice.pdf')
+            ->assertJsonMissingPath('data.attachment_path')
+            ->assertJsonMissingPath('data.attachment_disk');
+
+        $invoice = PurchaseInvoice::query()->findOrFail($invoiceId);
+        $firstPath = $invoice->attachment_path;
+        $this->assertNotEmpty($firstPath);
+        Storage::disk('local')->assertExists($firstPath);
+
+        $this->get("/api/purchase-invoices/{$invoiceId}/attachment/view")
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $this->get("/api/purchase-invoices/{$invoiceId}/attachment/download")
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        // 3. Replace attachment on draft invoice update
+        $replacementFile = UploadedFile::fake()->image('receipt-scan.jpg');
+        $this->post("/api/purchase-invoices/{$invoiceId}", [
+            '_method' => 'PUT',
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => $today,
+            'due_date' => $today,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'شحن أمر الشراء', 'amount' => '40.00'],
+            ],
+            'attachment' => $replacementFile,
+        ], ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('data.attachment_original_name', 'receipt-scan.jpg');
+
+        $invoice->refresh();
+        $secondPath = $invoice->attachment_path;
+        $this->assertNotSame($firstPath, $secondPath);
+        Storage::disk('local')->assertMissing($firstPath);
+        Storage::disk('local')->assertExists($secondPath);
+
+        // 4. Deleting draft invoice removes physical attachment file after commit
+        $this->deleteJson("/api/purchase-invoices/{$invoiceId}")->assertOk();
+        Storage::disk('local')->assertMissing($secondPath);
     }
 }

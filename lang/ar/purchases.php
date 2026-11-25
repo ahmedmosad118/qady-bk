@@ -31,6 +31,8 @@ return [
         'expenses.*.amount' => 'مبلغ المصروف',
         'expenses.*.notes' => 'ملاحظات المصروف',
         'expenses_treatment' => 'معالجة مصروفات الشراء',
+        'attachment' => 'المرفق',
+        'remove_attachment' => 'حذف المرفق',
     ],
 
     'errors' => [
@@ -76,6 +78,7 @@ return [
         'discount_percentage_max' => 'نسبة :label لا يمكن أن تتجاوز 100%.',
         'discount_exceeds_base' => 'قيمة :label لا يمكن أن تتجاوز المبلغ المطبّق عليه.',
         'discount_type_invalid' => 'نوع :label غير صالح.',
+        'attachment_not_found' => 'الملف المرفق غير موجود.',
     ],
     'messages' => [
         'order_created' => 'تم إنشاء أمر الشراء بنجاح.',

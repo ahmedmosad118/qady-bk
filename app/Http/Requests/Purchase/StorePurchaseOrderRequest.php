@@ -19,12 +19,17 @@ class StorePurchaseOrderRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeEmptyDiscountTypes();
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        return [
+        return array_merge([
             'supplier_id' => [
                 'required',
                 'integer',
@@ -44,7 +49,7 @@ class StorePurchaseOrderRequest extends FormRequest
             'items.*.unit_price' => ['required', 'numeric', 'gt:0'],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(DiscountType::values())],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
-        ];
+        ], $this->purchaseExpensesRules(), $this->purchaseAttachmentRules());
     }
 
     public function withValidator(Validator $validator): void

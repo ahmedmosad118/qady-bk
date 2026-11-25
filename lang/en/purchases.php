@@ -31,6 +31,8 @@ return [
         'expenses.*.amount' => 'expense amount',
         'expenses.*.notes' => 'expense notes',
         'expenses_treatment' => 'purchase expenses treatment',
+        'attachment' => 'attachment',
+        'remove_attachment' => 'remove attachment',
     ],
 
     'errors' => [
@@ -76,6 +78,7 @@ return [
         'discount_percentage_max' => ':label percentage cannot exceed 100%.',
         'discount_exceeds_base' => ':label amount cannot exceed the applicable subtotal.',
         'discount_type_invalid' => 'Invalid :label type.',
+        'attachment_not_found' => 'Attachment file was not found.',
     ],
     'messages' => [
         'order_created' => 'Purchase order created successfully.',

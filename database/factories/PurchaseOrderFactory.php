@@ -25,7 +25,7 @@ class PurchaseOrderFactory extends Factory
     public function definition(): array
     {
         return [
-            'order_number' => 'PO-' . now()->format('Ymd') . '-' . fake()->unique()->numerify('####'),
+            'order_number' => 'PO-'.now()->format('Ymd').'-'.fake()->unique()->numerify('####'),
             'supplier_id' => Contact::factory()->state(['is_supplier' => true]),
             'order_date' => now()->toDateString(),
             'expected_delivery_date' => now()->addDays(7)->toDateString(),
@@ -35,6 +35,7 @@ class PurchaseOrderFactory extends Factory
             'discount_type' => null,
             'discount_value' => 0.00,
             'discount_amount' => 0.00,
+            'additional_expenses_total' => 0.00,
             'total' => 0.00,
             'confirmed_at' => null,
             'confirmed_by' => null,

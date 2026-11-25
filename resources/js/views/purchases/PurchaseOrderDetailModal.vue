@@ -268,6 +268,48 @@
         </div>
       </div>
 
+      <!-- Additional Expenses Table -->
+      <div v-if="order.expenses?.length">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-extrabold text-[var(--text)] flex items-center gap-2">
+            <span>{{ $t('purchaseOrders.expenses') }}</span>
+            <span class="rounded-full bg-[var(--bg)] px-2.5 py-0.5 text-xs font-bold text-[var(--muted)]">
+              {{ order.expenses.length }}
+            </span>
+          </h3>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xs">
+          <table class="w-full text-start text-xs">
+            <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
+              <tr>
+                <th class="w-10 py-3 px-4 text-center">#</th>
+                <th class="py-3 px-4 text-start">{{ $t('purchaseOrders.expenseName') }}</th>
+                <th class="py-3 px-4 text-start">{{ $t('purchaseOrders.expenseNotes') }}</th>
+                <th class="py-3 px-4 text-end">{{ $t('purchaseOrders.expenseAmount') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border)]">
+              <tr v-for="(expense, idx) in order.expenses" :key="expense.id || idx">
+                <td class="py-2.5 px-4 text-center text-[var(--muted)] font-mono">{{ idx + 1 }}</td>
+                <td class="py-2.5 px-4 font-bold text-[var(--text)]">{{ expense.name }}</td>
+                <td class="py-2.5 px-4 text-[var(--muted)]">{{ expense.notes || '—' }}</td>
+                <td class="py-2.5 px-4 text-end font-mono font-bold text-[var(--text)]">
+                  {{ formatMoney(expense.amount) }} {{ $t('common.currency') }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Attachment -->
+      <PurchaseAttachmentBox
+        resource-prefix="purchase-orders"
+        ns="purchaseOrders"
+        :document="order"
+      />
+
       <!-- Notes Banner (Moved to end) -->
       <div
         v-if="order.notes"
@@ -307,6 +349,14 @@
             <span class="font-bold font-mono">- {{ formatMoney(order.discount_amount) }} {{ $t('common.currency') }}</span>
           </div>
 
+          <div
+            v-if="Number(order.additional_expenses_total) > 0"
+            class="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400"
+          >
+            <span class="font-bold">{{ $t('purchaseOrders.expensesTotal') }}:</span>
+            <span class="font-bold font-mono">+ {{ formatMoney(order.additional_expenses_total) }} {{ $t('common.currency') }}</span>
+          </div>
+
           <div class="border-t border-[var(--border)] my-1"></div>
 
           <div class="flex items-baseline justify-between pt-1">
@@ -336,6 +386,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import PurchaseAttachmentBox from '../../components/purchases/PurchaseAttachmentBox.vue';
 import { formatDateTime as formatAppDateTime } from '../../utils/date';
 import {
   ShoppingBag,

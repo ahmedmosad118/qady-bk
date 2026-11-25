@@ -16,7 +16,7 @@ use Illuminate\Validation\Validator;
 trait ValidatesPurchaseDiscounts
 {
     /**
-     * @param bool $requireTypeWithValue Also require a discount type whenever a positive value is sent.
+     * @param  bool  $requireTypeWithValue  Also require a discount type whenever a positive value is sent.
      */
     protected function validatePurchaseDiscounts(Validator $validator, bool $requireTypeWithValue): void
     {
@@ -78,6 +78,60 @@ trait ValidatesPurchaseDiscounts
 
         if ($requireTypeWithValue && $type === null && Decimal::isPositive($parsed)) {
             $validator->errors()->add($typeKey, (string) __('purchases.errors.discount_type_required', ['label' => $label]));
+        }
+    }
+
+    /**
+     * Shared validation rules for optional purchase additional expenses.
+     *
+     * @return array<string, mixed>
+     */
+    protected function purchaseExpensesRules(): array
+    {
+        return [
+            'expenses' => ['nullable', 'array'],
+            'expenses.*.name' => ['required', 'string', 'max:255'],
+            'expenses.*.amount' => ['required', 'numeric', 'min:0'],
+            'expenses.*.notes' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * Shared validation rules for optional purchase document attachment upload/removal.
+     *
+     * @return array<string, mixed>
+     */
+    protected function purchaseAttachmentRules(): array
+    {
+        return [
+            'attachment' => ['nullable', 'file', 'mimes:pdf,png,jpg,jpeg,webp,doc,docx', 'max:10240'],
+            'remove_attachment' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
+     * Normalize empty discount_type strings (e.g. from multipart/form-data submissions) to null.
+     */
+    protected function normalizeEmptyDiscountTypes(): void
+    {
+        $merge = [];
+
+        if ($this->has('discount_type') && $this->input('discount_type') === '') {
+            $merge['discount_type'] = null;
+        }
+
+        if (is_array($this->input('items'))) {
+            $items = $this->input('items');
+            foreach ($items as $idx => $item) {
+                if (is_array($item) && array_key_exists('discount_type', $item) && $item['discount_type'] === '') {
+                    $items[$idx]['discount_type'] = null;
+                }
+            }
+            $merge['items'] = $items;
+        }
+
+        if (! empty($merge)) {
+            $this->merge($merge);
         }
     }
 

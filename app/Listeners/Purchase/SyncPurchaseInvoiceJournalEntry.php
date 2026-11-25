@@ -13,6 +13,7 @@ use App\Events\Purchase\PurchaseInvoicePosted;
 use App\Events\Purchase\PurchaseInvoiceUpdated;
 use App\Models\Account;
 use App\Models\PurchaseInvoice;
+use App\Models\PurchaseInvoiceExpense;
 use App\Models\PurchaseInvoiceItem;
 use App\Services\Accounting\AccountingSettingService;
 use App\Services\Accounting\JournalEntryService;
@@ -136,7 +137,7 @@ class SyncPurchaseInvoiceJournalEntry
         $expensesTotal = Decimal::fromNumeric($invoice->additional_expenses_total ?? 0, Decimal::MONEY_SCALE);
         $treatment = $this->accountingSettingService->resolveExpensesTreatment();
 
-        $separateExpenseLine = null;
+        $separateExpenseLines = [];
         if (Decimal::comp($expensesTotal, '0.00', Decimal::MONEY_SCALE) > 0) {
             if ($treatment === PurchaseExpensesTreatment::LandedCost) {
                 $resolvedItems = $this->allocateLandedCostProportionally(
@@ -145,13 +146,7 @@ class SyncPurchaseInvoiceJournalEntry
                     $netAfterDiscountTotal,
                 );
             } else {
-                $expenseAccount = $this->resolveAdditionalExpensesAccount();
-                $separateExpenseLine = [
-                    'account_id' => $expenseAccount->id,
-                    'debit' => $expensesTotal,
-                    'credit' => '0.00',
-                    'label' => (string) __('accounting.labels.purchase_additional_expenses', ['number' => $invoice->invoice_number]),
-                ];
+                $separateExpenseLines = $this->buildSeparateExpenseLines($invoice, $expensesTotal);
             }
         }
 
@@ -173,9 +168,9 @@ class SyncPurchaseInvoiceJournalEntry
             ];
         }
 
-        if ($separateExpenseLine !== null) {
-            $separateExpenseLine['line_number'] = $lineNumber++;
-            $lines[] = $separateExpenseLine;
+        foreach ($separateExpenseLines as $expenseLine) {
+            $expenseLine['line_number'] = $lineNumber++;
+            $lines[] = $expenseLine;
         }
 
         $payableAccount = $this->resolveSupplierPayableAccount($invoice);
@@ -446,6 +441,57 @@ class SyncPurchaseInvoiceJournalEntry
         }
 
         return $account;
+    }
+
+    /**
+     * Build debit journal lines for SEPARATE_EXPENSE treatment, using each expense row's name as label.
+     *
+     * @return list<array{account_id: int, debit: string, credit: string, label: string}>
+     */
+    private function buildSeparateExpenseLines(PurchaseInvoice $invoice, string $expensesTotal): array
+    {
+        $expenseAccount = $this->resolveAdditionalExpensesAccount();
+        $fallbackLabel = (string) __('accounting.labels.purchase_additional_expenses', [
+            'number' => $invoice->invoice_number,
+        ]);
+
+        if (! $invoice->relationLoaded('expenses')) {
+            $invoice->load([
+                'expenses' => static fn ($q) => $q->orderBy('id'),
+            ]);
+        }
+
+        $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+        $expenseLines = [];
+        $summed = $zero;
+
+        /** @var PurchaseInvoiceExpense $expense */
+        foreach ($invoice->expenses as $expense) {
+            $amount = Decimal::fromNumeric($expense->amount ?? 0, Decimal::MONEY_SCALE);
+            if (Decimal::comp($amount, $zero, Decimal::MONEY_SCALE) <= 0) {
+                continue;
+            }
+
+            $name = trim((string) ($expense->name ?? ''));
+            $expenseLines[] = [
+                'account_id' => $expenseAccount->id,
+                'debit' => $amount,
+                'credit' => '0.00',
+                'label' => $name !== '' ? $name : $fallbackLabel,
+            ];
+            $summed = Decimal::add($summed, $amount, Decimal::MONEY_SCALE);
+        }
+
+        if ($expenseLines === [] || Decimal::comp($summed, $expensesTotal, Decimal::MONEY_SCALE) !== 0) {
+            return [[
+                'account_id' => $expenseAccount->id,
+                'debit' => $expensesTotal,
+                'credit' => '0.00',
+                'label' => $fallbackLabel,
+            ]];
+        }
+
+        return $expenseLines;
     }
 
     private function resolveAdditionalExpensesAccount(): Account

@@ -309,11 +309,11 @@
             </div>
           </div>
 
-          <!-- Additional Expenses Section (Purchase Invoice only) -->
-          <div v-if="isInvoice" class="space-y-3 pt-2 border-t border-[var(--border)]">
+          <!-- Additional Expenses Section (Purchase Order & Purchase Invoice) -->
+          <div class="space-y-3 pt-2 border-t border-[var(--border)]">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-extrabold text-[var(--text)]">
-                {{ $t('purchaseInvoices.expenses') }}
+                {{ $t(`${ns}.expenses`) }}
               </h3>
               <button
                 type="button"
@@ -321,12 +321,12 @@
                 @click="addExpenseRow"
               >
                 <Plus class="h-3.5 w-3.5" />
-                <span>{{ $t('purchaseInvoices.addExpense') }}</span>
+                <span>{{ $t(`${ns}.addExpense`) }}</span>
               </button>
             </div>
 
             <p v-if="form.expenses.length === 0" class="text-xs text-[var(--muted)]">
-              {{ $t('purchaseInvoices.noExpenses') }}
+              {{ $t(`${ns}.noExpenses`) }}
             </p>
 
             <div v-else class="space-y-2">
@@ -340,7 +340,7 @@
                     v-model="expense.name"
                     type="text"
                     required
-                    :placeholder="$t('purchaseInvoices.expenseNamePlaceholder')"
+                    :placeholder="$t(`${ns}.expenseNamePlaceholder`)"
                     class="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   />
                   <p v-if="errors[`expenses.${expIdx}.name`]" class="mt-1 text-[11px] text-[var(--crimson)]">
@@ -355,7 +355,7 @@
                     step="0.01"
                     min="0"
                     required
-                    :placeholder="$t('purchaseInvoices.expenseAmount')"
+                    :placeholder="$t(`${ns}.expenseAmount`)"
                     class="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-center text-xs font-mono font-bold text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   />
                   <p v-if="errors[`expenses.${expIdx}.amount`]" class="mt-1 text-[11px] text-[var(--crimson)]">
@@ -367,7 +367,7 @@
                   <input
                     v-model="expense.notes"
                     type="text"
-                    :placeholder="$t('purchaseInvoices.expenseNotesPlaceholder')"
+                    :placeholder="$t(`${ns}.expenseNotesPlaceholder`)"
                     class="h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-xs text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   />
                 </div>
@@ -456,10 +456,10 @@
               </div>
 
               <div
-                v-if="isInvoice && calcExpensesTotal > 0"
+                v-if="calcExpensesTotal > 0"
                 class="flex items-center justify-between text-xs text-blue-600 dark:text-blue-400"
               >
-                <span class="font-bold">{{ $t('purchaseInvoices.expensesTotal') }}</span>
+                <span class="font-bold">{{ $t(`${ns}.expensesTotal`) }}</span>
                 <span class="font-mono font-bold">+ {{ formatMoney(calcExpensesTotal) }} {{ $t('common.currency') }}</span>
               </div>
 
@@ -507,7 +507,6 @@
               </button>
 
               <button
-                v-if="isOrder"
                 type="button"
                 role="tab"
                 :aria-selected="activeExtraTab === 'attachment'"
@@ -518,8 +517,8 @@
                 @click="toggleExtraTab('attachment')"
               >
                 <Paperclip class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{{ $t('purchaseOrders.attachmentTitle') }}</span>
-                <span class="text-[10px] font-normal opacity-75">({{ $t('purchaseOrders.optionalBadge') }})</span>
+                <span>{{ $t(`${ns}.attachmentTitle`) }}</span>
+                <span class="text-[10px] font-normal opacity-75">{{ $t(`${ns}.optionalBadge`) }}</span>
                 <span
                   v-if="selectedFileName"
                   class="h-1.5 w-1.5 rounded-full bg-[var(--crimson)]"
@@ -543,11 +542,15 @@
               />
             </div>
 
-            <!-- Attachment Panel (Order only) -->
-            <div v-if="isOrder" v-show="activeExtraTab === 'attachment'" role="tabpanel">
+            <!-- Attachment Panel (Order & Invoice) -->
+            <div v-show="activeExtraTab === 'attachment'" role="tabpanel">
               <div
-                class="group relative flex h-[98px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--bg)]/50 px-4 text-center transition-colors hover:border-[var(--crimson)] hover:bg-[var(--card)]"
+                class="group relative flex h-[98px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-[var(--bg)]/50 px-4 text-center transition-colors hover:border-[var(--crimson)] hover:bg-[var(--card)]"
+                :class="isDraggingFile ? 'border-[var(--crimson)] bg-[var(--card)]' : 'border-[var(--border)]'"
                 @click="triggerFileInput"
+                @dragover.prevent="isDraggingFile = true"
+                @dragleave.prevent="isDraggingFile = false"
+                @drop.prevent="handleFileDrop"
               >
                 <input
                   ref="fileInputRef"
@@ -560,10 +563,10 @@
                 <div v-if="!selectedFileName" class="flex flex-col items-center justify-center">
                   <UploadCloud class="h-6 w-6 text-[var(--muted)] transition-colors group-hover:text-[var(--crimson)] mb-1" />
                   <p class="text-xs font-bold text-[var(--text)]">
-                    {{ $t('purchaseOrders.uploadClickOrDrag') }}
+                    {{ $t(`${ns}.uploadClickOrDrag`) }}
                   </p>
                   <p class="text-[10px] text-[var(--muted)] mt-0.5">
-                    {{ $t('purchaseOrders.uploadFormatsHint') }}
+                    {{ $t(`${ns}.uploadFormatsHint`) }}
                   </p>
                 </div>
 
@@ -571,18 +574,23 @@
                   <FileText class="h-6 w-6 text-[var(--crimson)] shrink-0" />
                   <div class="text-start truncate flex-1 min-w-0">
                     <p class="text-xs font-bold text-[var(--text)] truncate">{{ selectedFileName }}</p>
-                    <p class="text-[10px] text-emerald-600 font-semibold">{{ $t('purchaseOrders.readyToAttach') }}</p>
+                    <p class="text-[10px] text-emerald-600 font-semibold">
+                      {{ selectedFile ? $t(`${ns}.readyToAttach`) : $t(`${ns}.attachmentSaved`) }}
+                    </p>
                   </div>
                   <button
                     type="button"
                     class="rounded-lg p-1 text-[var(--muted)] hover:bg-rose-50 hover:text-rose-600 transition-colors me-2 shrink-0"
-                    :title="$t('purchaseOrders.removeFile')"
+                    :title="$t(`${ns}.removeFile`)"
                     @click="removeSelectedFile"
                   >
                     <X class="h-4 w-4" />
                   </button>
                 </div>
               </div>
+              <p v-if="errors.attachment" class="mt-1 text-xs text-[var(--crimson)]">
+                {{ errors.attachment[0] }}
+              </p>
             </div>
           </div>
         </div>
@@ -677,7 +685,11 @@ const secondaryDateTouched = ref(false);
 // Collapsible bottom tabs ('notes' | 'attachment' | null)
 const activeExtraTab = ref(null);
 const fileInputRef = ref(null);
+const selectedFile = ref(null);
 const selectedFileName = ref('');
+const hasExistingAttachment = ref(false);
+const removeAttachment = ref(false);
+const isDraggingFile = ref(false);
 
 function toggleExtraTab(tab) {
   activeExtraTab.value = activeExtraTab.value === tab ? null : tab;
@@ -687,15 +699,30 @@ function triggerFileInput() {
   fileInputRef.value?.click();
 }
 
+function applyFileSelection(file) {
+  if (!file) return;
+  selectedFile.value = file;
+  selectedFileName.value = file.name;
+  removeAttachment.value = false;
+}
+
 function handleFileSelected(event) {
   const file = event.target.files?.[0];
-  if (file) {
-    selectedFileName.value = file.name;
-  }
+  applyFileSelection(file);
+}
+
+function handleFileDrop(event) {
+  isDraggingFile.value = false;
+  const file = event.dataTransfer?.files?.[0];
+  applyFileSelection(file);
 }
 
 function removeSelectedFile() {
+  selectedFile.value = null;
   selectedFileName.value = '';
+  if (hasExistingAttachment.value) {
+    removeAttachment.value = true;
+  }
   if (fileInputRef.value) {
     fileInputRef.value.value = '';
   }
@@ -789,6 +816,14 @@ async function onPurchaseOrderSelected(poId) {
         unit_price: Number(i.unit_price) > 0 ? Number(i.unit_price) : null,
         discount_type: i.discount_type || 'percentage',
         discount_value: Number(i.discount_value) || 0,
+      }));
+    }
+
+    if (Array.isArray(po.expenses)) {
+      form.expenses = po.expenses.map((e) => ({
+        name: e.name || '',
+        amount: Number(e.amount) || 0,
+        notes: e.notes || '',
       }));
     }
   } catch {
@@ -890,9 +925,7 @@ const calcDocumentDiscountAmount = computed(() => {
 });
 
 const calcExpensesTotal = computed(() =>
-  isInvoice.value
-    ? form.expenses.reduce((sum, exp) => sum + Math.max(0, Number(exp.amount) || 0), 0)
-    : 0
+  form.expenses.reduce((sum, exp) => sum + Math.max(0, Number(exp.amount) || 0), 0)
 );
 
 const calcGrandTotal = computed(() =>
@@ -927,13 +960,19 @@ function initForm() {
   errors.value = {};
   secondaryDateTouched.value = false;
   activeExtraTab.value = null;
+  selectedFile.value = null;
   selectedFileName.value = '';
+  hasExistingAttachment.value = false;
+  removeAttachment.value = false;
+  isDraggingFile.value = false;
   if (fileInputRef.value) {
     fileInputRef.value.value = '';
   }
 
   const doc = props.document;
   if (doc && doc.id) {
+    hasExistingAttachment.value = !!(doc.has_attachment || doc.attachment_original_name);
+    selectedFileName.value = doc.attachment_original_name || '';
     if (isInvoice.value) {
       sourceMode.value = doc.purchase_order_id ? 'purchase_order' : 'direct';
       form.purchase_order_id = doc.purchase_order_id || null;
@@ -974,7 +1013,7 @@ function initForm() {
         }))
       : [{ product_id: null, product_option: null, quantity: 1, unit_price: null, discount_type: 'percentage', discount_value: 0 }];
 
-    form.expenses = isInvoice.value && Array.isArray(doc.expenses)
+    form.expenses = Array.isArray(doc.expenses)
       ? doc.expenses.map((e) => ({
           name: e.name || '',
           amount: Number(e.amount) || 0,
@@ -1025,6 +1064,23 @@ async function loadDefaultPurchaseJournal() {
   }
 }
 
+function buildMultipartPayload(payload, file) {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((row, idx) => {
+        Object.entries(row).forEach(([col, cellVal]) => {
+          formData.append(`${key}[${idx}][${col}]`, cellVal === null || cellVal === undefined ? '' : String(cellVal));
+        });
+      });
+    } else if (value !== undefined) {
+      formData.append(key, value === null ? '' : String(value));
+    }
+  });
+  formData.append('attachment', file);
+  return formData;
+}
+
 async function submitForm() {
   submitError.value = '';
   errors.value = {};
@@ -1066,6 +1122,14 @@ async function submitForm() {
     };
   });
 
+  const cleanExpenses = form.expenses
+    .filter((e) => e.name?.trim())
+    .map((e) => ({
+      name: e.name.trim(),
+      amount: Number(e.amount) || 0,
+      notes: e.notes?.trim() || null,
+    }));
+
   const payload = isInvoice.value
     ? {
         supplier_id: form.supplier_id,
@@ -1076,13 +1140,7 @@ async function submitForm() {
         discount_type: hasDocDisc ? form.discount_type : null,
         discount_value: hasDocDisc ? docDiscVal : 0,
         items: mappedItems,
-        expenses: form.expenses
-          .filter((e) => e.name?.trim())
-          .map((e) => ({
-            name: e.name.trim(),
-            amount: Number(e.amount) || 0,
-            notes: e.notes?.trim() || null,
-          })),
+        expenses: cleanExpenses,
       }
     : {
         supplier_id: form.supplier_id,
@@ -1092,18 +1150,34 @@ async function submitForm() {
         discount_type: hasDocDisc ? form.discount_type : null,
         discount_value: hasDocDisc ? docDiscVal : null,
         items: mappedItems,
+        expenses: cleanExpenses,
       };
 
   if (isInvoice.value && !isEdit.value && sourceMode.value === 'purchase_order' && form.purchase_order_id) {
     payload.purchase_order_id = form.purchase_order_id;
   }
 
+  if (isEdit.value && removeAttachment.value && !selectedFile.value) {
+    payload.remove_attachment = true;
+  }
+
   const endpoint = isInvoice.value ? '/purchase-invoices' : '/purchase-orders';
 
   try {
-    const res = isEdit.value
-      ? await api.put(`${endpoint}/${props.document.id}`, payload)
-      : await api.post(endpoint, payload);
+    let res;
+    if (selectedFile.value) {
+      const formData = buildMultipartPayload(payload, selectedFile.value);
+      if (isEdit.value) {
+        formData.append('_method', 'PUT');
+        res = await api.post(`${endpoint}/${props.document.id}`, formData);
+      } else {
+        res = await api.post(endpoint, formData);
+      }
+    } else {
+      res = isEdit.value
+        ? await api.put(`${endpoint}/${props.document.id}`, payload)
+        : await api.post(endpoint, payload);
+    }
 
     emit('saved', res.data.data);
     emit('close');

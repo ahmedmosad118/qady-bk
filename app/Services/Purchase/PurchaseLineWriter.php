@@ -8,6 +8,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceExpense;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderExpense;
 use App\Models\PurchaseOrderItem;
 
 /**
@@ -20,7 +21,7 @@ use App\Models\PurchaseOrderItem;
 class PurchaseLineWriter
 {
     /**
-     * @param array<int, array<string, mixed>> $rows Calculator item rows.
+     * @param  array<int, array<string, mixed>>  $rows  Calculator item rows.
      */
     public function insertOrderItems(PurchaseOrder $order, array $rows): void
     {
@@ -32,7 +33,19 @@ class PurchaseLineWriter
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rows Calculator item rows.
+     * @param  array<int, array<string, mixed>>  $rows  Calculator expense rows.
+     */
+    public function insertOrderExpenses(PurchaseOrder $order, array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        PurchaseOrderExpense::query()->insert($this->prepare($rows, ['purchase_order_id' => $order->id]));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows  Calculator item rows.
      */
     public function insertInvoiceItems(PurchaseInvoice $invoice, array $rows): void
     {
@@ -44,7 +57,7 @@ class PurchaseLineWriter
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rows Calculator expense rows.
+     * @param  array<int, array<string, mixed>>  $rows  Calculator expense rows.
      */
     public function insertInvoiceExpenses(PurchaseInvoice $invoice, array $rows): void
     {
@@ -56,8 +69,8 @@ class PurchaseLineWriter
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rows
-     * @param array<string, int> $foreignKey
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array<string, int>  $foreignKey
      * @return array<int, array<string, mixed>>
      */
     protected function prepare(array $rows, array $foreignKey): array

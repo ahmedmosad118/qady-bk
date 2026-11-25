@@ -331,7 +331,10 @@ class PurchaseInvoiceAccountingTest extends TestCase
 
         $this->assertCount(3, $entryWithExp->lines);
         $this->assertSame('1000.00', $entryWithExp->lines->firstWhere('account_id', $this->stockInputAccount->id)->debit);
-        $this->assertSame('250.00', $entryWithExp->lines->firstWhere('account_id', $this->expenseAccount->id)->debit);
+        $expenseLine = $entryWithExp->lines->firstWhere('account_id', $this->expenseAccount->id);
+        $this->assertNotNull($expenseLine);
+        $this->assertSame('250.00', $expenseLine->debit);
+        $this->assertSame('شحن', $expenseLine->label);
         $this->assertSame('1250.00', $entryWithExp->lines->firstWhere('account_id', $this->payableAccount->id)->credit);
 
         // Without additional expenses -> only 2 lines (no zero expense line)
@@ -1126,5 +1129,73 @@ class PurchaseInvoiceAccountingTest extends TestCase
         $this->assertSame('66.67', $entry->lines[1]->debit);
         $this->assertSame('66.66', $entry->lines[2]->debit);
         $this->assertSame('200.00', $entry->lines[3]->credit);
+    }
+
+    public function test_separate_expense_uses_expense_names_as_line_labels_and_updates_on_edit(): void
+    {
+        $this->putJson('/api/settings/accounting', [
+            'settings' => [
+                'expenses_treatment' => PurchaseExpensesTreatment::SeparateExpense->value,
+                'additional_expenses_account_id' => $this->expenseAccount->id,
+            ],
+        ])->assertOk();
+
+        $supplier = $this->createSupplier();
+        $product = Product::factory()->create(['name' => 'كتاب الفقه', 'is_active' => true]);
+
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'شحن سريع', 'amount' => '50.00'],
+                ['name' => 'مصروف صفري', 'amount' => '0.00'],
+                ['name' => 'تحميل وتفريغ', 'amount' => '25.00'],
+            ],
+        ])->assertCreated();
+
+        $invoiceId = $res->json('data.id');
+        $entry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $invoiceId)
+            ->firstOrFail();
+
+        // 1 item + 2 positive expenses + 1 payable = 4 lines (zero expense row skipped)
+        $this->assertCount(4, $entry->lines);
+        $this->assertSame('كتاب الفقه', $entry->lines[0]->label);
+        $this->assertSame('200.00', $entry->lines[0]->debit);
+        $this->assertSame($this->expenseAccount->id, $entry->lines[1]->account_id);
+        $this->assertSame('شحن سريع', $entry->lines[1]->label);
+        $this->assertSame('50.00', $entry->lines[1]->debit);
+        $this->assertSame($this->expenseAccount->id, $entry->lines[2]->account_id);
+        $this->assertSame('تحميل وتفريغ', $entry->lines[2]->label);
+        $this->assertSame('25.00', $entry->lines[2]->debit);
+        $this->assertSame('275.00', $entry->lines[3]->credit);
+
+        // Update expenses and verify the synced journal entry picks up the updated expense name & amount
+        $this->putJson("/api/purchase-invoices/{$invoiceId}", [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'نقل وتخليص', 'amount' => '75.00'],
+            ],
+        ])->assertOk();
+
+        $entry->refresh()->load(['lines' => static fn ($q) => $q->orderBy('line_number')]);
+        $this->assertCount(3, $entry->lines);
+        $this->assertSame($this->expenseAccount->id, $entry->lines[1]->account_id);
+        $this->assertSame('نقل وتخليص', $entry->lines[1]->label);
+        $this->assertSame('75.00', $entry->lines[1]->debit);
+        $this->assertSame('275.00', $entry->lines[2]->credit);
     }
 }

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\DiscountType;
 use App\Enums\PurchaseOrderStatus;
+use App\Models\Concerns\HasPurchaseAttachment;
 use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,14 +28,35 @@ use Spatie\Activitylog\LogOptions;
     'discount_type',
     'discount_value',
     'discount_amount',
+    'additional_expenses_total',
     'total',
+    'attachment_disk',
+    'attachment_path',
+    'attachment_original_name',
+    'attachment_mime_type',
+    'attachment_size',
     'confirmed_at',
     'confirmed_by',
     'created_by',
 ])]
 class PurchaseOrder extends Model
 {
-    use HasFactory, LogsModelActivity, SoftDeletes;
+    use HasFactory, HasPurchaseAttachment, LogsModelActivity, SoftDeletes;
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'attachment_disk',
+        'attachment_path',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $appends = [
+        'has_attachment',
+    ];
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -60,7 +82,9 @@ class PurchaseOrder extends Model
             'subtotal' => 'decimal:2',
             'discount_value' => 'decimal:2',
             'discount_amount' => 'decimal:2',
+            'additional_expenses_total' => 'decimal:2',
             'total' => 'decimal:2',
+            'attachment_size' => 'integer',
             'confirmed_at' => 'datetime',
         ];
     }
@@ -79,6 +103,14 @@ class PurchaseOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class, 'purchase_order_id');
+    }
+
+    /**
+     * Additional expenses on this purchase order.
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderExpense::class, 'purchase_order_id');
     }
 
     /**

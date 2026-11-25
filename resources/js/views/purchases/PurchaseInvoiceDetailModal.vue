@@ -337,6 +337,13 @@
         </div>
       </div>
 
+      <!-- Attachment -->
+      <PurchaseAttachmentBox
+        resource-prefix="purchase-invoices"
+        ns="purchaseInvoices"
+        :document="invoice"
+      />
+
       <!-- Notes Banner -->
       <div
         v-if="invoice.notes"
@@ -404,6 +411,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import PurchaseAttachmentBox from '../../components/purchases/PurchaseAttachmentBox.vue';
 import {
   FileText,
   Truck,

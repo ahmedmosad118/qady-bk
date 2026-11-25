@@ -23,25 +23,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $merge = [];
-
-        if ($this->has('discount_type') && $this->input('discount_type') === '') {
-            $merge['discount_type'] = null;
-        }
-
-        if (is_array($this->input('items'))) {
-            $items = $this->input('items');
-            foreach ($items as $idx => $item) {
-                if (is_array($item) && array_key_exists('discount_type', $item) && $item['discount_type'] === '') {
-                    $items[$idx]['discount_type'] = null;
-                }
-            }
-            $merge['items'] = $items;
-        }
-
-        if (! empty($merge)) {
-            $this->merge($merge);
-        }
+        $this->normalizeEmptyDiscountTypes();
     }
 
     /**
@@ -49,7 +31,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        return array_merge([
             'supplier_id' => [
                 'required',
                 'integer',
@@ -80,12 +62,7 @@ class UpdatePurchaseInvoiceRequest extends FormRequest
             'items.*.unit_price' => ['required', 'numeric', 'gt:0'],
             'items.*.discount_type' => ['nullable', 'string', Rule::in(DiscountType::values())],
             'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
-
-            'expenses' => ['nullable', 'array'],
-            'expenses.*.name' => ['required', 'string', 'max:255'],
-            'expenses.*.amount' => ['required', 'numeric', 'min:0'],
-            'expenses.*.notes' => ['nullable', 'string', 'max:1000'],
-        ];
+        ], $this->purchaseExpensesRules(), $this->purchaseAttachmentRules());
     }
 
     public function withValidator(Validator $validator): void

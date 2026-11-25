@@ -8,11 +8,14 @@ use App\Enums\PurchaseOrderStatus;
 use App\Models\Contact;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderExpense;
 use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Models\WarehouseStock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PurchaseOrderTest extends TestCase
@@ -612,5 +615,165 @@ class PurchaseOrderTest extends TestCase
                 ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 0],
             ],
         ])->assertUnprocessable()->assertJsonValidationErrors(['items.0.unit_price']);
+    }
+
+    public function test_purchase_order_supports_additional_expenses_in_separate_table(): void
+    {
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct('كتاب التجويد', 100.00);
+
+        $createRes = $this->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'discount_type' => 'fixed',
+            'discount_value' => 20,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 3, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'شحن', 'amount' => '45.50', 'notes' => 'نقل بري'],
+                ['name' => 'تغليف', 'amount' => '14.50', 'notes' => null],
+            ],
+        ])->assertCreated();
+
+        $orderId = (int) $createRes->json('data.id');
+        // Subtotal 300 - Discount 20 + Expenses 60.00 = 340.00
+        $createRes->assertJsonPath('data.additional_expenses_total', '60.00')
+            ->assertJsonPath('data.total', '340.00')
+            ->assertJsonCount(2, 'data.expenses');
+
+        $this->assertDatabaseHas('purchase_order_expenses', [
+            'purchase_order_id' => $orderId,
+            'name' => 'شحن',
+            'amount' => 45.50,
+            'notes' => 'نقل بري',
+        ]);
+        $this->assertDatabaseHas('purchase_order_expenses', [
+            'purchase_order_id' => $orderId,
+            'name' => 'تغليف',
+            'amount' => 14.50,
+        ]);
+        $this->assertDatabaseCount('purchase_invoice_expenses', 0);
+        $this->assertSame(2, PurchaseOrderExpense::query()->where('purchase_order_id', $orderId)->count());
+
+        // Listing returns expenses_count
+        $this->getJson('/api/purchase-orders')
+            ->assertOk()
+            ->assertJsonPath('data.0.expenses_count', 2);
+
+        // Updating draft order replaces purchase_order_expenses and recalculates totals
+        $this->putJson("/api/purchase-orders/{$orderId}", [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 3, 'unit_price' => 100],
+            ],
+            'expenses' => [
+                ['name' => 'رسوم جمركية', 'amount' => '25.00'],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.additional_expenses_total', '25.00')
+            ->assertJsonPath('data.total', '325.00')
+            ->assertJsonCount(1, 'data.expenses');
+
+        $this->assertDatabaseMissing('purchase_order_expenses', [
+            'purchase_order_id' => $orderId,
+            'name' => 'شحن',
+        ]);
+        $this->assertDatabaseHas('purchase_order_expenses', [
+            'purchase_order_id' => $orderId,
+            'name' => 'رسوم جمركية',
+            'amount' => 25.00,
+        ]);
+
+        // Deleting draft order cleans up purchase_order_expenses
+        $this->deleteJson("/api/purchase-orders/{$orderId}")->assertOk();
+        $this->assertSame(0, PurchaseOrderExpense::query()->where('purchase_order_id', $orderId)->count());
+    }
+
+    public function test_purchase_order_attachment_upload_view_download_replace_remove_and_delete(): void
+    {
+        Storage::fake('local');
+        $this->actingUser();
+        $supplier = $this->createSupplier();
+        $product = $this->createProduct();
+
+        // Reject unsupported file extension
+        $this->post('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 50],
+            ],
+            'attachment' => UploadedFile::fake()->create('malware.exe', 10),
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['attachment']);
+
+        $firstFile = UploadedFile::fake()->create('po-quote.pdf', 120, 'application/pdf');
+        $createRes = $this->post('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 50],
+            ],
+            'attachment' => $firstFile,
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $orderId = (int) $createRes->json('data.id');
+        $createRes->assertJsonPath('data.has_attachment', true)
+            ->assertJsonPath('data.attachment_original_name', 'po-quote.pdf')
+            ->assertJsonMissingPath('data.attachment_path')
+            ->assertJsonMissingPath('data.attachment_disk');
+
+        $order = PurchaseOrder::query()->findOrFail($orderId);
+        $firstPath = $order->attachment_path;
+        $this->assertNotEmpty($firstPath);
+        Storage::disk('local')->assertExists($firstPath);
+
+        $this->get("/api/purchase-orders/{$orderId}/attachment/view")
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $this->get("/api/purchase-orders/{$orderId}/attachment/download")
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        // Replace file via multipart PUT override
+        $secondFile = UploadedFile::fake()->image('updated-quote.png');
+        $updateRes = $this->post("/api/purchase-orders/{$orderId}", [
+            '_method' => 'PUT',
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 50],
+            ],
+            'attachment' => $secondFile,
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $updateRes->assertJsonPath('data.has_attachment', true)
+            ->assertJsonPath('data.attachment_original_name', 'updated-quote.png');
+
+        $order->refresh();
+        $secondPath = $order->attachment_path;
+        $this->assertNotSame($firstPath, $secondPath);
+        Storage::disk('local')->assertMissing($firstPath);
+        Storage::disk('local')->assertExists($secondPath);
+
+        // Remove attachment via remove_attachment=true
+        $this->putJson("/api/purchase-orders/{$orderId}", [
+            'supplier_id' => $supplier->id,
+            'order_date' => now()->toDateString(),
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 50],
+            ],
+            'remove_attachment' => true,
+        ])->assertOk()
+            ->assertJsonPath('data.has_attachment', false)
+            ->assertJsonPath('data.attachment_original_name', null);
+
+        Storage::disk('local')->assertMissing($secondPath);
+        $this->get("/api/purchase-orders/{$orderId}/attachment/download")->assertNotFound();
     }
 }

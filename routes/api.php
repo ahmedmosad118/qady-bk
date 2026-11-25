@@ -108,6 +108,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::get('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show']);
+    Route::get('/purchase-orders/{purchase_order}/attachment/view', [PurchaseOrderController::class, 'viewAttachment']);
+    Route::get('/purchase-orders/{purchase_order}/attachment/download', [PurchaseOrderController::class, 'downloadAttachment']);
     Route::put('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'update']);
     Route::delete('/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'destroy']);
     Route::post('/purchase-orders/{purchase_order}/confirm', [PurchaseOrderController::class, 'confirm']);
@@ -118,6 +120,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
     Route::post('/purchase-invoices/from-purchase-order/{purchase_order}', [PurchaseInvoiceController::class, 'storeFromPurchaseOrder']);
     Route::get('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'show']);
+    Route::get('/purchase-invoices/{purchase_invoice}/attachment/view', [PurchaseInvoiceController::class, 'viewAttachment']);
+    Route::get('/purchase-invoices/{purchase_invoice}/attachment/download', [PurchaseInvoiceController::class, 'downloadAttachment']);
     Route::put('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'update']);
     Route::delete('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'destroy']);
     Route::post('/purchase-invoices/{purchase_invoice}/post', [PurchaseInvoiceController::class, 'post']);

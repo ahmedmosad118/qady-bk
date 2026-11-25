@@ -27,9 +27,12 @@ use App\Services\Inventory\DefaultWarehouseResolver;
 use App\Services\InventoryDocumentService;
 use App\Services\InventoryDocumentWorkflowService;
 use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class PurchaseInvoiceService
 {
@@ -47,6 +50,7 @@ class PurchaseInvoiceService
         protected PurchaseSupplierResolver $supplierResolver,
         protected PurchaseLineWriter $lineWriter,
         protected DefaultWarehouseResolver $defaultWarehouseResolver,
+        protected PurchaseAttachmentService $attachmentService,
     ) {}
 
     /**
@@ -118,63 +122,73 @@ class PurchaseInvoiceService
      */
     public function createInvoice(array $data, User $user): PurchaseInvoice
     {
-        return DB::transaction(function () use ($data, $user): PurchaseInvoice {
-            $purchaseOrderId = ! empty($data['purchase_order_id']) ? (int) $data['purchase_order_id'] : null;
+        $trackedFiles = [];
 
-            if ($purchaseOrderId !== null) {
-                $data = $this->hydrateFromPurchaseOrder($purchaseOrderId, $data);
-            }
+        try {
+            return DB::transaction(function () use ($data, $user, &$trackedFiles): PurchaseInvoice {
+                $purchaseOrderId = ! empty($data['purchase_order_id']) ? (int) $data['purchase_order_id'] : null;
 
-            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
-            $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
-            $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
+                if ($purchaseOrderId !== null) {
+                    $data = $this->hydrateFromPurchaseOrder($purchaseOrderId, $data);
+                }
 
-            $calc = $this->calculate(
-                $data['items'] ?? [],
-                $data['discount_type'] ?? null,
-                $data['discount_value'] ?? null,
-                $data['expenses'] ?? []
-            );
+                $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+                $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
+                $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
 
-            $invoiceDate = Carbon::parse($data['invoice_date']);
-            $dueDate = ! empty($data['due_date'])
-                ? Carbon::parse($data['due_date'])
-                : $invoiceDate->copy();
+                $calc = $this->calculate(
+                    $data['items'] ?? [],
+                    $data['discount_type'] ?? null,
+                    $data['discount_value'] ?? null,
+                    $data['expenses'] ?? []
+                );
 
-            if ($dueDate->lt($invoiceDate)) {
-                throw ValidationException::withMessages([
-                    'due_date' => [(string) __('purchases.errors.due_date_before_invoice')],
+                $invoiceDate = Carbon::parse($data['invoice_date']);
+                $dueDate = ! empty($data['due_date'])
+                    ? Carbon::parse($data['due_date'])
+                    : $invoiceDate->copy();
+
+                if ($dueDate->lt($invoiceDate)) {
+                    throw ValidationException::withMessages([
+                        'due_date' => [(string) __('purchases.errors.due_date_before_invoice')],
+                    ]);
+                }
+
+                /** @var PurchaseInvoice $invoice */
+                $invoice = PurchaseInvoice::query()->create([
+                    'supplier_id' => $supplier->id,
+                    'purchase_order_id' => $purchaseOrderId,
+                    'journal_id' => $journal->id,
+                    'invoice_date' => $invoiceDate->toDateString(),
+                    'due_date' => $dueDate->toDateString(),
+                    'subtotal' => $calc['subtotal'],
+                    'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                    'discount_value' => $calc['discount_value'],
+                    'discount_amount' => $calc['discount_amount'],
+                    'additional_expenses_total' => $calc['additional_expenses_total'],
+                    'total' => $calc['total'],
+                    'notes' => $data['notes'] ?? null,
+                    'status' => PurchaseInvoiceStatus::DRAFT,
+                    'created_by' => $user->id,
                 ]);
-            }
 
-            /** @var PurchaseInvoice $invoice */
-            $invoice = PurchaseInvoice::query()->create([
-                'supplier_id' => $supplier->id,
-                'purchase_order_id' => $purchaseOrderId,
-                'journal_id' => $journal->id,
-                'invoice_date' => $invoiceDate->toDateString(),
-                'due_date' => $dueDate->toDateString(),
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
-                'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total' => $calc['total'],
-                'notes' => $data['notes'] ?? null,
-                'status' => PurchaseInvoiceStatus::DRAFT,
-                'created_by' => $user->id,
-            ]);
+                $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
+                $this->lineWriter->insertInvoiceExpenses($invoice, $calc['expenses']);
+                if (($data['attachment'] ?? null) instanceof UploadedFile) {
+                    $invoice->update($this->attachmentService->storeFile($invoice, 'invoices', $data['attachment'], $trackedFiles));
+                }
+                $this->hydrateCalculatedItems($invoice, $calc['items'], $calc['products']);
 
-            $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
-            $this->lineWriter->insertInvoiceExpenses($invoice, $calc['expenses']);
-            $this->hydrateCalculatedItems($invoice, $calc['items'], $calc['products']);
+                $this->createLinkedGoodsReceipt($invoice, $defaultWarehouse, $user, $calc['items']);
 
-            $this->createLinkedGoodsReceipt($invoice, $defaultWarehouse, $user, $calc['items']);
+                PurchaseInvoiceCreated::dispatch($invoice, $user);
 
-            PurchaseInvoiceCreated::dispatch($invoice, $user);
-
-            return $this->repository->findWithRelations($invoice->id);
-        });
+                return $this->repository->findWithRelations($invoice->id);
+            });
+        } catch (Throwable $e) {
+            $this->attachmentService->deleteStoredFiles($trackedFiles);
+            throw $e;
+        }
     }
 
     /**
@@ -208,95 +222,115 @@ class PurchaseInvoiceService
      */
     public function updateInvoice(PurchaseInvoice $invoice, array $data, User $user): PurchaseInvoice
     {
-        return DB::transaction(function () use ($invoice, $data, $user): PurchaseInvoice {
-            /** @var PurchaseInvoice $lockedInvoice */
-            $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
+        $trackedFiles = [];
 
-            if ($lockedInvoice->isPosted()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
-                ]);
-            }
+        try {
+            return DB::transaction(function () use ($invoice, $data, $user, &$trackedFiles): PurchaseInvoice {
+                /** @var PurchaseInvoice $lockedInvoice */
+                $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
-            if ($lockedInvoice->isCancelled()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.invoice_update_cancelled')],
-                ]);
-            }
+                if ($lockedInvoice->isPosted()) {
+                    throw ValidationException::withMessages([
+                        'status' => [(string) __('purchases.errors.invoice_update_posted')],
+                    ]);
+                }
 
-            /** @var InventoryDocument|null $linkedGr */
-            $linkedGr = InventoryDocument::query()
-                ->whereIn('referenceable_type', ['purchase_invoice', PurchaseInvoice::class])
-                ->where('referenceable_id', $lockedInvoice->id)
-                ->where('document_type', InventoryDocumentType::GOODS_RECEIPT->value)
-                ->lockForUpdate()
-                ->first();
+                if ($lockedInvoice->isCancelled()) {
+                    throw ValidationException::withMessages([
+                        'status' => [(string) __('purchases.errors.invoice_update_cancelled')],
+                    ]);
+                }
 
-            if ($lockedInvoice->hasPostedGoodsReceipt()
-                || ($linkedGr && in_array($linkedGr->status, [InventoryDocumentStatus::POSTED, InventoryDocumentStatus::REVERSED], true))) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
-                ]);
-            }
+                /** @var InventoryDocument|null $linkedGr */
+                $linkedGr = InventoryDocument::query()
+                    ->whereIn('referenceable_type', ['purchase_invoice', PurchaseInvoice::class])
+                    ->where('referenceable_id', $lockedInvoice->id)
+                    ->where('document_type', InventoryDocumentType::GOODS_RECEIPT->value)
+                    ->lockForUpdate()
+                    ->first();
 
-            $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
-            $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
-            $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
+                if ($lockedInvoice->hasPostedGoodsReceipt()
+                    || ($linkedGr && in_array($linkedGr->status, [InventoryDocumentStatus::POSTED, InventoryDocumentStatus::REVERSED], true))) {
+                    throw ValidationException::withMessages([
+                        'status' => [(string) __('purchases.errors.invoice_update_posted')],
+                    ]);
+                }
 
-            $calc = $this->calculate(
-                $data['items'] ?? [],
-                $data['discount_type'] ?? null,
-                $data['discount_value'] ?? null,
-                $data['expenses'] ?? []
-            );
+                $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+                $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
+                $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
 
-            $invoiceDate = Carbon::parse($data['invoice_date']);
-            $dueDate = ! empty($data['due_date'])
-                ? Carbon::parse($data['due_date'])
-                : $invoiceDate->copy();
-
-            if ($dueDate->lt($invoiceDate)) {
-                throw ValidationException::withMessages([
-                    'due_date' => [(string) __('purchases.errors.due_date_before_invoice')],
-                ]);
-            }
-
-            $lockedInvoice->update([
-                'supplier_id' => $supplier->id,
-                'journal_id' => $journal->id,
-                'invoice_date' => $invoiceDate->toDateString(),
-                'due_date' => $dueDate->toDateString(),
-                'subtotal' => $calc['subtotal'],
-                'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
-                'discount_value' => $calc['discount_value'],
-                'discount_amount' => $calc['discount_amount'],
-                'additional_expenses_total' => $calc['additional_expenses_total'],
-                'total' => $calc['total'],
-                'notes' => $data['notes'] ?? null,
-            ]);
-
-            $lockedInvoice->items()->delete();
-            $this->lineWriter->insertInvoiceItems($lockedInvoice, $calc['items']);
-            $this->hydrateCalculatedItems($lockedInvoice, $calc['items'], $calc['products']);
-
-            $lockedInvoice->expenses()->delete();
-            $this->lineWriter->insertInvoiceExpenses($lockedInvoice, $calc['expenses']);
-
-            if ($linkedGr) {
-                $this->inventoryDocumentService->syncForPurchaseInvoice(
-                    $linkedGr,
-                    $lockedInvoice,
-                    $defaultWarehouse->id,
-                    $this->goodsReceiptItems($calc['items'])
+                $calc = $this->calculate(
+                    $data['items'] ?? [],
+                    $data['discount_type'] ?? null,
+                    $data['discount_value'] ?? null,
+                    $data['expenses'] ?? []
                 );
-            } else {
-                $this->createLinkedGoodsReceipt($lockedInvoice, $defaultWarehouse, $user, $calc['items']);
-            }
 
-            PurchaseInvoiceUpdated::dispatch($lockedInvoice, $user);
+                $invoiceDate = Carbon::parse($data['invoice_date']);
+                $dueDate = ! empty($data['due_date'])
+                    ? Carbon::parse($data['due_date'])
+                    : $invoiceDate->copy();
 
-            return $this->repository->findWithRelations($lockedInvoice->id);
-        }, self::TRANSACTION_ATTEMPTS);
+                if ($dueDate->lt($invoiceDate)) {
+                    throw ValidationException::withMessages([
+                        'due_date' => [(string) __('purchases.errors.due_date_before_invoice')],
+                    ]);
+                }
+
+                $lockedInvoice->update([
+                    'supplier_id' => $supplier->id,
+                    'journal_id' => $journal->id,
+                    'invoice_date' => $invoiceDate->toDateString(),
+                    'due_date' => $dueDate->toDateString(),
+                    'subtotal' => $calc['subtotal'],
+                    'discount_type' => ! empty($data['discount_type']) ? $data['discount_type'] : null,
+                    'discount_value' => $calc['discount_value'],
+                    'discount_amount' => $calc['discount_amount'],
+                    'additional_expenses_total' => $calc['additional_expenses_total'],
+                    'total' => $calc['total'],
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                $lockedInvoice->items()->delete();
+                $this->lineWriter->insertInvoiceItems($lockedInvoice, $calc['items']);
+                $this->hydrateCalculatedItems($lockedInvoice, $calc['items'], $calc['products']);
+
+                $lockedInvoice->expenses()->delete();
+                $this->lineWriter->insertInvoiceExpenses($lockedInvoice, $calc['expenses']);
+
+                $oldFilesToDelete = [];
+                $newFile = ($data['attachment'] ?? null) instanceof UploadedFile ? $data['attachment'] : null;
+                $removeAttachment = (bool) ($data['remove_attachment'] ?? false);
+                $this->attachmentService->applyAttachmentUpdate(
+                    $lockedInvoice,
+                    'invoices',
+                    $newFile,
+                    $removeAttachment,
+                    $trackedFiles,
+                    $oldFilesToDelete,
+                );
+                $this->attachmentService->schedulePhysicalDeletion($oldFilesToDelete);
+
+                if ($linkedGr) {
+                    $this->inventoryDocumentService->syncForPurchaseInvoice(
+                        $linkedGr,
+                        $lockedInvoice,
+                        $defaultWarehouse->id,
+                        $this->goodsReceiptItems($calc['items'])
+                    );
+                } else {
+                    $this->createLinkedGoodsReceipt($lockedInvoice, $defaultWarehouse, $user, $calc['items']);
+                }
+
+                PurchaseInvoiceUpdated::dispatch($lockedInvoice, $user);
+
+                return $this->repository->findWithRelations($lockedInvoice->id);
+            }, self::TRANSACTION_ATTEMPTS);
+        } catch (Throwable $e) {
+            $this->attachmentService->deleteStoredFiles($trackedFiles);
+            throw $e;
+        }
     }
 
     /**
@@ -427,17 +461,33 @@ class PurchaseInvoiceService
                 $this->inventoryDocumentService->deleteForPurchaseInvoice($linkedGr);
             }
 
+            $attachmentTarget = $this->attachmentService->captureTarget($lockedInvoice);
+
             PurchaseInvoiceDeleted::dispatch($lockedInvoice);
 
             $lockedInvoice->items()->delete();
             $lockedInvoice->expenses()->delete();
 
-            return (bool) $lockedInvoice->delete();
+            $deleted = (bool) $lockedInvoice->delete();
+
+            if ($attachmentTarget !== null) {
+                $this->attachmentService->schedulePhysicalDeletion([$attachmentTarget]);
+            }
+
+            return $deleted;
         }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
-     * Copy supplier, items, and discounts from a confirmed Purchase Order when creating an invoice.
+     * Stream the attached file for a purchase invoice.
+     */
+    public function streamAttachment(PurchaseInvoice $invoice, bool $download = false): StreamedResponse
+    {
+        return $this->attachmentService->streamResponse($invoice, $download);
+    }
+
+    /**
+     * Copy supplier, items, expenses, and discounts from a confirmed Purchase Order when creating an invoice.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -446,7 +496,7 @@ class PurchaseInvoiceService
     {
         /** @var PurchaseOrder|null $order */
         $order = PurchaseOrder::query()
-            ->with('items')
+            ->with(['items', 'expenses'])
             ->lockForUpdate()
             ->find($purchaseOrderId);
 
@@ -498,6 +548,14 @@ class PurchaseInvoiceService
 
         if (! array_key_exists('notes', $data) && $order->notes !== null) {
             $data['notes'] = $order->notes;
+        }
+
+        if (! array_key_exists('expenses', $data) && $order->expenses->isNotEmpty()) {
+            $data['expenses'] = $order->expenses->map(fn ($exp): array => [
+                'name' => $exp->name,
+                'amount' => $exp->amount,
+                'notes' => $exp->notes,
+            ])->all();
         }
 
         return $data;

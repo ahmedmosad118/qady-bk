@@ -8,6 +8,7 @@ use App\Enums\DiscountType;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PurchaseInvoiceStatus;
+use App\Models\Concerns\HasPurchaseAttachment;
 use App\Models\Concerns\LogsModelActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,6 +37,11 @@ use Spatie\Activitylog\LogOptions;
     'additional_expenses_total',
     'total',
     'notes',
+    'attachment_disk',
+    'attachment_path',
+    'attachment_original_name',
+    'attachment_mime_type',
+    'attachment_size',
     'status',
     'created_by',
     'posted_by',
@@ -43,7 +49,22 @@ use Spatie\Activitylog\LogOptions;
 ])]
 class PurchaseInvoice extends Model
 {
-    use HasFactory, LogsModelActivity, SoftDeletes;
+    use HasFactory, HasPurchaseAttachment, LogsModelActivity, SoftDeletes;
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'attachment_disk',
+        'attachment_path',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $appends = [
+        'has_attachment',
+    ];
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -68,6 +89,7 @@ class PurchaseInvoice extends Model
             'discount_amount' => 'decimal:2',
             'additional_expenses_total' => 'decimal:2',
             'total' => 'decimal:2',
+            'attachment_size' => 'integer',
             'status' => PurchaseInvoiceStatus::class,
             'journal_id' => 'integer',
             'posted_by' => 'integer',

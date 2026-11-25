@@ -14,7 +14,7 @@ class PurchaseOrderRepository
     /**
      * Paginate purchase orders with filtering and eager loading.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -25,7 +25,7 @@ class PurchaseOrderRepository
                 'confirmer:id,name',
                 'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',
             ])
-            ->withCount('items')
+            ->withCount(['items', 'expenses'])
             ->withSum('items', 'discount_amount');
 
         if (! empty($filters['search'])) {
@@ -78,6 +78,7 @@ class PurchaseOrderRepository
             ->with([
                 'supplier',
                 'items.product',
+                'expenses',
                 'creator:id,name,email',
                 'confirmer:id,name,email',
                 'purchaseInvoices:id,invoice_number,purchase_order_id,status,total,invoice_date',

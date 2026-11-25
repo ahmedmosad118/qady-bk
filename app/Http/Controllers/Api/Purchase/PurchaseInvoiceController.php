@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseInvoiceController extends Controller implements HasMiddleware
 {
@@ -191,5 +192,25 @@ class PurchaseInvoiceController extends Controller implements HasMiddleware
             'message' => __('purchases.messages.invoice_posted'),
             'data' => $invoice,
         ]);
+    }
+
+    /**
+     * Stream the purchase invoice's attached file inline.
+     */
+    public function viewAttachment(PurchaseInvoice $purchase_invoice): StreamedResponse
+    {
+        $this->authorize('view', $purchase_invoice);
+
+        return $this->purchaseInvoiceService->streamAttachment($purchase_invoice, false);
+    }
+
+    /**
+     * Download the purchase invoice's attached file.
+     */
+    public function downloadAttachment(PurchaseInvoice $purchase_invoice): StreamedResponse
+    {
+        $this->authorize('view', $purchase_invoice);
+
+        return $this->purchaseInvoiceService->streamAttachment($purchase_invoice, true);
     }
 }
