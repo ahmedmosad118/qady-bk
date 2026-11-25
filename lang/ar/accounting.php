@@ -132,9 +132,9 @@ return [
         'journal_entry_fiscal_year_not_open' => 'يجب أن تكون السنة المالية موجودة وفي حالة مفتوحة.',
         'journal_entry_line_invalid' => 'بيانات سطر القيد غير صالحة.',
         'journal_entry_already_posted' => 'قيد اليومية مرحل بالفعل ولا يمكن ترحيله مرة أخرى.',
-        'stock_input_account_missing' => 'الحساب النظامي لوسيط استلام المخزون (stock_input) غير موجود.',
-        'stock_input_account_invalid' => 'الحساب النظامي لوسيط استلام المخزون غير نشط أو غير متوافق.',
-        'category_stock_input_account_invalid' => 'حساب وسيط استلام المخزون المرتبط بالفئة (:category) غير نشط أو غير متوافق.',
+        'stock_input_account_missing' => 'لم يتم تحديد حساب وسيط استلام المخزون الافتراضي في الإعدادات المحاسبية.',
+        'stock_input_account_invalid' => 'حساب وسيط استلام المخزون الافتراضي غير نشط أو غير متوافق مع نوع الأصول المتداولة.',
+        'category_stock_input_account_invalid' => 'حساب وسيط استلام المخزون المرتبط بالفئة (:category) غير موجود أو غير نشط أو غير متوافق.',
         'additional_expenses_account_invalid' => 'حساب المصروفات الإضافية للمشتريات غير نشط أو غير متوافق.',
         'supplier_payable_account_missing' => 'لم يتم تحديد حساب ذمم دائنة للمورد أو حساب افتراضي للموردين في الإعدادات.',
         'supplier_payable_account_invalid' => 'حساب الذمم الدائنة المحدد للمورد غير نشط أو غير متوافق.',
@@ -183,6 +183,10 @@ return [
             'accounts_payable' => [
                 'label' => 'الحساب الافتراضي للموردين',
                 'description' => 'الحساب الافتراضي للذمم الدائنة (الموردين).',
+            ],
+            'default_stock_input_account_id' => [
+                'label' => 'الحساب الافتراضي لوسيط استلام المخزون',
+                'description' => 'الحساب الافتراضي المستخدم عند عدم تحديد حساب وسيط استلام المخزون على فئة المنتج.',
             ],
             'additional_expenses_account_id' => [
                 'label' => 'حساب المصروفات الإضافية للمشتريات',

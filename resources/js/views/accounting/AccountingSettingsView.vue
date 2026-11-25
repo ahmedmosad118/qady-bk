@@ -125,7 +125,7 @@
         </div>
 
         <div
-          v-for="item in items"
+          v-for="item in visibleItems"
           :key="item.key"
           class="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-12 lg:items-center"
         >
@@ -237,6 +237,12 @@ const purchaseJournalOptions = computed(() =>
     value: journal.id,
     label: `${journal.code} — ${journal.name}`,
   }))
+);
+
+const visibleItems = computed(() =>
+  items.value.filter(
+    (item) => item.key !== 'additional_expenses_account_id' || expensesTreatment.value === 'SEPARATE_EXPENSE'
+  )
 );
 
 function isItemRequired(item) {

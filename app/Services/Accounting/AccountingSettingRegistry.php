@@ -45,6 +45,11 @@ class AccountingSettingRegistry
                 'account_type' => AccountTypeCode::Payable,
                 'required' => false,
             ],
+            'default_stock_input_account_id' => [
+                'key' => 'default_stock_input_account_id',
+                'account_type' => AccountTypeCode::CurrentAssets,
+                'required' => false,
+            ],
             'additional_expenses_account_id' => [
                 'key' => 'additional_expenses_account_id',
                 'account_type' => AccountTypeCode::Expenses,

@@ -67,7 +67,16 @@ class AccountingSettingTest extends TestCase
             ->assertJsonPath('data.type', AccountingSettingRegistry::SETTING_TYPE);
 
         $items = collect($res->json('data.items'))->keyBy('key');
-        $this->assertSame(['accounts_receivable', 'accounts_payable', 'additional_expenses_account_id'], $items->keys()->all());
+        $this->assertSame([
+            'accounts_receivable',
+            'accounts_payable',
+            'default_stock_input_account_id',
+            'additional_expenses_account_id',
+        ], $items->keys()->all());
+
+        $stockInputAccount = Account::query()->where('system_key', 'stock_input')->firstOrFail();
+        $this->assertSame($stockInputAccount->id, $items->get('default_stock_input_account_id')['account_id']);
+        $this->assertFalse($items->get('default_stock_input_account_id')['required']);
 
         foreach (['inventory', 'capital', 'owner_current', 'sales_revenue', 'sales_returns', 'cost_of_goods_sold', 'operating_expenses'] as $legacyKey) {
             $this->assertFalse($items->has($legacyKey));
@@ -196,6 +205,20 @@ class AccountingSettingTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['settings.accounts_payable']);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['default_stock_input_account_id' => $activePayable->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.default_stock_input_account_id']);
+
+        $this->actingAs($this->user)
+            ->putJson('/api/settings/accounting', [
+                'settings' => ['default_stock_input_account_id' => $inactiveReceivable->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['settings.default_stock_input_account_id']);
     }
 
     public function test_unauthorized_user_cannot_view_or_update_accounting_settings(): void

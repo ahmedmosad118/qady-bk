@@ -55,6 +55,15 @@ class AccountingSettingService
                 $accountIds[] = (int) $val;
             }
         }
+
+        $initialDefaultStockInputId = null;
+        if (! array_key_exists('default_stock_input_account_id', $data)) {
+            $initialDefaultStockInputId = $this->resolveInitialSystemStockInputAccountId();
+            if ($initialDefaultStockInputId !== null) {
+                $accountIds[] = $initialDefaultStockInputId;
+            }
+        }
+
         $accountIds = array_values(array_unique($accountIds));
 
         /** @var Collection<int, Account> $accounts */
@@ -68,8 +77,12 @@ class AccountingSettingService
 
         $result = [];
         foreach (AccountingSettingRegistry::definitions() as $key => $def) {
-            $rawId = $data[$key] ?? null;
-            $accountId = is_numeric($rawId) && (int) $rawId > 0 ? (int) $rawId : null;
+            if ($key === 'default_stock_input_account_id' && ! array_key_exists('default_stock_input_account_id', $data)) {
+                $accountId = $initialDefaultStockInputId;
+            } else {
+                $rawId = $data[$key] ?? null;
+                $accountId = is_numeric($rawId) && (int) $rawId > 0 ? (int) $rawId : null;
+            }
             /** @var Account|null $account */
             $account = $accountId !== null ? $accounts->get($accountId) : null;
             $typeCode = $account?->accountType?->code;
@@ -146,9 +159,32 @@ class AccountingSettingService
     public function resolveAccountId(string $key): ?int
     {
         $setting = $this->getSettings();
-        $value = $setting->data[$key] ?? null;
+        $data = is_array($setting->data) ? $setting->data : [];
+
+        if ($key === 'default_stock_input_account_id' && ! array_key_exists('default_stock_input_account_id', $data)) {
+            return $this->resolveInitialSystemStockInputAccountId();
+        }
+
+        $value = $data[$key] ?? null;
 
         return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /**
+     * Resolve the default stock input account ID (explicit setting or initial system_key = stock_input fallback).
+     */
+    public function resolveDefaultStockInputAccountId(): ?int
+    {
+        return $this->resolveAccountId('default_stock_input_account_id');
+    }
+
+    private function resolveInitialSystemStockInputAccountId(): ?int
+    {
+        $id = Account::query()
+            ->where('system_key', 'stock_input')
+            ->value('id');
+
+        return $id !== null ? (int) $id : null;
     }
 
     /**

@@ -132,9 +132,9 @@ return [
         'journal_entry_fiscal_year_not_open' => 'The selected fiscal year must exist and be open.',
         'journal_entry_line_invalid' => 'Journal entry line data is invalid.',
         'journal_entry_already_posted' => 'This journal entry is already posted and cannot be posted again.',
-        'stock_input_account_missing' => 'System stock input account (stock_input) was not found.',
-        'stock_input_account_invalid' => 'System stock input account is inactive or incompatible.',
-        'category_stock_input_account_invalid' => 'The stock input account for category (:category) is inactive or incompatible.',
+        'stock_input_account_missing' => 'Default stock input account is not configured in accounting settings.',
+        'stock_input_account_invalid' => 'Default stock input account is inactive or incompatible with current assets.',
+        'category_stock_input_account_invalid' => 'The stock input account for category (:category) does not exist, is inactive, or is incompatible.',
         'additional_expenses_account_invalid' => 'The additional expenses account is inactive or incompatible.',
         'supplier_payable_account_missing' => 'No supplier payable account or default accounts_payable setting is configured.',
         'supplier_payable_account_invalid' => 'The supplier payable account is inactive or incompatible.',
@@ -183,6 +183,10 @@ return [
             'accounts_payable' => [
                 'label' => 'Default Payable Account',
                 'description' => 'Default payable account for suppliers.',
+            ],
+            'default_stock_input_account_id' => [
+                'label' => 'Default Stock Input Account',
+                'description' => 'Fallback stock input account used when a product category has no dedicated stock input account.',
             ],
             'additional_expenses_account_id' => [
                 'label' => 'Purchase Additional Expenses Account',

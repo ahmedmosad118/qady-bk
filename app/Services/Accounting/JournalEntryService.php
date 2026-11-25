@@ -221,17 +221,17 @@ class JournalEntryService
     }
 
     /**
-     * Resolve and validate the selected Purchase journal, open fiscal year, and matching open period for a date.
+     * Resolve and validate a journal of the expected type, open fiscal year, and matching open period for a date.
      *
      * @return array{journal_id: int, fiscal_year_id: int, accounting_period_id: int}
      */
-    public function resolvePurchaseContext(int $journalId, string $entryDate): array
+    public function resolveContext(int $journalId, JournalType $expectedType, string $entryDate): array
     {
         $normalizedDate = Carbon::parse($entryDate)->toDateString();
 
         $journal = Journal::query()->find($journalId);
 
-        if (! $journal || ! $journal->is_active || $journal->type !== JournalType::Purchase) {
+        if (! $journal || ! $journal->is_active || $journal->type !== $expectedType) {
             throw ValidationException::withMessages([
                 'journal_id' => [(string) __('accounting.errors.purchase_journal_missing')],
             ]);
@@ -267,6 +267,16 @@ class JournalEntryService
             'fiscal_year_id' => $fiscalYear->id,
             'accounting_period_id' => $period->id,
         ];
+    }
+
+    /**
+     * Resolve and validate the selected Purchase journal, open fiscal year, and matching open period for a date.
+     *
+     * @return array{journal_id: int, fiscal_year_id: int, accounting_period_id: int}
+     */
+    public function resolvePurchaseContext(int $journalId, string $entryDate): array
+    {
+        return $this->resolveContext($journalId, JournalType::Purchase, $entryDate);
     }
 
     /**

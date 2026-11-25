@@ -50,7 +50,7 @@ class SyncPurchaseInvoiceJournalEntry
 
     public function handlePosted(PurchaseInvoicePosted $event): void
     {
-        // Re-validate accounting mappings and context before posting the linked journal entry.
+        // Re-validate accounting mappings and generated payload before posting the linked journal entry.
         $this->buildEntryPayload($event->invoice);
 
         $this->journalEntryService->postForPurchaseInvoice(
@@ -70,9 +70,11 @@ class SyncPurchaseInvoiceJournalEntry
     }
 
     /**
+     * Build the balanced Journal Entry payload for a Purchase Invoice with one debit line per item.
+     *
      * @return array<string, mixed>
      */
-    private function buildEntryPayload(PurchaseInvoice $invoice): array
+    public function buildEntryPayload(PurchaseInvoice $invoice): array
     {
         if (! $invoice->relationLoaded('items')) {
             $invoice->load([
@@ -93,7 +95,6 @@ class SyncPurchaseInvoiceJournalEntry
             ]);
         }
 
-        $defaultStockInput = $this->resolveDefaultStockInputAccount();
         $categoryAccountIds = $items
             ->map(static fn (PurchaseInvoiceItem $item): ?int => $item->product?->category?->stock_input_account_id)
             ->filter()
@@ -110,7 +111,9 @@ class SyncPurchaseInvoiceJournalEntry
                 ->get()
                 ->keyBy('id');
 
-        /** @var list<array{account_id: int, net_amount: string}> $resolvedItems */
+        $defaultStockInput = null;
+
+        /** @var list<array{account_id: int, label: string, amount: string}> $resolvedItems */
         $resolvedItems = [];
         $netLinesTotal = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
 
@@ -121,12 +124,13 @@ class SyncPurchaseInvoiceJournalEntry
 
             $resolvedItems[] = [
                 'account_id' => $account->id,
-                'net_amount' => $lineTotal,
+                'label' => $this->resolveItemLabel($item, $invoice),
+                'amount' => $lineTotal,
             ];
         }
 
         $discountAmount = Decimal::fromNumeric($invoice->discount_amount ?? 0, Decimal::MONEY_SCALE);
-        $resolvedItems = $this->allocateProportionally($resolvedItems, $discountAmount, $netLinesTotal, subtract: true);
+        $resolvedItems = $this->allocateDiscountProportionally($resolvedItems, $discountAmount, $netLinesTotal);
 
         $netAfterDiscountTotal = Decimal::sub($netLinesTotal, $discountAmount, Decimal::MONEY_SCALE);
         $expensesTotal = Decimal::fromNumeric($invoice->additional_expenses_total ?? 0, Decimal::MONEY_SCALE);
@@ -135,11 +139,10 @@ class SyncPurchaseInvoiceJournalEntry
         $separateExpenseLine = null;
         if (Decimal::comp($expensesTotal, '0.00', Decimal::MONEY_SCALE) > 0) {
             if ($treatment === PurchaseExpensesTreatment::LandedCost) {
-                $resolvedItems = $this->allocateProportionally(
+                $resolvedItems = $this->allocateLandedCostProportionally(
                     $resolvedItems,
                     $expensesTotal,
                     $netAfterDiscountTotal,
-                    subtract: false,
                 );
             } else {
                 $expenseAccount = $this->resolveAdditionalExpensesAccount();
@@ -152,30 +155,20 @@ class SyncPurchaseInvoiceJournalEntry
             }
         }
 
-        $groupedStockInput = [];
-        foreach ($resolvedItems as $row) {
-            $accId = $row['account_id'];
-            $groupedStockInput[$accId] = Decimal::add(
-                $groupedStockInput[$accId] ?? '0.00',
-                $row['net_amount'],
-                Decimal::MONEY_SCALE,
-            );
-        }
-
         $lines = [];
         $lineNumber = 1;
         $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
 
-        foreach ($groupedStockInput as $accountId => $amount) {
-            if (Decimal::comp($amount, $zero, Decimal::MONEY_SCALE) <= 0) {
+        foreach ($resolvedItems as $row) {
+            if (Decimal::comp($row['amount'], $zero, Decimal::MONEY_SCALE) <= 0) {
                 continue;
             }
 
             $lines[] = [
-                'account_id' => (int) $accountId,
+                'account_id' => $row['account_id'],
                 'line_number' => $lineNumber++,
-                'label' => (string) __('accounting.labels.purchase_stock_input_line', ['number' => $invoice->invoice_number]),
-                'debit' => $amount,
+                'label' => $row['label'],
+                'debit' => $row['amount'],
                 'credit' => '0.00',
             ];
         }
@@ -196,6 +189,8 @@ class SyncPurchaseInvoiceJournalEntry
             'credit' => $invoiceTotal,
         ];
 
+        $this->assertBalancedPayload($lines, $invoiceTotal);
+
         $entryDate = $invoice->invoice_date->toDateString();
         $context = $this->journalEntryService->resolvePurchaseContext((int) $invoice->journal_id, $entryDate);
 
@@ -211,95 +206,242 @@ class SyncPurchaseInvoiceJournalEntry
     }
 
     /**
-     * Allocate a total amount proportionally across items using BCMath with remainder absorption on the last item.
+     * Allocate invoice-level discount proportionally across positive items without ever producing negative amounts.
      *
-     * @param  list<array{account_id: int, net_amount: string}>  $items
-     * @return list<array{account_id: int, net_amount: string}>
+     * @param  list<array{account_id: int, label: string, amount: string}>  $items
+     * @return list<array{account_id: int, label: string, amount: string}>
      */
-    private function allocateProportionally(
+    private function allocateDiscountProportionally(
         array $items,
-        string $amountToAllocate,
-        string $baseTotal,
-        bool $subtract,
+        string $discountAmount,
+        string $netLinesTotal,
     ): array {
         $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
-        if ($items === [] || Decimal::comp($amountToAllocate, $zero, Decimal::MONEY_SCALE) <= 0) {
+        if ($items === [] || Decimal::comp($discountAmount, $zero, Decimal::MONEY_SCALE) <= 0) {
             return $items;
         }
 
-        $count = count($items);
-        $allocated = $zero;
-        $basePositive = Decimal::comp($baseTotal, $zero, Decimal::MONEY_SCALE) > 0;
+        if (Decimal::comp($discountAmount, $netLinesTotal, Decimal::MONEY_SCALE) > 0) {
+            throw ValidationException::withMessages([
+                'discount_value' => [(string) __('purchases.errors.discount_exceeds_subtotal')],
+            ]);
+        }
 
-        foreach ($items as $idx => $item) {
-            $isLast = ($idx === $count - 1);
+        $eligibleIndices = $this->positiveIndices($items);
+        if ($eligibleIndices === []) {
+            return $items;
+        }
+
+        $shares = [];
+        $sumShares = $zero;
+
+        foreach ($eligibleIndices as $idx) {
+            $rawShare = Decimal::div(
+                Decimal::mul($items[$idx]['amount'], $discountAmount, Decimal::CALCULATION_SCALE),
+                $netLinesTotal,
+                Decimal::CALCULATION_SCALE,
+            );
+            $share = Decimal::round($rawShare, Decimal::MONEY_SCALE);
+            if (Decimal::comp($share, $items[$idx]['amount'], Decimal::MONEY_SCALE) > 0) {
+                $share = $items[$idx]['amount'];
+            }
+            $shares[$idx] = $share;
+            $sumShares = Decimal::add($sumShares, $share, Decimal::MONEY_SCALE);
+        }
+
+        $remainder = Decimal::sub($discountAmount, $sumShares, Decimal::MONEY_SCALE);
+        if (Decimal::comp($remainder, $zero, Decimal::MONEY_SCALE) !== 0) {
+            foreach (array_reverse($eligibleIndices) as $idx) {
+                $comp = Decimal::comp($remainder, $zero, Decimal::MONEY_SCALE);
+                if ($comp === 0) {
+                    break;
+                }
+
+                if ($comp > 0) {
+                    $capacity = Decimal::sub($items[$idx]['amount'], $shares[$idx], Decimal::MONEY_SCALE);
+                    $delta = Decimal::comp($remainder, $capacity, Decimal::MONEY_SCALE) <= 0 ? $remainder : $capacity;
+                    $shares[$idx] = Decimal::add($shares[$idx], $delta, Decimal::MONEY_SCALE);
+                    $remainder = Decimal::sub($remainder, $delta, Decimal::MONEY_SCALE);
+                } else {
+                    $absRem = Decimal::sub($zero, $remainder, Decimal::MONEY_SCALE);
+                    $capacity = $shares[$idx];
+                    $delta = Decimal::comp($absRem, $capacity, Decimal::MONEY_SCALE) <= 0 ? $absRem : $capacity;
+                    $shares[$idx] = Decimal::sub($shares[$idx], $delta, Decimal::MONEY_SCALE);
+                    $remainder = Decimal::add($remainder, $delta, Decimal::MONEY_SCALE);
+                }
+            }
+        }
+
+        foreach ($eligibleIndices as $idx) {
+            $items[$idx]['amount'] = Decimal::sub($items[$idx]['amount'], $shares[$idx], Decimal::MONEY_SCALE);
+        }
+
+        return $items;
+    }
+
+    /**
+     * Allocate LANDED_COST additional expenses proportionally across eligible item lines.
+     *
+     * @param  list<array{account_id: int, label: string, amount: string}>  $items
+     * @return list<array{account_id: int, label: string, amount: string}>
+     */
+    private function allocateLandedCostProportionally(
+        array $items,
+        string $expensesTotal,
+        string $baseTotal,
+    ): array {
+        $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+        if ($items === [] || Decimal::comp($expensesTotal, $zero, Decimal::MONEY_SCALE) <= 0) {
+            return $items;
+        }
+
+        $basePositive = Decimal::comp($baseTotal, $zero, Decimal::MONEY_SCALE) > 0;
+        $eligibleIndices = $basePositive ? $this->positiveIndices($items) : array_keys($items);
+        if ($eligibleIndices === []) {
+            return $items;
+        }
+
+        $count = count($eligibleIndices);
+        $allocated = $zero;
+
+        foreach ($eligibleIndices as $pos => $idx) {
+            $isLast = ($pos === $count - 1);
 
             if ($isLast) {
-                $share = Decimal::sub($amountToAllocate, $allocated, Decimal::MONEY_SCALE);
+                $share = Decimal::sub($expensesTotal, $allocated, Decimal::MONEY_SCALE);
             } elseif ($basePositive) {
                 $rawShare = Decimal::div(
-                    Decimal::mul($item['net_amount'], $amountToAllocate, Decimal::CALCULATION_SCALE),
+                    Decimal::mul($items[$idx]['amount'], $expensesTotal, Decimal::CALCULATION_SCALE),
                     $baseTotal,
                     Decimal::CALCULATION_SCALE,
                 );
                 $share = Decimal::round($rawShare, Decimal::MONEY_SCALE);
                 $allocated = Decimal::add($allocated, $share, Decimal::MONEY_SCALE);
             } else {
-                $share = $zero;
+                $rawShare = Decimal::div($expensesTotal, (string) $count, Decimal::CALCULATION_SCALE);
+                $share = Decimal::round($rawShare, Decimal::MONEY_SCALE);
+                $allocated = Decimal::add($allocated, $share, Decimal::MONEY_SCALE);
             }
 
-            $items[$idx]['net_amount'] = $subtract
-                ? Decimal::sub($item['net_amount'], $share, Decimal::MONEY_SCALE)
-                : Decimal::add($item['net_amount'], $share, Decimal::MONEY_SCALE);
+            $items[$idx]['amount'] = Decimal::add($items[$idx]['amount'], $share, Decimal::MONEY_SCALE);
         }
 
         return $items;
     }
 
+    /**
+     * @param  list<array{account_id: int, label: string, amount: string}>  $items
+     * @return list<int>
+     */
+    private function positiveIndices(array $items): array
+    {
+        $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+        $indices = [];
+
+        foreach ($items as $idx => $item) {
+            if (Decimal::comp($item['amount'], $zero, Decimal::MONEY_SCALE) > 0) {
+                $indices[] = $idx;
+            }
+        }
+
+        return $indices;
+    }
+
+    /**
+     * @param  list<array{account_id: int, line_number: int, label: string, debit: string, credit: string}>  $lines
+     */
+    private function assertBalancedPayload(array $lines, string $invoiceTotal): void
+    {
+        $zero = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+
+        if (count($lines) < 2 || Decimal::comp($invoiceTotal, $zero, Decimal::MONEY_SCALE) <= 0) {
+            throw ValidationException::withMessages([
+                'lines' => [(string) __('accounting.errors.journal_entry_unbalanced')],
+            ]);
+        }
+
+        $totalDebit = $zero;
+        $totalCredit = $zero;
+
+        foreach ($lines as $line) {
+            $totalDebit = Decimal::add($totalDebit, $line['debit'], Decimal::MONEY_SCALE);
+            $totalCredit = Decimal::add($totalCredit, $line['credit'], Decimal::MONEY_SCALE);
+        }
+
+        if (Decimal::comp($totalDebit, $totalCredit, Decimal::MONEY_SCALE) !== 0
+            || Decimal::comp($totalDebit, $invoiceTotal, Decimal::MONEY_SCALE) !== 0) {
+            throw ValidationException::withMessages([
+                'lines' => [(string) __('accounting.errors.journal_entry_unbalanced')],
+            ]);
+        }
+    }
+
+    private function resolveItemLabel(PurchaseInvoiceItem $item, PurchaseInvoice $invoice): string
+    {
+        $name = $item->product?->name ?? ($item->product_snapshot['name'] ?? null);
+
+        return is_string($name) && trim($name) !== ''
+            ? trim($name)
+            : (string) $invoice->invoice_number;
+    }
+
+    /**
+     * Resolve stock-input account strictly: Priority 1 category account, Priority 2 lazy default setting.
+     *
+     * @param  Collection<int, Account>  $categoryAccounts
+     */
+    private function resolveItemStockInputAccount(
+        PurchaseInvoiceItem $item,
+        Collection $categoryAccounts,
+        ?Account &$defaultStockInput,
+    ): Account {
+        $category = $item->product?->category;
+        if ($category !== null && $category->stock_input_account_id !== null) {
+            /** @var Account|null $account */
+            $account = $categoryAccounts->get((int) $category->stock_input_account_id);
+
+            if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::CurrentAssets->value) {
+                throw ValidationException::withMessages([
+                    'stock_input_account_id' => [(string) __('accounting.errors.category_stock_input_account_invalid', [
+                        'category' => $category->name,
+                    ])],
+                ]);
+            }
+
+            return $account;
+        }
+
+        if ($defaultStockInput === null) {
+            $defaultStockInput = $this->resolveDefaultStockInputAccount();
+        }
+
+        return $defaultStockInput;
+    }
+
     private function resolveDefaultStockInputAccount(): Account
     {
+        $accountId = $this->accountingSettingService->resolveDefaultStockInputAccountId();
+
+        if ($accountId === null) {
+            throw ValidationException::withMessages([
+                'default_stock_input_account_id' => [(string) __('accounting.errors.stock_input_account_missing')],
+            ]);
+        }
+
         $account = Account::query()
             ->with('accountType:id,code')
-            ->where('system_key', 'stock_input')
             ->lockForUpdate()
-            ->first();
+            ->find($accountId);
 
         if (! $account) {
             throw ValidationException::withMessages([
-                'stock_input_account_id' => [(string) __('accounting.errors.stock_input_account_missing')],
+                'default_stock_input_account_id' => [(string) __('accounting.errors.stock_input_account_missing')],
             ]);
         }
 
         if (! $account->is_active || $account->accountType?->code !== AccountTypeCode::CurrentAssets->value) {
             throw ValidationException::withMessages([
-                'stock_input_account_id' => [(string) __('accounting.errors.stock_input_account_invalid')],
-            ]);
-        }
-
-        return $account;
-    }
-
-    /**
-     * @param  Collection<int, Account>  $categoryAccounts
-     */
-    private function resolveItemStockInputAccount(
-        PurchaseInvoiceItem $item,
-        $categoryAccounts,
-        Account $defaultStockInput,
-    ): Account {
-        $category = $item->product?->category;
-        if ($category === null || $category->stock_input_account_id === null) {
-            return $defaultStockInput;
-        }
-
-        /** @var Account|null $account */
-        $account = $categoryAccounts->get((int) $category->stock_input_account_id);
-
-        if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::CurrentAssets->value) {
-            throw ValidationException::withMessages([
-                'stock_input_account_id' => [(string) __('accounting.errors.category_stock_input_account_invalid', [
-                    'category' => $category->name,
-                ])],
+                'default_stock_input_account_id' => [(string) __('accounting.errors.stock_input_account_invalid')],
             ]);
         }
 

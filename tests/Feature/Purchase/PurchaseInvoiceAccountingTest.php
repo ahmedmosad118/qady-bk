@@ -804,4 +804,327 @@ class PurchaseInvoiceAccountingTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100]],
         ])->assertUnprocessable();
     }
+
+    public function test_multiple_products_sharing_same_account_generate_independent_debit_lines_with_product_labels(): void
+    {
+        $cat = ProductCategory::factory()->create(['stock_input_account_id' => $this->stockInputAccount->id]);
+        $bookA = Product::factory()->create(['category_id' => $cat->id, 'name' => 'Book A', 'is_active' => true]);
+        $bookB = Product::factory()->create(['category_id' => $cat->id, 'name' => 'Book B', 'is_active' => true]);
+        $supplier = $this->createSupplier();
+
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $bookA->id, 'quantity' => 6, 'unit_price' => 100],
+                ['product_id' => $bookB->id, 'quantity' => 4, 'unit_price' => 100],
+            ],
+        ])->assertCreated();
+
+        $entry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $res->json('data.id'))
+            ->firstOrFail();
+
+        // Two separate debit lines (same account 1303, never merged) + 1 payable credit line = 3 lines
+        $this->assertCount(3, $entry->lines);
+        $this->assertSame([1, 2, 3], $entry->lines->pluck('line_number')->all());
+
+        $this->assertSame($this->stockInputAccount->id, $entry->lines[0]->account_id);
+        $this->assertSame('Book A', $entry->lines[0]->label);
+        $this->assertSame('600.00', $entry->lines[0]->debit);
+        $this->assertSame('0.00', $entry->lines[0]->credit);
+
+        $this->assertSame($this->stockInputAccount->id, $entry->lines[1]->account_id);
+        $this->assertSame('Book B', $entry->lines[1]->label);
+        $this->assertSame('400.00', $entry->lines[1]->debit);
+        $this->assertSame('0.00', $entry->lines[1]->credit);
+
+        $this->assertSame($this->payableAccount->id, $entry->lines[2]->account_id);
+        $this->assertSame($supplier->name, $entry->lines[2]->label);
+        $this->assertSame('0.00', $entry->lines[2]->debit);
+        $this->assertSame('1000.00', $entry->lines[2]->credit);
+    }
+
+    public function test_stock_input_account_resolution_priority_and_lazy_default_validation(): void
+    {
+        $currentAssets = AccountType::query()->where('code', AccountTypeCode::CurrentAssets->value)->firstOrFail();
+        $fixedAssets = AccountType::query()->where('code', AccountTypeCode::FixedAssets->value)->firstOrFail();
+
+        $customCatAccount = Account::query()->create([
+            'account_type_id' => $currentAssets->id,
+            'code' => '1381',
+            'name' => 'وسيط فئة أ',
+            'is_active' => true,
+        ]);
+
+        $customDefaultAccount = Account::query()->create([
+            'account_type_id' => $currentAssets->id,
+            'code' => '1382',
+            'name' => 'وسيط افتراضي مخصص',
+            'is_active' => true,
+        ]);
+
+        $inactiveAccount = Account::query()->create([
+            'account_type_id' => $currentAssets->id,
+            'code' => '1383',
+            'name' => 'وسيط معطل',
+            'is_active' => false,
+        ]);
+
+        $wrongTypeAccount = Account::query()->create([
+            'account_type_id' => $fixedAssets->id,
+            'code' => '1583',
+            'name' => 'أصل ثابت غير متوافق',
+            'is_active' => true,
+        ]);
+
+        $catWithAccount = ProductCategory::factory()->create(['stock_input_account_id' => $customCatAccount->id]);
+        $catWithoutAccount = ProductCategory::factory()->create(['stock_input_account_id' => null]);
+
+        $prodWithCat = Product::factory()->create(['category_id' => $catWithAccount->id, 'name' => 'كتاب الفئة', 'is_active' => true]);
+        $prodNoCatAccount = Product::factory()->create(['category_id' => $catWithoutAccount->id, 'name' => 'كتاب الافتراضي', 'is_active' => true]);
+        $supplier = $this->createSupplier();
+
+        // Set custom default stock input account
+        $this->putJson('/api/settings/accounting', [
+            'settings' => [
+                'default_stock_input_account_id' => $customDefaultAccount->id,
+            ],
+        ])->assertOk();
+
+        // Category account takes priority over default; product without category account uses default
+        $created = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodWithCat->id, 'quantity' => 2, 'unit_price' => 150],
+                ['product_id' => $prodNoCatAccount->id, 'quantity' => 1, 'unit_price' => 200],
+            ],
+        ])->assertCreated();
+
+        $entry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $created->json('data.id'))
+            ->firstOrFail();
+
+        $this->assertSame($customCatAccount->id, $entry->lines[0]->account_id);
+        $this->assertSame('300.00', $entry->lines[0]->debit);
+        $this->assertSame($customDefaultAccount->id, $entry->lines[1]->account_id);
+        $this->assertSame('200.00', $entry->lines[1]->debit);
+
+        // Clear default_stock_input_account_id to null
+        $this->putJson('/api/settings/accounting', [
+            'settings' => [
+                'default_stock_input_account_id' => null,
+            ],
+        ])->assertOk();
+
+        // Missing default rejects when at least one item needs fallback
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodNoCatAccount->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['default_stock_input_account_id']);
+
+        // When ALL items have valid category accounts, missing default succeeds (lazy resolution)
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodWithCat->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertCreated();
+
+        // Invalid (inactive / wrong type) category account never silently falls back to default
+        $this->putJson('/api/settings/accounting', [
+            'settings' => [
+                'default_stock_input_account_id' => $customDefaultAccount->id,
+            ],
+        ])->assertOk();
+
+        $catInactive = ProductCategory::factory()->create(['stock_input_account_id' => $inactiveAccount->id]);
+        $prodInactiveCat = Product::factory()->create(['category_id' => $catInactive->id, 'is_active' => true]);
+
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodInactiveCat->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['stock_input_account_id']);
+
+        $catWrongType = ProductCategory::factory()->create(['stock_input_account_id' => $wrongTypeAccount->id]);
+        $prodWrongTypeCat = Product::factory()->create(['category_id' => $catWrongType->id, 'is_active' => true]);
+
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodWrongTypeCat->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['stock_input_account_id']);
+
+        // Invalid default account in settings (inactive or wrong type) rejected when fallback required
+        Setting::query()->where('type', AccountingSettingRegistry::SETTING_TYPE)->update([
+            'data' => [
+                'accounts_payable' => $this->payableAccount->id,
+                'default_stock_input_account_id' => $inactiveAccount->id,
+            ],
+        ]);
+
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [
+                ['product_id' => $prodNoCatAccount->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['default_stock_input_account_id']);
+    }
+
+    public function test_line_discounts_rounding_remainder_zero_lines_and_landed_cost_per_item(): void
+    {
+        $cat = ProductCategory::factory()->create(['stock_input_account_id' => $this->stockInputAccount->id]);
+        $p1 = Product::factory()->create(['category_id' => $cat->id, 'name' => 'صنف 1', 'is_active' => true]);
+        $p2 = Product::factory()->create(['category_id' => $cat->id, 'name' => 'صنف 2', 'is_active' => true]);
+        $pZero = Product::factory()->create(['category_id' => $cat->id, 'name' => 'صنف مجاني', 'is_active' => true]);
+        $supplier = $this->createSupplier();
+
+        // p1: 100 - 10 = 90.00; p2: 100 - 0 = 100.00; pZero: 50 - 50 = 0.00 (100% item discount)
+        // Net lines = 190.00; invoice discount = 10.00 => 180.00; landed cost = 19.00 => total = 199.00
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'discount_type' => 'fixed',
+            'discount_value' => 10,
+            'items' => [
+                ['product_id' => $p1->id, 'quantity' => 1, 'unit_price' => 100, 'discount_type' => 'fixed', 'discount_value' => 10],
+                ['product_id' => $p2->id, 'quantity' => 1, 'unit_price' => 100],
+                ['product_id' => $pZero->id, 'quantity' => 1, 'unit_price' => 50, 'discount_type' => 'fixed', 'discount_value' => 50],
+            ],
+            'expenses' => [
+                ['name' => 'شحن', 'amount' => '19.00'],
+            ],
+        ])->assertCreated();
+
+        $entry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $res->json('data.id'))
+            ->firstOrFail();
+
+        // Zero-value item pZero is NOT emitted as a zero-value journal line; p1 and p2 remain separate
+        $this->assertCount(3, $entry->lines);
+        $this->assertSame('صنف 1', $entry->lines[0]->label);
+        $this->assertSame('صنف 2', $entry->lines[1]->label);
+        $this->assertSame($supplier->name, $entry->lines[2]->label);
+
+        $totalDebit = bcadd($entry->lines[0]->debit, $entry->lines[1]->debit, 2);
+        $this->assertSame('199.00', $totalDebit);
+        $this->assertSame('199.00', $entry->lines[2]->credit);
+        $this->assertGreaterThan(0, (float) $entry->lines[0]->debit);
+        $this->assertGreaterThan(0, (float) $entry->lines[1]->debit);
+    }
+
+    public function test_supplier_payable_account_and_missing_payable_account_validation(): void
+    {
+        $payableType = AccountType::query()->where('code', AccountTypeCode::Payable->value)->firstOrFail();
+        $supplierPayable = Account::query()->create([
+            'account_type_id' => $payableType->id,
+            'code' => '2188',
+            'name' => 'مورد خاص',
+            'is_active' => true,
+        ]);
+
+        $supplier = $this->createSupplier($supplierPayable->id);
+        $product = $this->createProduct();
+
+        $created = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $entry = JournalEntry::query()
+            ->with('lines')
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $created->json('data.id'))
+            ->firstOrFail();
+
+        $this->assertSame('200.00', $entry->lines->firstWhere('account_id', $supplierPayable->id)->credit);
+
+        // Supplier without payable_account_id AND accounts_payable cleared -> rejected
+        $this->putJson('/api/settings/accounting', [
+            'settings' => ['accounts_payable' => null],
+        ])->assertOk();
+
+        $supplierNoPayable = $this->createSupplier(null);
+
+        $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplierNoPayable->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['supplier_id']);
+    }
+
+    public function test_three_equal_items_absorb_invoice_discount_and_landed_cost_rounding_remainder_exactly(): void
+    {
+        $cat = ProductCategory::factory()->create(['stock_input_account_id' => $this->stockInputAccount->id]);
+        $p1 = Product::factory()->create(['category_id' => $cat->id, 'name' => 'Item 1', 'is_active' => true]);
+        $p2 = Product::factory()->create(['category_id' => $cat->id, 'name' => 'Item 2', 'is_active' => true]);
+        $p3 = Product::factory()->create(['category_id' => $cat->id, 'name' => 'Item 3', 'is_active' => true]);
+        $supplier = $this->createSupplier();
+
+        // 3 equal items of 100.00 = 300.00; invoice discount = 100.00 => 33.33 + 33.33 + 33.34 (remainder 0.01 absorbed by last)
+        // Net after discount: 66.67, 66.67, 66.66 => sum = 200.00
+        $res = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'discount_type' => 'fixed',
+            'discount_value' => 100,
+            'items' => [
+                ['product_id' => $p1->id, 'quantity' => 1, 'unit_price' => 100],
+                ['product_id' => $p2->id, 'quantity' => 1, 'unit_price' => 100],
+                ['product_id' => $p3->id, 'quantity' => 1, 'unit_price' => 100],
+            ],
+        ])->assertCreated();
+
+        $entry = JournalEntry::query()
+            ->with(['lines' => static fn ($q) => $q->orderBy('line_number')])
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $res->json('data.id'))
+            ->firstOrFail();
+
+        $this->assertCount(4, $entry->lines);
+        $this->assertSame('66.67', $entry->lines[0]->debit);
+        $this->assertSame('66.67', $entry->lines[1]->debit);
+        $this->assertSame('66.66', $entry->lines[2]->debit);
+        $this->assertSame('200.00', $entry->lines[3]->credit);
+    }
 }
