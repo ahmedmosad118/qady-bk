@@ -34,6 +34,7 @@
           <SearchableSelect
             v-model="form.payment_type"
             :options="paymentTypeOptions"
+            :disabled="Boolean(lockedPaymentType)"
             :clearable="false"
             :show-search-always="false"
             :placeholder="$t('supplierPayments.selectPaymentType')"
@@ -415,11 +416,11 @@ import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import AppModal from '../../components/ui/AppModal.vue';
 import api from '../../services/api';
 import {
-  createSupplierPayment,
+  createPayment,
   fetchOutstandingSupplierInvoices,
-  fetchSupplierPayment,
-  updateSupplierPayment,
-} from '../../services/supplierPaymentsApi';
+  fetchPayment,
+  updatePayment,
+} from '../../services/paymentsApi';
 import { useNotificationStore } from '../../stores/notification';
 import { formatDateOnly } from '../../utils/date';
 import { createContactFetcher, createPaginatedFetcher } from '../../utils/selectFetchers';
@@ -427,6 +428,7 @@ import { createContactFetcher, createPaginatedFetcher } from '../../utils/select
 const props = defineProps({
   open: { type: Boolean, default: false },
   payment: { type: Object, default: null },
+  lockedPaymentType: { type: String, default: null },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -481,7 +483,7 @@ const fetchCustomerOptions = createContactFetcher({ isCustomer: true, activeOnly
 
 const fetchAccountOptions = createPaginatedFetcher(
   '/accounting/accounts',
-  () => ({ is_active: 1 }),
+  () => ({ is_active: 1, account_type_code: 'bank_cash' }),
   (acc) => ({
     value: acc.id,
     label: acc.code ? `${acc.code} — ${acc.name}` : acc.name,
@@ -491,7 +493,7 @@ const fetchAccountOptions = createPaginatedFetcher(
 
 const fetchJournalOptions = createPaginatedFetcher(
   '/accounting/journals',
-  () => ({ is_active: 1 }),
+  () => ({ is_active: 1, type: 'cash,bank' }),
   (j) => ({
     value: j.id,
     label: j.code ? `${j.code} — ${j.name}` : j.name,
@@ -500,31 +502,42 @@ const fetchJournalOptions = createPaginatedFetcher(
 );
 
 const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
-  const res = await api.get('/payment-methods');
-  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-  const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0);
-  const query = search.trim().toLowerCase();
-  const filtered = query
-    ? active.filter((pm) => {
-        const name = String(pm.name || '').toLowerCase();
-        const acc = String(pm.account?.name || '').toLowerCase();
-        return name.includes(query) || acc.includes(query);
-      })
-    : active;
+  try {
+    const res = await api.get('/payment-methods');
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0);
+    const query = search.trim().toLowerCase();
+    const filtered = query
+      ? active.filter((pm) => {
+          const name = String(pm.name || '').toLowerCase();
+          const acc = String(pm.account?.name || '').toLowerCase();
+          return name.includes(query) || acc.includes(query);
+        })
+      : active;
 
-  const options = filtered.map((pm) => ({
-    value: pm.id,
-    label: pm.account?.name ? `${pm.name} (${pm.account.name})` : pm.name,
-    raw: pm,
-  }));
+    const options = filtered.map((pm) => ({
+      value: pm.id,
+      label: pm.account?.name ? `${pm.name} (${pm.account.name})` : pm.name,
+      raw: pm,
+    }));
 
-  return {
-    options,
-    hasMore: false,
-    total: options.length,
-    currentPage: 1,
-    lastPage: 1,
-  };
+    return {
+      options,
+      hasMore: false,
+      total: options.length,
+      currentPage: 1,
+      lastPage: 1,
+    };
+  } catch (err) {
+    submitError.value = err.response?.data?.message || t('common.genericError');
+    return {
+      options: [],
+      hasMore: false,
+      total: 0,
+      currentPage: 1,
+      lastPage: 1,
+    };
+  }
 };
 
 const toCents = (val) => Math.round((Number(val) || 0) * 100);
@@ -560,9 +573,10 @@ const relatedTypeForPaymentType = (paymentType) => {
 };
 
 const resetForm = () => {
+  const initialType = props.lockedPaymentType || 'send';
   form.value = {
-    payment_type: 'send',
-    related_type: 'supplier',
+    payment_type: initialType,
+    related_type: relatedTypeForPaymentType(initialType),
     contact_id: null,
     account_id: null,
     payment_method_id: null,
@@ -610,7 +624,7 @@ const initModal = async () => {
 
   loadingDetails.value = true;
   try {
-    const res = await fetchSupplierPayment(props.payment.id);
+    const res = await fetchPayment(props.payment.id);
     const data = res.data?.data;
     if (!data) return;
 
@@ -814,38 +828,33 @@ const submitForm = async () => {
   if (saving.value) return;
   if (!validateClientSide()) return;
 
-  if (isReceiveCustomer.value) {
-    submitError.value = t('supplierPayments.unsupportedReceiveSubmit');
-    return;
-  }
-
-  if (isTransfer.value) {
-    submitError.value = t('supplierPayments.unsupportedTransferSubmit');
-    return;
-  }
-
   saving.value = true;
   submitError.value = '';
   errors.value = {};
 
   const payload = {
-    contact_id: form.value.contact_id,
+    payment_type: form.value.payment_type,
+    related_type: form.value.related_type,
+    contact_id: isTransfer.value ? null : form.value.contact_id,
+    account_id: isTransfer.value ? form.value.account_id : null,
     payment_method_id: form.value.payment_method_id,
     journal_id: form.value.journal_id,
     payment_date: form.value.payment_date,
     amount: Number(form.value.amount).toFixed(2),
     reference: form.value.reference?.trim() || null,
     description: form.value.description?.trim() || null,
-    allocations: form.value.allocations.map((row) => ({
-      purchase_invoice_id: row.purchase_invoice_id,
-      allocated_amount: Number(row.allocated_amount).toFixed(2),
-    })),
+    allocations: isSendSupplier.value
+      ? form.value.allocations.map((row) => ({
+          purchase_invoice_id: row.purchase_invoice_id,
+          allocated_amount: Number(row.allocated_amount).toFixed(2),
+        }))
+      : [],
   };
 
   try {
     const res = isEdit.value
-      ? await updateSupplierPayment(props.payment.id, payload)
-      : await createSupplierPayment(payload);
+      ? await updatePayment(props.payment.id, payload)
+      : await createPayment(payload);
 
     notificationStore.success(
       isEdit.value ? t('supplierPayments.updatedSuccess') : t('supplierPayments.createdSuccess')

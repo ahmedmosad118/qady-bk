@@ -21,11 +21,25 @@ class JournalRepository
         $query = Journal::query();
 
         if (! empty($filters['type'])) {
-            $rawType = (string) $filters['type'];
-            $normalizedType = JournalType::tryFrom($rawType)?->value
-                ?? JournalType::tryFrom(ucfirst(strtolower($rawType)))?->value
-                ?? $rawType;
-            $query->where('type', $normalizedType);
+            $rawTypes = is_array($filters['type'])
+                ? $filters['type']
+                : explode(',', (string) $filters['type']);
+            $normalizedTypes = array_values(array_filter(array_map(static function (mixed $raw): string {
+                $str = trim((string) $raw);
+                if ($str === '') {
+                    return '';
+                }
+
+                return JournalType::tryFrom($str)?->value
+                    ?? JournalType::tryFrom(ucfirst(strtolower($str)))?->value
+                    ?? $str;
+            }, $rawTypes)));
+
+            if (count($normalizedTypes) === 1) {
+                $query->where('type', $normalizedTypes[0]);
+            } elseif (count($normalizedTypes) > 1) {
+                $query->whereIn('type', $normalizedTypes);
+            }
         }
 
         if (isset($filters['is_active']) && $filters['is_active'] !== '' && $filters['is_active'] !== null) {

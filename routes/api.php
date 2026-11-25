@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Expense\ExpenseAttachmentController;
 use App\Http\Controllers\Api\Expense\ExpenseCategoryController;
 use App\Http\Controllers\Api\Expense\ExpenseController;
 use App\Http\Controllers\Api\InventoryDocumentController;
+use App\Http\Controllers\Api\Payment\PaymentController;
 use App\Http\Controllers\Api\Payment\SupplierPaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\Pos\PosDashboardController;
@@ -128,7 +129,18 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/purchase-invoices/{purchase_invoice}/post', [PurchaseInvoiceController::class, 'post']);
     Route::post('/purchase-invoices/{purchase_invoice}/cancel', [PurchaseInvoiceController::class, 'cancel']);
 
-    // Supplier Payments
+    // Unified Payments (Send, Receive, Transfer)
+    Route::prefix('payments')->name('payments.')->group(function () {
+        Route::get('/', [PaymentController::class, 'index'])->name('index');
+        Route::post('/', [PaymentController::class, 'store'])->name('store');
+        Route::get('/{payment}', [PaymentController::class, 'show'])->name('show');
+        Route::put('/{payment}', [PaymentController::class, 'update'])->name('update');
+        Route::delete('/{payment}', [PaymentController::class, 'destroy'])->name('destroy');
+        Route::post('/{payment}/post', [PaymentController::class, 'post'])->name('post');
+        Route::post('/{payment}/cancel', [PaymentController::class, 'cancel'])->name('cancel');
+    });
+
+    // Supplier Payments (Legacy / Specialized Backward-Compatible Endpoints)
     Route::prefix('supplier-payments')->name('supplier-payments.')->group(function () {
         Route::get('/', [SupplierPaymentController::class, 'index'])->name('index');
         Route::post('/', [SupplierPaymentController::class, 'store'])->name('store');

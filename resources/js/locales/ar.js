@@ -3357,6 +3357,7 @@ export default {
     customer: 'العميل',
     selectCustomer: 'ابحث واختر العميل...',
     destinationAccount: 'حساب الوجهة',
+    sourceAccount: 'حساب المصدر',
     selectDestinationAccount: 'ابحث واختر حساب الوجهة...',
     searchSuppliers: 'ابحث عن مورد...',
     searchCustomers: 'ابحث عن عميل...',
@@ -3370,6 +3371,7 @@ export default {
   allPayments: {
     title: 'كل المدفوعات',
     subtitle: 'عرض موحد لمتابعة جميع حركات الدفع والتحصيل والتحويلات.',
+    create: 'إضافة حركة دفع',
     searchPlaceholder: 'ابحث برقم الدفعة أو المرجع أو اسم الطرف...',
     allPaymentTypes: 'كل الأنواع',
     allRelatedTypes: 'كل الأطراف',

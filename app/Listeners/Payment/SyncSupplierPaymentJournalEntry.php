@@ -30,7 +30,7 @@ class SyncSupplierPaymentJournalEntry
 
     public function handleCreated(PaymentCreated $event): void
     {
-        if (! $this->isSupplierPayment($event->payment)) {
+        if (! $this->isSupportedPayment($event->payment)) {
             return;
         }
 
@@ -45,7 +45,7 @@ class SyncSupplierPaymentJournalEntry
 
     public function handleUpdated(PaymentUpdated $event): void
     {
-        if (! $this->isSupplierPayment($event->payment)) {
+        if (! $this->isSupportedPayment($event->payment)) {
             return;
         }
 
@@ -59,7 +59,7 @@ class SyncSupplierPaymentJournalEntry
 
     public function handlePosted(PaymentPosted $event): void
     {
-        if (! $this->isSupplierPayment($event->payment)) {
+        if (! $this->isSupportedPayment($event->payment)) {
             return;
         }
 
@@ -78,7 +78,7 @@ class SyncSupplierPaymentJournalEntry
 
     public function handleCancelled(PaymentCancelled $event): void
     {
-        if (! $this->isSupplierPayment($event->payment)) {
+        if (! $this->isSupportedPayment($event->payment)) {
             return;
         }
 
@@ -87,7 +87,7 @@ class SyncSupplierPaymentJournalEntry
 
     public function handleDeleted(PaymentDeleted $event): void
     {
-        if (! $this->isSupplierPayment($event->payment)) {
+        if (! $this->isSupportedPayment($event->payment)) {
             return;
         }
 
@@ -95,18 +95,18 @@ class SyncSupplierPaymentJournalEntry
     }
 
     /**
-     * Build the balanced Journal Entry payload for a Supplier Payment.
+     * Build the balanced Journal Entry payload for Send (Supplier), Receive (Customer), or Transfer payments.
      *
      * @return array<string, mixed>
      */
     public function buildEntryPayload(Payment $payment): array
     {
         $payment->loadMissing([
-            'contact:id,name,payable_account_id',
+            'contact:id,name,payable_account_id,receivable_account_id',
+            'account:id,code,name,account_type_id,is_active',
             'paymentMethod:id,name,type,account_id,is_active',
         ]);
 
-        $payableAccount = $this->resolveSupplierPayableAccount($payment);
         $treasuryAccount = $this->resolvePaymentMethodAccount($payment);
 
         $amount = Decimal::fromNumeric($payment->amount, Decimal::MONEY_SCALE);
@@ -130,21 +130,87 @@ class SyncSupplierPaymentJournalEntry
         $reference = trim((string) ($payment->reference ?? ''));
         $description = trim((string) ($payment->description ?? ''));
 
+        if ($this->isSupplierPayment($payment)) {
+            $payableAccount = $this->resolveSupplierPayableAccount($payment);
+
+            return [
+                'journal_id' => $context['journal_id'],
+                'fiscal_year_id' => $context['fiscal_year_id'],
+                'accounting_period_id' => $context['accounting_period_id'],
+                'contact_id' => $payment->contact_id,
+                'entry_date' => $entryDate,
+                'reference' => $reference !== '' ? $reference : $payment->payment_number,
+                'description' => $description !== ''
+                    ? $description
+                    : (string) __('payments.labels.supplier_payment_entry_description', ['number' => $payment->payment_number]),
+                'lines' => [
+                    [
+                        'account_id' => $payableAccount->id,
+                        'line_number' => 1,
+                        'label' => $payment->contact?->name ?? $payment->payment_number,
+                        'debit' => $amount,
+                        'credit' => '0.00',
+                    ],
+                    [
+                        'account_id' => $treasuryAccount->id,
+                        'line_number' => 2,
+                        'label' => $payment->paymentMethod?->name ?? $payment->payment_number,
+                        'debit' => '0.00',
+                        'credit' => $amount,
+                    ],
+                ],
+            ];
+        }
+
+        if ($this->isCustomerReceipt($payment)) {
+            $receivableAccount = $this->resolveCustomerReceivableAccount($payment);
+
+            return [
+                'journal_id' => $context['journal_id'],
+                'fiscal_year_id' => $context['fiscal_year_id'],
+                'accounting_period_id' => $context['accounting_period_id'],
+                'contact_id' => $payment->contact_id,
+                'entry_date' => $entryDate,
+                'reference' => $reference !== '' ? $reference : $payment->payment_number,
+                'description' => $description !== ''
+                    ? $description
+                    : (string) __('payments.labels.customer_receipt_entry_description', ['number' => $payment->payment_number]),
+                'lines' => [
+                    [
+                        'account_id' => $treasuryAccount->id,
+                        'line_number' => 1,
+                        'label' => $payment->paymentMethod?->name ?? $payment->payment_number,
+                        'debit' => $amount,
+                        'credit' => '0.00',
+                    ],
+                    [
+                        'account_id' => $receivableAccount->id,
+                        'line_number' => 2,
+                        'label' => $payment->contact?->name ?? $payment->payment_number,
+                        'debit' => '0.00',
+                        'credit' => $amount,
+                    ],
+                ],
+            ];
+        }
+
+        $destinationAccount = $this->resolveTransferDestinationAccount($payment, $treasuryAccount);
+
         return [
             'journal_id' => $context['journal_id'],
             'fiscal_year_id' => $context['fiscal_year_id'],
             'accounting_period_id' => $context['accounting_period_id'],
-            'contact_id' => $payment->contact_id,
+            'contact_id' => null,
             'entry_date' => $entryDate,
             'reference' => $reference !== '' ? $reference : $payment->payment_number,
             'description' => $description !== ''
                 ? $description
-                : (string) __('payments.labels.supplier_payment_entry_description', ['number' => $payment->payment_number]),
+                : (string) __('payments.labels.transfer_entry_description', ['number' => $payment->payment_number]),
             'lines' => [
                 [
-                    'account_id' => $payableAccount->id,
+                    'account_id' => $destinationAccount->id,
                     'line_number' => 1,
-                    'label' => $payment->contact?->name ?? $payment->payment_number,
+                    'label' => $destinationAccount->name,
                     'debit' => $amount,
                     'credit' => '0.00',
                 ],
@@ -159,10 +225,29 @@ class SyncSupplierPaymentJournalEntry
         ];
     }
 
+    private function isSupportedPayment(Payment $payment): bool
+    {
+        return $this->isSupplierPayment($payment)
+            || $this->isCustomerReceipt($payment)
+            || $this->isTransferPayment($payment);
+    }
+
     private function isSupplierPayment(Payment $payment): bool
     {
         return $payment->payment_type === PaymentType::SEND
             && $payment->related_type === PaymentRelatedType::SUPPLIER;
+    }
+
+    private function isCustomerReceipt(Payment $payment): bool
+    {
+        return $payment->payment_type === PaymentType::RECEIVE
+            && $payment->related_type === PaymentRelatedType::CUSTOMER;
+    }
+
+    private function isTransferPayment(Payment $payment): bool
+    {
+        return $payment->payment_type === PaymentType::TRANSFER
+            && $payment->related_type === null;
     }
 
     private function resolveSupplierPayableAccount(Payment $payment): Account
@@ -184,6 +269,60 @@ class SyncSupplierPaymentJournalEntry
         if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::Payable->value) {
             throw ValidationException::withMessages([
                 'contact_id' => [(string) __('payments.errors.supplier_payable_account_invalid')],
+            ]);
+        }
+
+        return $account;
+    }
+
+    private function resolveCustomerReceivableAccount(Payment $payment): Account
+    {
+        $accountId = $payment->contact?->receivable_account_id
+            ?: $this->accountingSettingService->resolveAccountId('accounts_receivable');
+
+        if ($accountId === null) {
+            throw ValidationException::withMessages([
+                'contact_id' => [(string) __('payments.errors.customer_receivable_account_missing')],
+            ]);
+        }
+
+        $account = Account::query()
+            ->with('accountType:id,code')
+            ->lockForUpdate()
+            ->find((int) $accountId);
+
+        if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::Receivable->value) {
+            throw ValidationException::withMessages([
+                'contact_id' => [(string) __('payments.errors.customer_receivable_account_invalid')],
+            ]);
+        }
+
+        return $account;
+    }
+
+    private function resolveTransferDestinationAccount(Payment $payment, Account $sourceAccount): Account
+    {
+        $accountId = (int) ($payment->account_id ?? 0);
+        if ($accountId <= 0) {
+            throw ValidationException::withMessages([
+                'account_id' => [(string) __('payments.errors.transfer_account_invalid')],
+            ]);
+        }
+
+        if ($accountId === $sourceAccount->id) {
+            throw ValidationException::withMessages([
+                'account_id' => [(string) __('payments.errors.transfer_same_account')],
+            ]);
+        }
+
+        $account = Account::query()
+            ->with('accountType:id,code')
+            ->lockForUpdate()
+            ->find($accountId);
+
+        if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::BankCash->value) {
+            throw ValidationException::withMessages([
+                'account_id' => [(string) __('payments.errors.transfer_account_invalid')],
             ]);
         }
 

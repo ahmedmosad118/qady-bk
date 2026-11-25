@@ -3357,6 +3357,7 @@ export default {
     customer: 'Customer',
     selectCustomer: 'Search & select customer...',
     destinationAccount: 'Destination Account',
+    sourceAccount: 'Source Account',
     selectDestinationAccount: 'Search & select destination account...',
     searchSuppliers: 'Search suppliers...',
     searchCustomers: 'Search customers...',
@@ -3370,6 +3371,7 @@ export default {
   allPayments: {
     title: 'All Payments',
     subtitle: 'Unified monitoring view for all payment, receipt, and transfer transactions.',
+    create: 'New Payment',
     searchPlaceholder: 'Search by payment number, reference, or party...',
     allPaymentTypes: 'All Types',
     allRelatedTypes: 'All Party Types',

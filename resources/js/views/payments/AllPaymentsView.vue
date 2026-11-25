@@ -1,29 +1,27 @@
 <template>
   <div class="space-y-4">
-    <!-- Page Header (Read-Only Monitoring — No Create Button) -->
+    <!-- Page Header -->
     <PageHeader :title="$t('allPayments.title')" :subtitle="$t('allPayments.subtitle')">
       <template #actions>
-        <router-link
-          to="/supplier-payments"
-          class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
-        >
-          <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
-          <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-        </router-link>
+        <div class="flex flex-wrap items-center gap-2">
+          <router-link
+            to="/supplier-payments"
+            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
+          >
+            <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
+            <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+          </router-link>
+          <button
+            type="button"
+            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-xs font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
+            @click="openCreateModal"
+          >
+            <Plus class="h-4 w-4" aria-hidden="true" />
+            <span>{{ $t('allPayments.create') }}</span>
+          </button>
+        </div>
       </template>
     </PageHeader>
-
-    <!-- Backend Unified Endpoint Notice -->
-    <div
-      class="flex items-start gap-3 rounded-2xl border border-[var(--gold)]/35 bg-[var(--gold-soft)] px-4 py-3.5 text-xs text-[var(--text)]"
-      role="status"
-    >
-      <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-strong)]" aria-hidden="true" />
-      <div>
-        <p class="font-bold text-[var(--gold-strong)]">{{ $t('allPayments.apiUnavailableTitle') }}</p>
-        <p class="mt-0.5 text-[var(--muted)]">{{ $t('allPayments.apiUnavailableDesc') }}</p>
-      </div>
-    </div>
 
     <!-- DataTable Card -->
     <DataTable
@@ -275,6 +273,14 @@
       </template>
     </DataTable>
 
+    <!-- Create Unified Payment Modal (Send / Receive / Transfer) -->
+    <SupplierPaymentFormModal
+      :open="formOpen"
+      :payment="null"
+      @close="formOpen = false"
+      @saved="onPaymentSaved"
+    />
+
     <!-- Shared Read-Only Details Modal -->
     <SupplierPaymentDetailModal
       :open="detailOpen"
@@ -286,20 +292,22 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, ExternalLink, Eye } from 'lucide-vue-next';
+import { ExternalLink, Eye, Plus } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SupplierPaymentDetailModal from '../purchases/SupplierPaymentDetailModal.vue';
+import SupplierPaymentFormModal from '../purchases/SupplierPaymentFormModal.vue';
 import api from '../../services/api';
+import { fetchPayments } from '../../services/paymentsApi';
 import { formatDateOnly } from '../../utils/date';
 import { createContactFetcher, createPaginatedFetcher } from '../../utils/selectFetchers';
 
-const { locale } = useI18n();
+const { t, locale } = useI18n();
 
 const payments = ref([]);
 const loading = ref(false);
@@ -319,6 +327,7 @@ const filters = ref({
   payment_date_to: '',
 });
 
+const formOpen = ref(false);
 const detailOpen = ref(false);
 const selectedPayment = ref(null);
 let searchTimer = null;
@@ -326,7 +335,7 @@ let searchTimer = null;
 const fetchContactOptions = createContactFetcher({ activeOnly: true });
 const fetchAccountOptions = createPaginatedFetcher(
   '/accounting/accounts',
-  () => ({ is_active: 1 }),
+  () => ({ is_active: 1, account_type_code: 'bank_cash' }),
   (acc) => ({
     value: acc.id,
     label: acc.code ? `${acc.code} — ${acc.name}` : acc.name,
@@ -369,11 +378,32 @@ const statusBadgeClass = (status) => {
   return 'bg-[var(--gold-soft)] text-[var(--gold-strong)]';
 };
 
-// Unified GET /api/payments endpoint is not yet implemented in Phase 7.
-// Do NOT call GET /api/supplier-payments to simulate unified results.
 const loadPayments = async (page = 1) => {
-  payments.value = [];
-  meta.value = { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const params = {
+      page,
+      per_page: perPage.value,
+      ...(filters.value.search.trim() ? { search: filters.value.search.trim() } : {}),
+      ...(filters.value.payment_type ? { payment_type: filters.value.payment_type } : {}),
+      ...(filters.value.related_type ? { related_type: filters.value.related_type } : {}),
+      ...(filters.value.status ? { status: filters.value.status } : {}),
+      ...(filters.value.contact_id ? { contact_id: filters.value.contact_id } : {}),
+      ...(filters.value.payment_method_id ? { payment_method_id: filters.value.payment_method_id } : {}),
+      ...(filters.value.account_id ? { account_id: filters.value.account_id } : {}),
+      ...(filters.value.payment_date_from ? { payment_date_from: filters.value.payment_date_from } : {}),
+      ...(filters.value.payment_date_to ? { payment_date_to: filters.value.payment_date_to } : {}),
+    };
+
+    const res = await fetchPayments(params);
+    payments.value = res.data?.data ?? [];
+    meta.value = res.data?.meta ?? { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
+  } catch (err) {
+    loadError.value = err.response?.data?.message || t('allPayments.loadError');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const debouncedSearch = () => {
@@ -401,8 +431,21 @@ const resetFilters = () => {
   loadPayments(1);
 };
 
+const openCreateModal = () => {
+  formOpen.value = true;
+};
+
+const onPaymentSaved = () => {
+  formOpen.value = false;
+  loadPayments(1);
+};
+
 const openDetailModal = (payment) => {
   selectedPayment.value = payment;
   detailOpen.value = true;
 };
+
+onMounted(() => {
+  loadPayments(1);
+});
 </script>

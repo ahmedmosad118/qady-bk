@@ -145,9 +145,17 @@
           <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.journal') }}</span>
           <span class="text-sm font-bold text-[var(--text)]">{{ detail.journal?.name || '—' }}</span>
         </div>
+        <div v-if="detail.payment_type === 'transfer' && detail.payment_method?.account">
+          <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.sourceAccount') }}</span>
+          <span class="text-sm font-bold text-[var(--text)]">
+            {{ detail.payment_method.account.code ? `${detail.payment_method.account.code} — ${detail.payment_method.account.name}` : detail.payment_method.account.name }}
+          </span>
+        </div>
         <div v-if="detail.account">
-          <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.account') }}</span>
-          <span class="text-sm font-bold text-[var(--text)]">{{ detail.account.name }}</span>
+          <span class="block text-xs text-[var(--muted)]">{{ detail.payment_type === 'transfer' ? $t('supplierPayments.destinationAccount') : $t('supplierPayments.account') }}</span>
+          <span class="text-sm font-bold text-[var(--text)]">
+            {{ detail.account.code ? `${detail.account.code} — ${detail.account.name}` : detail.account.name }}
+          </span>
         </div>
         <div>
           <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.reference') }}</span>
@@ -221,6 +229,30 @@
             <span class="font-mono font-bold text-[var(--text)]">{{ formatDateOnly(detail.journal_entry.entry_date) }}</span>
           </div>
         </div>
+        <div v-if="(detail.journal_entry.lines?.length ?? 0) > 0" class="mt-3 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+          <table class="w-full text-start text-xs">
+            <thead class="border-b border-[var(--border)] bg-[var(--bg)]/60 font-bold text-[var(--muted)]">
+              <tr>
+                <th class="px-3 py-2 text-start">{{ $t('supplierPayments.account') }}</th>
+                <th class="px-3 py-2 text-end">{{ $t('journalEntries.debit') }}</th>
+                <th class="px-3 py-2 text-end">{{ $t('journalEntries.credit') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border)]">
+              <tr v-for="line in detail.journal_entry.lines" :key="line.id">
+                <td class="px-3 py-2 font-semibold text-[var(--text)]">
+                  {{ line.account?.code ? `${line.account.code} — ${line.account.name}` : (line.account?.name || '—') }}
+                </td>
+                <td class="px-3 py-2 text-end font-mono font-bold text-[var(--text)]">
+                  {{ formatMoney(line.debit) }}
+                </td>
+                <td class="px-3 py-2 text-end font-mono font-bold text-[var(--text)]">
+                  {{ formatMoney(line.credit) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Audit Trail -->
@@ -250,7 +282,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Banknote, CheckCircle2, Info, Pencil, Trash2, X, XCircle } from 'lucide-vue-next';
 import AppModal from '../../components/ui/AppModal.vue';
-import { fetchSupplierPayment } from '../../services/supplierPaymentsApi';
+import { fetchPayment } from '../../services/paymentsApi';
 import { formatDateOnly, formatDateTime } from '../../utils/date';
 
 const props = defineProps({
@@ -299,7 +331,7 @@ const loadDetail = async () => {
   loading.value = true;
   loadError.value = '';
   try {
-    const res = await fetchSupplierPayment(props.payment.id);
+    const res = await fetchPayment(props.payment.id);
     detail.value = res.data?.data ?? null;
   } catch (err) {
     loadError.value = err.response?.data?.message || t('supplierPayments.loadOneError');

@@ -1,19 +1,7 @@
 <template>
   <div class="space-y-4">
-    <!-- Page Header (No Create Button — Customer Receipt creation is not supported yet) -->
+    <!-- Page Header (No Create Button) -->
     <PageHeader :title="$t('customerReceipts.title')" :subtitle="$t('customerReceipts.subtitle')" />
-
-    <!-- Backend Customer Receipts Endpoint Notice -->
-    <div
-      class="flex items-start gap-3 rounded-2xl border border-[var(--gold)]/35 bg-[var(--gold-soft)] px-4 py-3.5 text-xs text-[var(--text)]"
-      role="status"
-    >
-      <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-strong)]" aria-hidden="true" />
-      <div>
-        <p class="font-bold text-[var(--gold-strong)]">{{ $t('customerReceipts.apiUnavailableTitle') }}</p>
-        <p class="mt-0.5 text-[var(--muted)]">{{ $t('customerReceipts.apiUnavailableDesc') }}</p>
-      </div>
-    </div>
 
     <!-- DataTable Card -->
     <DataTable
@@ -131,8 +119,14 @@
       </template>
 
       <template #row="{ item: receipt }">
-        <td class="px-4 py-4 font-mono text-sm font-bold whitespace-nowrap text-[var(--text)]">
-          {{ receipt.payment_number }}
+        <td class="px-4 py-4 font-mono text-sm font-bold whitespace-nowrap">
+          <button
+            type="button"
+            class="text-[var(--text)] hover:text-[var(--crimson)] transition-colors cursor-pointer"
+            @click="openDetailModal(receipt)"
+          >
+            {{ receipt.payment_number }}
+          </button>
         </td>
 
         <td class="px-4 py-4 text-sm font-semibold text-[var(--text)]">
@@ -170,30 +164,98 @@
         </td>
 
         <td class="px-4 py-4 text-end">
-          <span class="text-xs text-[var(--muted)]">—</span>
+          <div class="inline-flex items-center justify-end gap-1">
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+              :title="$t('supplierPayments.view')"
+              @click="openDetailModal(receipt)"
+            >
+              <Eye class="h-4 w-4" />
+            </button>
+            <template v-if="receipt.status === 'draft'">
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                :title="$t('supplierPayments.edit')"
+                @click="openEditModal(receipt)"
+              >
+                <Pencil class="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--success)] hover:bg-[var(--success-soft)] cursor-pointer"
+                :title="$t('supplierPayments.post')"
+                @click="handlePost(receipt)"
+              >
+                <CheckCircle2 class="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--crimson)] hover:bg-[var(--crimson-soft)] cursor-pointer"
+                :title="$t('common.delete')"
+                @click="handleDelete(receipt)"
+              >
+                <Trash2 class="h-4 w-4" />
+              </button>
+            </template>
+          </div>
         </td>
       </template>
     </DataTable>
+
+    <!-- Edit Draft Customer Receipt Modal (Locked to Receive) -->
+    <SupplierPaymentFormModal
+      :open="formOpen"
+      :payment="editingReceipt"
+      locked-payment-type="receive"
+      @close="formOpen = false"
+      @saved="onReceiptSaved"
+    />
+
+    <!-- Details Modal -->
+    <SupplierPaymentDetailModal
+      :open="detailOpen"
+      :payment="selectedReceipt"
+      :action-loading="actionLoading"
+      @close="detailOpen = false"
+      @edit="onEditFromDetail"
+      @post="handlePost"
+      @cancel-payment="handleCancel"
+      @delete="handleDelete"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle } from 'lucide-vue-next';
+import { CheckCircle2, Eye, Pencil, Trash2 } from 'lucide-vue-next';
 import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
+import SupplierPaymentDetailModal from '../purchases/SupplierPaymentDetailModal.vue';
+import SupplierPaymentFormModal from '../purchases/SupplierPaymentFormModal.vue';
 import api from '../../services/api';
+import { confirmAction, confirmDelete } from '../../services/alert';
+import {
+  cancelPayment,
+  deletePayment,
+  fetchPayments,
+  postPayment,
+} from '../../services/paymentsApi';
+import { useNotificationStore } from '../../stores/notification';
 import { formatDateOnly } from '../../utils/date';
 import { createContactFetcher } from '../../utils/selectFetchers';
 
-const { locale } = useI18n();
+const { t, locale } = useI18n();
+const notificationStore = useNotificationStore();
 
 const receipts = ref([]);
 const loading = ref(false);
+const actionLoading = ref(false);
 const loadError = ref('');
 const perPage = ref(15);
 const meta = ref({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
@@ -207,6 +269,10 @@ const filters = ref({
   payment_date_to: '',
 });
 
+const formOpen = ref(false);
+const detailOpen = ref(false);
+const editingReceipt = ref(null);
+const selectedReceipt = ref(null);
 let searchTimer = null;
 
 const fetchCustomerOptions = createContactFetcher({ isCustomer: true, activeOnly: true });
@@ -243,11 +309,31 @@ const statusBadgeClass = (status) => {
   return 'bg-[var(--gold-soft)] text-[var(--gold-strong)]';
 };
 
-// Customer Receipts API (GET /api/customer-receipts) is not yet implemented in Phase 7.
-// Do NOT call GET /api/supplier-payments and filter locally.
 const loadReceipts = async (page = 1) => {
-  receipts.value = [];
-  meta.value = { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const params = {
+      page,
+      per_page: perPage.value,
+      payment_type: 'receive',
+      related_type: 'customer',
+      ...(filters.value.search.trim() ? { search: filters.value.search.trim() } : {}),
+      ...(filters.value.status ? { status: filters.value.status } : {}),
+      ...(filters.value.contact_id ? { contact_id: filters.value.contact_id } : {}),
+      ...(filters.value.payment_method_id ? { payment_method_id: filters.value.payment_method_id } : {}),
+      ...(filters.value.payment_date_from ? { payment_date_from: filters.value.payment_date_from } : {}),
+      ...(filters.value.payment_date_to ? { payment_date_to: filters.value.payment_date_to } : {}),
+    };
+
+    const res = await fetchPayments(params);
+    receipts.value = res.data?.data ?? [];
+    meta.value = res.data?.meta ?? { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
+  } catch (err) {
+    loadError.value = err.response?.data?.message || t('customerReceipts.loadError');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const debouncedSearch = () => {
@@ -271,4 +357,101 @@ const resetFilters = () => {
   };
   loadReceipts(1);
 };
+
+const openEditModal = (receipt) => {
+  editingReceipt.value = receipt;
+  formOpen.value = true;
+};
+
+const openDetailModal = (receipt) => {
+  selectedReceipt.value = receipt;
+  detailOpen.value = true;
+};
+
+const onEditFromDetail = (receipt) => {
+  detailOpen.value = false;
+  openEditModal(receipt);
+};
+
+const onReceiptSaved = (saved) => {
+  loadReceipts(meta.value.current_page || 1);
+  if (detailOpen.value && saved?.id === selectedReceipt.value?.id) {
+    selectedReceipt.value = saved;
+  }
+};
+
+const handlePost = async (receipt) => {
+  const confirmed = await confirmAction({
+    title: t('supplierPayments.confirmPostTitle'),
+    text: t('supplierPayments.confirmPostDesc', { number: receipt.payment_number }),
+    confirmText: t('supplierPayments.post'),
+  });
+  if (!confirmed) return;
+
+  actionLoading.value = true;
+  try {
+    const res = await postPayment(receipt.id);
+    notificationStore.success(t('supplierPayments.postedSuccess'));
+    const updated = res.data?.data;
+    if (detailOpen.value && updated) {
+      selectedReceipt.value = updated;
+    }
+    loadReceipts(meta.value.current_page || 1);
+  } catch (err) {
+    notificationStore.error(err.response?.data?.message || t('common.genericError'));
+  } finally {
+    actionLoading.value = false;
+  }
+};
+
+const handleCancel = async (receipt) => {
+  const confirmed = await confirmAction({
+    title: t('supplierPayments.confirmCancelTitle'),
+    text: t('supplierPayments.confirmCancelDesc', { number: receipt.payment_number }),
+    confirmText: t('supplierPayments.cancelPayment'),
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  actionLoading.value = true;
+  try {
+    const res = await cancelPayment(receipt.id);
+    notificationStore.success(t('supplierPayments.cancelledSuccess'));
+    const updated = res.data?.data;
+    if (detailOpen.value && updated) {
+      selectedReceipt.value = updated;
+    }
+    loadReceipts(meta.value.current_page || 1);
+  } catch (err) {
+    notificationStore.error(err.response?.data?.message || t('common.genericError'));
+  } finally {
+    actionLoading.value = false;
+  }
+};
+
+const handleDelete = async (receipt) => {
+  const confirmed = await confirmDelete({
+    title: t('supplierPayments.confirmDeleteTitle'),
+    text: t('supplierPayments.confirmDeleteDesc', { number: receipt.payment_number }),
+  });
+  if (!confirmed) return;
+
+  actionLoading.value = true;
+  try {
+    await deletePayment(receipt.id);
+    notificationStore.success(t('supplierPayments.deletedSuccess'));
+    if (detailOpen.value && selectedReceipt.value?.id === receipt.id) {
+      detailOpen.value = false;
+    }
+    loadReceipts(meta.value.current_page || 1);
+  } catch (err) {
+    notificationStore.error(err.response?.data?.message || t('common.genericError'));
+  } finally {
+    actionLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  loadReceipts(1);
+});
 </script>

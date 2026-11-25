@@ -255,6 +255,7 @@
     <SupplierPaymentFormModal
       :open="formOpen"
       :payment="editingPayment"
+      locked-payment-type="send"
       @close="formOpen = false"
       @saved="onPaymentSaved"
     />
