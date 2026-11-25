@@ -192,6 +192,7 @@ class SyncPurchaseInvoiceJournalEntry
             'journal_id' => $context['journal_id'],
             'fiscal_year_id' => $context['fiscal_year_id'],
             'accounting_period_id' => $context['accounting_period_id'],
+            'contact_id' => $invoice->supplier_id,
             'entry_date' => $entryDate,
             'reference' => $invoice->invoice_number,
             'description' => (string) __('accounting.labels.purchase_invoice_entry_description', ['number' => $invoice->invoice_number]),

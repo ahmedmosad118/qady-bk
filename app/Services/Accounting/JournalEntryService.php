@@ -10,6 +10,7 @@ use App\Enums\Accounting\JournalEntryStatus;
 use App\Enums\Accounting\JournalType;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
+use App\Models\Contact;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
@@ -57,6 +58,7 @@ class JournalEntryService
                 'journal:id,code,name,type',
                 'fiscalYear:id,code,name',
                 'accountingPeriod:id,fiscal_year_id,name,period_number',
+                'contact:id,name',
                 'createdBy:id,name',
                 'postedBy:id,name',
             ])
@@ -88,6 +90,7 @@ class JournalEntryService
             'journal:id,code,name,type',
             'fiscalYear:id,code,name,start_date,end_date,status',
             'accountingPeriod:id,fiscal_year_id,name,period_number,start_date,end_date,status',
+            'contact:id,name',
             'createdBy:id,name',
             'postedBy:id,name',
             'lines' => static fn ($q) => $q->orderBy('line_number'),
@@ -185,6 +188,7 @@ class JournalEntryService
             );
 
             $preparedLines = $this->validateAndPrepareLines($data['lines'] ?? []);
+            $contactId = $this->resolveOptionalContactId($data['contact_id'] ?? null);
             $year = Carbon::parse($entryDate)->format('Y');
             $entryNumber = $this->sequenceGenerator->next(
                 JournalEntry::class,
@@ -199,6 +203,7 @@ class JournalEntryService
                 'journal_id' => (int) $data['journal_id'],
                 'fiscal_year_id' => (int) $data['fiscal_year_id'],
                 'accounting_period_id' => (int) $data['accounting_period_id'],
+                'contact_id' => $contactId,
                 'entry_number' => $entryNumber,
                 'entry_date' => $entryDate,
                 'reference' => isset($data['reference']) && $data['reference'] !== '' ? (string) $data['reference'] : null,
@@ -353,11 +358,13 @@ class JournalEntryService
             );
 
             $preparedLines = $this->validateAndPrepareLines($data['lines'] ?? []);
+            $contactId = $this->resolveOptionalContactId($data['contact_id'] ?? null);
 
             $locked->update([
                 'journal_id' => (int) $data['journal_id'],
                 'fiscal_year_id' => (int) $data['fiscal_year_id'],
                 'accounting_period_id' => (int) $data['accounting_period_id'],
+                'contact_id' => $contactId,
                 'entry_date' => $entryDate,
                 'reference' => isset($data['reference']) && $data['reference'] !== '' ? (string) $data['reference'] : null,
                 'description' => isset($data['description']) && $data['description'] !== '' ? (string) $data['description'] : null,
@@ -451,11 +458,15 @@ class JournalEntryService
             );
 
             $preparedLines = $this->validateAndPrepareLines($data['lines'] ?? []);
+            $contactId = array_key_exists('contact_id', $data)
+                ? $this->resolveOptionalContactId($data['contact_id'])
+                : $locked->contact_id;
 
             $locked->update([
                 'journal_id' => (int) $data['journal_id'],
                 'fiscal_year_id' => (int) $data['fiscal_year_id'],
                 'accounting_period_id' => (int) $data['accounting_period_id'],
+                'contact_id' => $contactId,
                 'entry_date' => $entryDate,
                 'reference' => isset($data['reference']) && $data['reference'] !== '' ? (string) $data['reference'] : null,
                 'description' => isset($data['description']) && $data['description'] !== '' ? (string) $data['description'] : null,
@@ -580,6 +591,29 @@ class JournalEntryService
                 'source' => [(string) __('accounting.errors.journal_entry_missing_for_source')],
             ]);
         }
+    }
+
+    private function resolveOptionalContactId(mixed $rawContactId): ?int
+    {
+        if ($rawContactId === null || $rawContactId === '') {
+            return null;
+        }
+
+        $validated = is_bool($rawContactId) ? false : filter_var($rawContactId, FILTER_VALIDATE_INT);
+        if ($validated === false || (int) $validated <= 0) {
+            throw ValidationException::withMessages([
+                'contact_id' => [(string) __('validation.exists', ['attribute' => 'contact_id'])],
+            ]);
+        }
+
+        $contactId = (int) $validated;
+        if (! Contact::query()->whereKey($contactId)->exists()) {
+            throw ValidationException::withMessages([
+                'contact_id' => [(string) __('validation.exists', ['attribute' => 'contact_id'])],
+            ]);
+        }
+
+        return $contactId;
     }
 
     /**

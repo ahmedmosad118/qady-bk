@@ -55,6 +55,7 @@ class UpdateJournalEntryRequest extends FormRequest
             'journal_id' => ['required', 'integer', 'exists:journals,id'],
             'fiscal_year_id' => ['required', 'integer', 'exists:fiscal_years,id'],
             'accounting_period_id' => ['required', 'integer', 'exists:accounting_periods,id'],
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->whereNull('deleted_at')],
             'entry_date' => ['required', 'date'],
             'reference' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],

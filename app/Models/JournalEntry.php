@@ -17,6 +17,7 @@ use Spatie\Activitylog\LogOptions;
     'journal_id',
     'fiscal_year_id',
     'accounting_period_id',
+    'contact_id',
     'entry_number',
     'entry_date',
     'reference',
@@ -57,6 +58,7 @@ class JournalEntry extends Model
             'journal_id' => 'integer',
             'fiscal_year_id' => 'integer',
             'accounting_period_id' => 'integer',
+            'contact_id' => 'integer',
             'entry_date' => 'date',
             'source_id' => 'integer',
             'status' => JournalEntryStatus::class,
@@ -88,6 +90,14 @@ class JournalEntry extends Model
     public function accountingPeriod(): BelongsTo
     {
         return $this->belongsTo(AccountingPeriod::class, 'accounting_period_id');
+    }
+
+    /**
+     * Optional contact (supplier/customer) associated with this entry.
+     */
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class, 'contact_id');
     }
 
     /**
