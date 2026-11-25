@@ -25,9 +25,11 @@ class StorePaymentRequest extends FormRequest
     {
         $merged = [];
 
-        $paymentType = (string) $this->input('payment_type', PaymentType::SEND->value);
         if (! $this->has('payment_type')) {
+            $paymentType = PaymentType::SEND->value;
             $merged['payment_type'] = $paymentType;
+        } else {
+            $paymentType = (string) $this->input('payment_type');
         }
 
         if (! $this->has('related_type')) {
@@ -40,15 +42,16 @@ class StorePaymentRequest extends FormRequest
             $merged['related_type'] = null;
         }
 
-        if ($paymentType === PaymentType::TRANSFER->value) {
-            $merged['related_type'] = null;
+        if ($this->has('contact_id') && $this->input('contact_id') === '') {
             $merged['contact_id'] = null;
-            $merged['allocations'] = [];
-        } else {
+        }
+
+        if ($this->has('account_id') && $this->input('account_id') === '') {
             $merged['account_id'] = null;
-            if (! $this->has('allocations') || $this->input('allocations') === null) {
-                $merged['allocations'] = [];
-            }
+        }
+
+        if (! $this->has('allocations') || $this->input('allocations') === null) {
+            $merged['allocations'] = [];
         }
 
         if ($this->has('reference') && is_string($this->input('reference'))) {
@@ -70,6 +73,16 @@ class StorePaymentRequest extends FormRequest
     public function rules(): array
     {
         $paymentType = (string) $this->input('payment_type', '');
+        $isTransfer = $paymentType === PaymentType::TRANSFER->value;
+        $isSend = $paymentType === PaymentType::SEND->value;
+
+        $mustBeNullClosure = static function (string $errorKey): Closure {
+            return static function (string $attribute, mixed $value, Closure $fail) use ($errorKey): void {
+                if ($value !== null && $value !== '') {
+                    $fail((string) __($errorKey));
+                }
+            };
+        };
 
         $rules = [
             'payment_type' => [
@@ -81,36 +94,36 @@ class StorePaymentRequest extends FormRequest
                     PaymentType::TRANSFER->value,
                 ]),
             ],
-            'related_type' => $paymentType === PaymentType::TRANSFER->value
-                ? ['nullable', Rule::in([null])]
+            'related_type' => $isTransfer
+                ? ['nullable', $mustBeNullClosure('payments.errors.transfer_related_must_be_null')]
                 : [
                     'required',
                     'string',
                     Rule::in([
-                        $paymentType === PaymentType::SEND->value
+                        $isSend
                             ? PaymentRelatedType::SUPPLIER->value
                             : PaymentRelatedType::CUSTOMER->value,
                     ]),
                 ],
-            'contact_id' => $paymentType === PaymentType::TRANSFER->value
-                ? ['nullable']
+            'contact_id' => $isTransfer
+                ? ['nullable', $mustBeNullClosure('payments.errors.transfer_related_must_be_null')]
                 : [
                     'required',
                     'integer',
-                    Rule::exists('contacts', 'id')->where(function ($q) use ($paymentType): void {
+                    Rule::exists('contacts', 'id')->where(function ($q) use ($isSend): void {
                         $q->where('is_active', true)->whereNull('deleted_at');
-                        if ($paymentType === PaymentType::SEND->value) {
+                        if ($isSend) {
                             $q->where('is_supplier', true);
                         } else {
                             $q->where('is_customer', true);
                         }
                     }),
                 ],
-            'account_id' => $paymentType === PaymentType::TRANSFER->value
+            'account_id' => $isTransfer
                 ? [
                     'required',
                     'integer',
-                    static function (string $attribute, mixed $value, Closure $fail): void {
+                    function (string $attribute, mixed $value, Closure $fail): void {
                         if (! is_numeric($value)) {
                             return;
                         }
@@ -121,10 +134,20 @@ class StorePaymentRequest extends FormRequest
 
                         if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::BankCash->value) {
                             $fail((string) __('payments.errors.transfer_account_invalid'));
+
+                            return;
+                        }
+
+                        $paymentMethodId = $this->input('payment_method_id');
+                        if (is_numeric($paymentMethodId)) {
+                            $method = PaymentMethod::query()->find((int) $paymentMethodId);
+                            if ($method && (int) $method->account_id === (int) $value) {
+                                $fail((string) __('payments.errors.transfer_same_account'));
+                            }
                         }
                     },
                 ]
-                : ['nullable'],
+                : ['nullable', $mustBeNullClosure('payments.errors.account_id_must_be_null')],
             'payment_method_id' => [
                 'required',
                 'integer',
@@ -159,15 +182,15 @@ class StorePaymentRequest extends FormRequest
             'allocations' => ['nullable', 'array'],
         ];
 
-        if ($paymentType === PaymentType::SEND->value) {
+        if ($isSend) {
             $rules['allocations.*.purchase_invoice_id'] = ['required', 'integer', 'distinct', 'exists:purchase_invoices,id'];
             $rules['allocations.*.allocated_amount'] = ['required', 'numeric', 'gt:0'];
         } else {
-            $rules['allocations'][] = static function (string $attribute, mixed $value, Closure $fail) use ($paymentType): void {
+            $rules['allocations'][] = static function (string $attribute, mixed $value, Closure $fail) use ($isTransfer): void {
                 if (is_array($value) && $value !== []) {
-                    $key = $paymentType === PaymentType::RECEIVE->value
-                        ? 'payments.errors.customer_allocations_not_supported'
-                        : 'payments.errors.transfer_allocations_not_supported';
+                    $key = $isTransfer
+                        ? 'payments.errors.transfer_allocations_not_supported'
+                        : 'payments.errors.customer_allocations_not_supported';
                     $fail((string) __($key));
                 }
             };

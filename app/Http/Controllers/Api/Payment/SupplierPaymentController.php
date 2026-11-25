@@ -12,6 +12,7 @@ use App\Http\Requests\Payment\StoreSupplierPaymentRequest;
 use App\Http\Requests\Payment\UpdateSupplierPaymentRequest;
 use App\Http\Resources\Payment\SupplierPaymentResource;
 use App\Models\Payment;
+use App\Services\Payment\PaymentService;
 use App\Services\Payment\SupplierPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class SupplierPaymentController extends Controller
 {
     public function __construct(
         protected SupplierPaymentService $supplierPaymentService,
+        protected PaymentService $paymentService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -106,7 +108,7 @@ class SupplierPaymentController extends Controller
     {
         $this->assertSupplierPayment($payment);
 
-        $cancelled = $this->supplierPaymentService->cancel($payment, $request->user());
+        $cancelled = $this->paymentService->cancel($payment, $request->user());
 
         return response()->json([
             'success' => true,
@@ -119,7 +121,7 @@ class SupplierPaymentController extends Controller
     {
         $this->assertSupplierPayment($payment);
 
-        $this->supplierPaymentService->delete($payment);
+        $this->paymentService->delete($payment);
 
         return response()->json([
             'success' => true,

@@ -476,4 +476,225 @@ class PaymentApiTest extends TestCase
         $this->assertContains(JournalType::Cash->value, $types);
         $this->assertContains(JournalType::Bank->value, $types);
     }
+
+    public function test_customer_receipt_posting_uses_default_accounts_receivable_when_customer_has_no_custom_account(): void
+    {
+        $customer = $this->createCustomer('عميل بدون حساب مخصص', null);
+
+        $createRes = $this->postJson('/api/payments', [
+            'payment_type' => 'receive',
+            'related_type' => 'customer',
+            'contact_id' => $customer->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '325.00',
+            'allocations' => [],
+        ])->assertCreated();
+
+        $paymentId = (int) $createRes->json('data.id');
+        $jeId = (int) $createRes->json('data.journal_entry.id');
+        $this->assertGreaterThan(0, $jeId);
+        $this->assertSame(JournalEntryStatus::Draft->value, $createRes->json('data.journal_entry.status'));
+
+        $this->postJson("/api/payments/{$paymentId}/post")
+            ->assertOk()
+            ->assertJsonPath('data.status', PaymentStatus::POSTED->value);
+
+        $entry = JournalEntry::query()->with('lines')->findOrFail($jeId);
+        $this->assertSame(JournalEntryStatus::Posted, $entry->status);
+        $this->assertSame($customer->id, $entry->contact_id);
+
+        $debitLine = $entry->lines->firstWhere('debit', '325.00');
+        $creditLine = $entry->lines->firstWhere('credit', '325.00');
+        $this->assertNotNull($debitLine);
+        $this->assertNotNull($creditLine);
+        $this->assertSame($this->sourceBankCashAccount->id, $debitLine->account_id);
+        $this->assertSame($this->receivableAccount->id, $creditLine->account_id);
+        $this->assertSame('325.00', $debitLine->debit);
+        $this->assertSame('325.00', $creditLine->credit);
+    }
+
+    public function test_invalid_transfer_payload_rejects_contact_related_type_and_allocations(): void
+    {
+        $supplier = $this->createSupplier();
+        $invoice = $this->createPostedPurchaseInvoice($supplier, 150.00);
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'transfer',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => $this->destinationBankCashAccount->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->bankJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '150.00',
+            'allocations' => [
+                ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '150.00'],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['related_type', 'contact_id', 'allocations']);
+
+        $this->assertDatabaseCount('payments', 0);
+        // Only the posted Purchase Invoice's own Journal Entry exists
+        $this->assertDatabaseMissing('journal_entries', ['source_type' => Payment::class]);
+    }
+
+    public function test_send_and_receive_reject_non_null_account_id(): void
+    {
+        $supplier = $this->createSupplier();
+        $customer = $this->createCustomer();
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => $this->destinationBankCashAccount->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '100.00',
+            'allocations' => [],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['account_id']);
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'receive',
+            'related_type' => 'customer',
+            'contact_id' => $customer->id,
+            'account_id' => $this->destinationBankCashAccount->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '100.00',
+            'allocations' => [],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['account_id']);
+
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_valid_null_and_empty_values_are_accepted(): void
+    {
+        $supplier = $this->createSupplier();
+        $customer = $this->createCustomer();
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'transfer',
+            'related_type' => null,
+            'contact_id' => null,
+            'account_id' => $this->destinationBankCashAccount->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->bankJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '100.00',
+            'allocations' => [],
+        ])->assertCreated();
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'receive',
+            'related_type' => 'customer',
+            'contact_id' => $customer->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '100.00',
+            'allocations' => [],
+        ])->assertCreated();
+
+        $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '100.00',
+            'allocations' => [],
+        ])->assertCreated();
+    }
+
+    public function test_generic_cancel_and_delete_for_all_payment_types_and_immutability(): void
+    {
+        $supplier = $this->createSupplier();
+        $invoice = $this->createPostedPurchaseInvoice($supplier, 180.00);
+
+        // Supplier payment with allocation: cancel preserves allocation & removes Draft JE
+        $supCancel = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '180.00',
+            'allocations' => [
+                ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '180.00'],
+            ],
+        ])->assertCreated();
+
+        $supCancelId = (int) $supCancel->json('data.id');
+        $supCancelJeId = (int) $supCancel->json('data.journal_entry.id');
+
+        $this->postJson("/api/payments/{$supCancelId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', PaymentStatus::CANCELLED->value);
+
+        $this->assertDatabaseMissing('journal_entries', ['id' => $supCancelJeId]);
+        $this->assertDatabaseHas('payment_allocations', ['payment_id' => $supCancelId]);
+
+        // Cancelled payment is immutable
+        $this->putJson("/api/payments/{$supCancelId}", [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '180.00',
+        ])->assertStatus(422);
+        $this->deleteJson("/api/payments/{$supCancelId}")->assertStatus(422);
+
+        // Supplier payment with allocation: delete removes payment, allocation, and Draft JE
+        $supDelete = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '180.00',
+            'allocations' => [
+                ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '180.00'],
+            ],
+        ])->assertCreated();
+
+        $supDeleteId = (int) $supDelete->json('data.id');
+        $supDeleteJeId = (int) $supDelete->json('data.journal_entry.id');
+
+        $this->deleteJson("/api/payments/{$supDeleteId}")->assertOk();
+        $this->assertDatabaseMissing('payments', ['id' => $supDeleteId]);
+        $this->assertDatabaseMissing('payment_allocations', ['payment_id' => $supDeleteId]);
+        $this->assertDatabaseMissing('journal_entries', ['id' => $supDeleteJeId]);
+
+        // Posted payment cannot be cancelled
+        $transfer = $this->postJson('/api/payments', [
+            'payment_type' => 'transfer',
+            'account_id' => $this->destinationBankCashAccount->id,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->bankJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '75.00',
+        ])->assertCreated();
+
+        $transferId = (int) $transfer->json('data.id');
+        $this->postJson("/api/payments/{$transferId}/post")->assertOk();
+        $this->postJson("/api/payments/{$transferId}/cancel")->assertStatus(422);
+    }
 }

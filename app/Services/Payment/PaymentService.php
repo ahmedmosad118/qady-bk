@@ -9,7 +9,9 @@ use App\Enums\Accounting\JournalType;
 use App\Enums\Payment\PaymentRelatedType;
 use App\Enums\Payment\PaymentStatus;
 use App\Enums\Payment\PaymentType;
+use App\Events\Payment\PaymentCancelled;
 use App\Events\Payment\PaymentCreated;
+use App\Events\Payment\PaymentDeleted;
 use App\Events\Payment\PaymentPosted;
 use App\Events\Payment\PaymentUpdated;
 use App\Models\Account;
@@ -291,13 +293,37 @@ class PaymentService
     }
 
     /**
-     * Cancel a Draft Payment and delete its linked Draft Journal Entry.
+     * Cancel a Draft Payment, delete its linked Draft Journal Entry, and preserve allocation history.
      */
     public function cancel(Payment $payment, User $user): Payment
     {
-        $cancelled = $this->supplierPaymentService->cancel($payment, $user);
+        return DB::transaction(function () use ($payment, $user): Payment {
+            /** @var Payment $lockedPayment */
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
 
-        return $this->loadPaymentRelations($cancelled->id);
+            $this->resolveClassification([
+                'payment_type' => $lockedPayment->payment_type?->value,
+                'related_type' => $lockedPayment->related_type?->value,
+                'contact_id' => $lockedPayment->contact_id,
+                'account_id' => $lockedPayment->account_id,
+            ]);
+
+            if ($lockedPayment->status !== PaymentStatus::DRAFT) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('payments.errors.only_draft_can_be_cancelled')],
+                ]);
+            }
+
+            $lockedPayment->update([
+                'status' => PaymentStatus::CANCELLED,
+                'cancelled_by' => $user->id,
+                'cancelled_at' => now(),
+            ]);
+
+            PaymentCancelled::dispatch($lockedPayment, $user);
+
+            return $this->loadPaymentRelations($lockedPayment->id);
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -305,7 +331,29 @@ class PaymentService
      */
     public function delete(Payment $payment): bool
     {
-        return $this->supplierPaymentService->delete($payment);
+        return DB::transaction(function () use ($payment): bool {
+            /** @var Payment $lockedPayment */
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+
+            $this->resolveClassification([
+                'payment_type' => $lockedPayment->payment_type?->value,
+                'related_type' => $lockedPayment->related_type?->value,
+                'contact_id' => $lockedPayment->contact_id,
+                'account_id' => $lockedPayment->account_id,
+            ]);
+
+            if ($lockedPayment->status !== PaymentStatus::DRAFT) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('payments.errors.only_draft_can_be_deleted')],
+                ]);
+            }
+
+            PaymentDeleted::dispatch($lockedPayment);
+
+            $lockedPayment->allocations()->delete();
+
+            return (bool) $lockedPayment->delete();
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
