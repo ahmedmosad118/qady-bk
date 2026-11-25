@@ -45,6 +45,11 @@ class AccountingSettingRegistry
                 'account_type' => AccountTypeCode::Payable,
                 'required' => false,
             ],
+            'additional_expenses_account_id' => [
+                'key' => 'additional_expenses_account_id',
+                'account_type' => AccountTypeCode::Expenses,
+                'required' => false,
+            ],
         ];
     }
 

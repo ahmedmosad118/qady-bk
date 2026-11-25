@@ -89,7 +89,7 @@
           </div>
 
           <!-- Top Metadata Grid -->
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="grid grid-cols-1 gap-4" :class="isInvoice ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'">
             <!-- Supplier -->
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
@@ -107,6 +107,26 @@
               />
               <p v-if="errors.supplier_id" class="mt-1 text-xs text-[var(--crimson)]">
                 {{ errors.supplier_id[0] }}
+              </p>
+            </div>
+
+            <!-- Purchase Journal (Invoice only) -->
+            <div v-if="isInvoice">
+              <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
+                {{ $t('purchaseInvoices.journal') }} <span class="text-[var(--crimson)]">*</span>
+              </label>
+              <SearchableSelect
+                v-model="form.journal_id"
+                :fetch-options="fetchJournalOptions"
+                :selected-option-data="selectedJournalOption"
+                :paginate="10"
+                :placeholder="$t('purchaseInvoices.selectJournal')"
+                :clearable="false"
+                :disabled="isEdit && props.document?.status === 'posted'"
+                @change="(_, opt) => { if (opt) selectedJournalOption = opt; }"
+              />
+              <p v-if="errors.journal_id" class="mt-1 text-xs text-[var(--crimson)]">
+                {{ errors.journal_id[0] }}
               </p>
             </div>
 
@@ -686,6 +706,7 @@ const todayStr = () => new Date().toISOString().substring(0, 10);
 const form = reactive({
   purchase_order_id: null,
   supplier_id: null,
+  journal_id: null,
   primary_date: todayStr(),
   secondary_date: todayStr(),
   notes: '',
@@ -706,9 +727,18 @@ const secondaryDateError = computed(() =>
 );
 
 const selectedSupplierOption = ref(null);
+const selectedJournalOption = ref(null);
 const selectedPurchaseOrderOption = ref(null);
 
 const fetchSupplierOptions = createContactFetcher({ isSupplier: true });
+const fetchJournalOptions = createPaginatedFetcher(
+  '/accounting/journals',
+  () => ({ type: 'Purchase', is_active: 1 }),
+  (journal) => ({
+    value: journal.id,
+    label: `${journal.code} — ${journal.name}`,
+  })
+);
 const fetchProductOptions = createProductFetcher({ activeOnly: true });
 const fetchPurchaseOrderOptions = createPaginatedFetcher(
   '/purchase-orders',
@@ -910,6 +940,10 @@ function initForm() {
       selectedPurchaseOrderOption.value = doc.purchase_order
         ? { value: doc.purchase_order_id, label: `${doc.purchase_order.order_number} (${doc.supplier?.name || '—'})` }
         : null;
+      form.journal_id = doc.journal_id || null;
+      selectedJournalOption.value = doc.journal
+        ? { value: doc.journal.id, label: `${doc.journal.code} — ${doc.journal.name}` }
+        : null;
       form.primary_date = doc.invoice_date ? String(doc.invoice_date).substring(0, 10) : todayStr();
       form.secondary_date = doc.due_date ? String(doc.due_date).substring(0, 10) : form.primary_date;
       secondaryDateTouched.value = true;
@@ -953,6 +987,11 @@ function initForm() {
     selectedPurchaseOrderOption.value = null;
     form.supplier_id = null;
     selectedSupplierOption.value = null;
+    form.journal_id = null;
+    selectedJournalOption.value = null;
+    if (isInvoice.value) {
+      loadDefaultPurchaseJournal();
+    }
     const today = todayStr();
     form.primary_date = today;
     form.secondary_date = isInvoice.value ? today : null;
@@ -961,6 +1000,28 @@ function initForm() {
     form.discount_value = 0;
     form.items = [{ product_id: null, quantity: 1, unit_price: null, discount_type: 'percentage', discount_value: 0 }];
     form.expenses = [];
+  }
+}
+
+async function loadDefaultPurchaseJournal() {
+  try {
+    const res = await api.get('/settings/accounting');
+    const data = res.data?.data;
+    const defaultId = data?.default_purchase_journal_id;
+    if (!defaultId || form.journal_id !== null || isEdit.value) {
+      return;
+    }
+
+    const match = (data?.purchase_journals || []).find((j) => Number(j.id) === Number(defaultId));
+    if (match) {
+      form.journal_id = match.id;
+      selectedJournalOption.value = {
+        value: match.id,
+        label: `${match.code} — ${match.name}`,
+      };
+    }
+  } catch {
+    // Allow manual journal selection if settings lookup fails.
   }
 }
 
@@ -1008,6 +1069,7 @@ async function submitForm() {
   const payload = isInvoice.value
     ? {
         supplier_id: form.supplier_id,
+        journal_id: form.journal_id,
         invoice_date: form.primary_date,
         due_date: form.secondary_date || form.primary_date,
         notes: form.notes || null,

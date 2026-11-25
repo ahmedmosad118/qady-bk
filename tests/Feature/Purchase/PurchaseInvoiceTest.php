@@ -4,24 +4,33 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Purchase;
 
+use App\Enums\Accounting\AccountingPeriodStatus;
+use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\DiscountType;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Enums\PurchaseOrderStatus;
+use App\Models\Account;
+use App\Models\AccountingPeriod;
 use App\Models\Contact;
+use App\Models\FiscalYear;
 use App\Models\InventoryDocument;
+use App\Models\Journal;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceExpense;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseOrder;
+use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Services\Accounting\AccountingSettingRegistry;
 use App\Services\InventoryDocumentService;
 use App\Services\InventoryDocumentWorkflowService;
+use Database\Seeders\AccountingSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -36,14 +45,57 @@ class PurchaseInvoiceTest extends TestCase
 
     private Warehouse $defaultWarehouse;
 
+    private Journal $purchaseJournal;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->user = $this->actingAsSuperAdmin();
 
-        $this->seed(WarehouseSeeder::class);
+        $this->seed([WarehouseSeeder::class, AccountingSeeder::class]);
         $this->defaultWarehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+        $this->purchaseJournal = Journal::query()->where('code', 'PUR')->firstOrFail();
+
+        $fy2025 = FiscalYear::query()->create([
+            'code' => 'FY-2025',
+            'name' => '2025',
+            'start_date' => '2025-01-01',
+            'end_date' => '2025-12-31',
+            'status' => FiscalYearStatus::Open->value,
+        ]);
+
+        AccountingPeriod::query()->create([
+            'fiscal_year_id' => $fy2025->id,
+            'name' => '2025',
+            'period_number' => 1,
+            'start_date' => '2025-01-01',
+            'end_date' => '2025-12-31',
+            'status' => FiscalYearStatus::Open->value,
+        ]);
+
+        $fy = FiscalYear::query()->create([
+            'code' => 'FY-2026',
+            'name' => '2026',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => FiscalYearStatus::Open->value,
+        ]);
+
+        AccountingPeriod::query()->create([
+            'fiscal_year_id' => $fy->id,
+            'name' => '2026',
+            'period_number' => 1,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => AccountingPeriodStatus::Open->value,
+        ]);
+
+        $payable = Account::query()->where('code', '2101')->firstOrFail();
+        Setting::query()->create([
+            'type' => AccountingSettingRegistry::SETTING_TYPE,
+            'data' => ['accounts_payable' => $payable->id],
+        ]);
     }
 
     private function createSupplier(string $name = 'Al-Shorouk Press'): Contact
@@ -89,6 +141,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $payload = [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'notes' => 'Direct cash purchase',
@@ -168,7 +221,9 @@ class PurchaseInvoiceTest extends TestCase
         ]);
 
         // Reject creating invoice from draft PO
-        $this->postJson("/api/purchase-invoices/from-purchase-order/{$draftOrder->id}")
+        $this->postJson("/api/purchase-invoices/from-purchase-order/{$draftOrder->id}", [
+            'journal_id' => $this->purchaseJournal->id,
+        ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['purchase_order_id']);
 
@@ -214,6 +269,7 @@ class PurchaseInvoiceTest extends TestCase
         // Invoice discount = 10% of 350 = 35.00
         // Total = 400 - 50 - 35 = 315.00
         $res = $this->postJson("/api/purchase-invoices/from-purchase-order/{$confirmedOrder->id}", [
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => '2026-11-16',
             'due_date' => '2026-11-30',
         ]);
@@ -236,6 +292,7 @@ class PurchaseInvoiceTest extends TestCase
         // Cannot create a second active invoice from the same PO
         $this->postJson('/api/purchase-invoices', [
             'purchase_order_id' => $confirmedOrder->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => '2026-11-16',
             'due_date' => '2026-11-16',
         ])->assertUnprocessable()
@@ -244,6 +301,7 @@ class PurchaseInvoiceTest extends TestCase
         // Also test creating via POST /api/purchase-invoices with purchase_order_id directly
         $res2 = $this->postJson('/api/purchase-invoices', [
             'purchase_order_id' => $draftOrder->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => '2026-11-16',
             'due_date' => '2026-11-16',
         ]);
@@ -269,6 +327,7 @@ class PurchaseInvoiceTest extends TestCase
         // Final Total = 400.00 - 50.00 - 35.00 + 55.50 = 370.50
         $res = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'discount_type' => 'percentage',
@@ -322,6 +381,7 @@ class PurchaseInvoiceTest extends TestCase
         // Same supplier can have another invoice on the same date
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -339,6 +399,7 @@ class PurchaseInvoiceTest extends TestCase
         // Item fixed discount exceeding gross line total
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -356,6 +417,7 @@ class PurchaseInvoiceTest extends TestCase
         // Invoice fixed discount exceeding net items total
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'discount_type' => 'fixed',
@@ -369,6 +431,7 @@ class PurchaseInvoiceTest extends TestCase
         // Negative expense amount
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -389,6 +452,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $base = [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
         ];
@@ -418,6 +482,7 @@ class PurchaseInvoiceTest extends TestCase
         // Binary-float trap: 0.145 * 3 = 0.435 -> must round half-up to 0.44 (float math gives 0.43).
         $response = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 0.145, 'unit_price' => 3]],
@@ -435,6 +500,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $payload = fn (array $extra = []): array => $extra + [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $date,
             'due_date' => $date,
             'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
@@ -474,6 +540,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $invoice = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 3, 'unit_price' => 10]],
@@ -519,6 +586,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $payload = [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => $products->map(fn (Product $p, int $i): array => [
@@ -576,6 +644,7 @@ class PurchaseInvoiceTest extends TestCase
         foreach (['2026-01-10', '2026-01-15', '2026-01-20'] as $date) {
             $this->postJson('/api/purchase-invoices', [
                 'supplier_id' => $supplier->id,
+                'journal_id' => $this->purchaseJournal->id,
                 'invoice_date' => $date,
                 'due_date' => $date,
                 'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 10]],
@@ -601,6 +670,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $createRes = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -619,6 +689,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $updateRes = $this->putJson("/api/purchase-invoices/{$invoiceId}", [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => now()->addDay()->toDateString(),
             'due_date' => now()->addDays(10)->toDateString(),
             'discount_type' => 'fixed',
@@ -656,6 +727,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $createRes = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -685,6 +757,7 @@ class PurchaseInvoiceTest extends TestCase
         // Invoice is completely locked: update, cancel, and delete are all rejected
         $this->putJson("/api/purchase-invoices/{$invoiceId}", [
             'supplier_id' => $otherSupplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => now()->addDay()->toDateString(),
             'due_date' => now()->addDays(5)->toDateString(),
             'items' => [
@@ -715,6 +788,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $createRes = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -760,6 +834,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $createRes = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -818,6 +893,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $res = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -851,6 +927,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -875,6 +952,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $createRes = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -916,6 +994,7 @@ class PurchaseInvoiceTest extends TestCase
         ]);
 
         $res = $this->postJson("/api/purchase-invoices/from-purchase-order/{$confirmedOrder->id}", [
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => '2026-11-16',
             'due_date' => '2026-11-16',
         ])->assertCreated();
@@ -925,6 +1004,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $updateRes = $this->putJson("/api/purchase-invoices/{$invoiceId}", [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => '2026-11-16',
             'due_date' => '2026-11-25',
             'discount_type' => 'fixed',
@@ -955,6 +1035,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $inv1 = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier1->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]],
@@ -962,6 +1043,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $inv2 = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier2->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [['product_id' => $product->id, 'quantity' => 2, 'unit_price' => 100]],
@@ -989,6 +1071,7 @@ class PurchaseInvoiceTest extends TestCase
         // Verify listing includes item discount sum and invoice discount for table display.
         $inv3 = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier1->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'discount_type' => 'fixed',
@@ -1020,6 +1103,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -1029,6 +1113,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $created = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [
@@ -1038,6 +1123,7 @@ class PurchaseInvoiceTest extends TestCase
 
         $this->putJson('/api/purchase-invoices/'.$created->json('data.id'), [
             'supplier_id' => $supplier->id,
+            'journal_id' => $this->purchaseJournal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'items' => [

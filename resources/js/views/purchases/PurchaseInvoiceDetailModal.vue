@@ -59,7 +59,15 @@
           </span>
 
           <span
-            v-if="isLockedByPosting"
+            v-if="invoice?.status === 'posted'"
+            class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+          >
+            <CheckCircle2 class="h-3.5 w-3.5" />
+            <span>{{ $t('purchaseInvoices.postedNotice') }}</span>
+          </span>
+
+          <span
+            v-else-if="isLockedByPosting"
             class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
           >
             <Lock class="h-3.5 w-3.5" />
@@ -94,6 +102,17 @@
           >
             <Printer class="h-3.5 w-3.5 text-[var(--muted)]" />
             <span>{{ $t('purchaseInvoices.print') }}</span>
+          </button>
+
+          <button
+            v-if="invoice?.status === 'draft'"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            :disabled="actionLoading"
+            @click="emit('post', invoice)"
+          >
+            <CheckCircle2 class="h-3.5 w-3.5" />
+            <span>{{ $t('purchaseInvoices.post') }}</span>
           </button>
 
           <button
@@ -202,6 +221,17 @@
             <div class="flex items-center justify-between text-xs">
               <span class="text-[var(--muted)]">{{ $t('purchaseInvoices.creator') }}:</span>
               <span class="font-bold text-[var(--text)]">{{ invoice.creator?.name || '—' }}</span>
+            </div>
+            <div v-if="invoice.journal" class="flex items-center justify-between text-xs">
+              <span class="text-[var(--muted)]">{{ $t('purchaseInvoices.journal') }}:</span>
+              <span class="font-bold text-[var(--text)]">{{ invoice.journal.code }} — {{ invoice.journal.name }}</span>
+            </div>
+            <div v-if="invoice.journal_entry" class="flex items-center justify-between text-xs">
+              <span class="text-[var(--muted)]">{{ $t('purchaseInvoices.journalEntry') }}:</span>
+              <span class="font-bold font-mono text-[var(--text)]">
+                {{ invoice.journal_entry.entry_number }}
+                ({{ $t(`journalEntries.statuses.${invoice.journal_entry.status}`) }})
+              </span>
             </div>
           </div>
         </div>
@@ -382,6 +412,7 @@ import {
   Printer,
   Edit2,
   XCircle,
+  CheckCircle2,
   Lock,
   ExternalLink,
   X,
@@ -393,7 +424,7 @@ const props = defineProps({
   actionLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'edit', 'cancel']);
+const emit = defineEmits(['close', 'edit', 'post', 'cancel']);
 const router = useRouter();
 const { t } = useI18n();
 
@@ -419,6 +450,8 @@ function statusBadgeClass(status) {
   switch (status) {
     case 'draft':
       return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-400';
+    case 'posted':
+      return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-400';
     case 'cancelled':
       return 'bg-rose-500/10 text-rose-700 border border-rose-500/20 dark:text-rose-400';
     default:

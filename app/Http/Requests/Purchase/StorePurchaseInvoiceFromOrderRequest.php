@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Purchase;
 
+use App\Enums\Accounting\JournalType;
 use App\Enums\DiscountType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,6 +22,13 @@ class StorePurchaseInvoiceFromOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'journal_id' => [
+                'required',
+                'integer',
+                Rule::exists('journals', 'id')->where(
+                    fn ($q) => $q->where('type', JournalType::Purchase->value)->where('is_active', true)
+                ),
+            ],
             'invoice_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],

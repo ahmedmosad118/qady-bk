@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\Accounting\JournalType;
 use App\Models\Journal;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,7 +21,11 @@ class JournalRepository
         $query = Journal::query();
 
         if (! empty($filters['type'])) {
-            $query->where('type', (string) $filters['type']);
+            $rawType = (string) $filters['type'];
+            $normalizedType = JournalType::tryFrom($rawType)?->value
+                ?? JournalType::tryFrom(ucfirst(strtolower($rawType)))?->value
+                ?? $rawType;
+            $query->where('type', $normalizedType);
         }
 
         if (isset($filters['is_active']) && $filters['is_active'] !== '' && $filters['is_active'] !== null) {

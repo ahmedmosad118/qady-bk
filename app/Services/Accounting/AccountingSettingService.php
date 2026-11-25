@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Accounting;
 
 use App\Enums\Accounting\AccountTypeCode;
+use App\Enums\Accounting\JournalType;
+use App\Enums\Accounting\PurchaseExpensesTreatment;
 use App\Models\Account;
+use App\Models\Journal;
 use App\Models\Setting;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +152,55 @@ class AccountingSettingService
     }
 
     /**
+     * Resolve the configured default Purchase journal ID (initial value for new purchase invoices).
+     */
+    public function resolveDefaultPurchaseJournalId(): ?int
+    {
+        $setting = $this->getSettings();
+        $value = $setting->data['default_purchase_journal_id'] ?? null;
+
+        return is_numeric($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /**
+     * Return active Purchase journals for Settings selection.
+     *
+     * @return array<int, array{id: int, code: string, name: string}>
+     */
+    public function getPurchaseJournals(): array
+    {
+        return Journal::query()
+            ->where('type', JournalType::Purchase->value)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get(['id', 'code', 'name'])
+            ->map(static fn (Journal $journal): array => [
+                'id' => $journal->id,
+                'code' => $journal->code,
+                'name' => $journal->name,
+            ])
+            ->all();
+    }
+
+    /**
+     * Resolve the configured treatment for Purchase Invoice additional expenses.
+     */
+    public function resolveExpensesTreatment(): PurchaseExpensesTreatment
+    {
+        $setting = $this->getSettings();
+        $raw = $setting->data['expenses_treatment'] ?? null;
+
+        if (is_string($raw)) {
+            $parsed = PurchaseExpensesTreatment::tryFrom($raw);
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return PurchaseExpensesTreatment::LandedCost;
+    }
+
+    /**
      * Validate and atomically update active accounting settings while preserving
      * all existing JSON entries (including legacy keys and unrelated settings).
      *
@@ -169,7 +221,7 @@ class AccountingSettingService
             $errors = [];
 
             foreach (array_keys($input) as $key) {
-                if (! isset($definitions[$key])) {
+                if (! isset($definitions[$key]) && ! in_array($key, ['expenses_treatment', 'default_purchase_journal_id'], true)) {
                     $errors["settings.{$key}"] = [(string) __('accounting.errors.setting_key_invalid', ['key' => $key])];
                 }
             }
@@ -179,6 +231,39 @@ class AccountingSettingService
             }
 
             $candidateData = $existingData;
+            if (array_key_exists('expenses_treatment', $input)) {
+                $rawTreatment = $input['expenses_treatment'];
+                $treatment = is_string($rawTreatment)
+                    ? PurchaseExpensesTreatment::tryFrom($rawTreatment)
+                    : null;
+
+                if ($rawTreatment !== null && $rawTreatment !== '' && $treatment === null) {
+                    $errors['settings.expenses_treatment'] = [(string) __('accounting.errors.expenses_treatment_invalid')];
+                } else {
+                    $candidateData['expenses_treatment'] = ($treatment ?? PurchaseExpensesTreatment::LandedCost)->value;
+                }
+            } elseif (! isset($candidateData['expenses_treatment'])) {
+                $candidateData['expenses_treatment'] = PurchaseExpensesTreatment::LandedCost->value;
+            }
+
+            if (array_key_exists('default_purchase_journal_id', $input)) {
+                $rawJournalId = $input['default_purchase_journal_id'];
+                if ($rawJournalId === null || $rawJournalId === '') {
+                    $candidateData['default_purchase_journal_id'] = null;
+                } else {
+                    $journalId = (int) $rawJournalId;
+                    $journal = Journal::query()->lockForUpdate()->find($journalId);
+
+                    if (! $journal || ! $journal->is_active || $journal->type !== JournalType::Purchase) {
+                        $errors['settings.default_purchase_journal_id'] = [
+                            (string) __('accounting.errors.default_purchase_journal_invalid'),
+                        ];
+                    } else {
+                        $candidateData['default_purchase_journal_id'] = $journal->id;
+                    }
+                }
+            }
+
             foreach ($definitions as $key => $def) {
                 if (array_key_exists($key, $input)) {
                     $raw = $input[$key];
@@ -190,6 +275,16 @@ class AccountingSettingService
                         'label' => AccountingSettingRegistry::label($key),
                     ])];
                 }
+            }
+
+            $effectiveTreatment = PurchaseExpensesTreatment::tryFrom((string) ($candidateData['expenses_treatment'] ?? ''))
+                ?? PurchaseExpensesTreatment::LandedCost;
+
+            if ($effectiveTreatment === PurchaseExpensesTreatment::SeparateExpense
+                && empty($candidateData['additional_expenses_account_id'])) {
+                $errors['settings.additional_expenses_account_id'] = [
+                    (string) __('accounting.errors.additional_expenses_account_required'),
+                ];
             }
 
             if ($errors !== []) {

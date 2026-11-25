@@ -57,6 +57,73 @@
       </div>
 
       <div v-else class="divide-y divide-[var(--border)]">
+        <!-- Purchase Additional Expenses Treatment -->
+        <div class="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-12 lg:items-center">
+          <div class="space-y-1 lg:col-span-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-extrabold text-[var(--text)]">
+                {{ $t('accountingSettings.expensesTreatmentLabel') }}
+              </span>
+              <span class="inline-flex items-center rounded-full bg-[var(--crimson-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--crimson)]">
+                {{ $t('accountingSettings.required') }}
+              </span>
+            </div>
+            <p class="text-xs leading-5 text-[var(--muted)]">
+              {{ $t('accountingSettings.expensesTreatmentDesc') }}
+            </p>
+          </div>
+
+          <div class="lg:col-span-6">
+            <select
+              v-model="expensesTreatment"
+              :disabled="saving || !canUpdate"
+              class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 text-sm font-semibold text-[var(--text)] outline-none transition focus:border-[var(--crimson)] focus:ring-4 focus:ring-[var(--crimson-soft)] disabled:opacity-60"
+            >
+              <option value="LANDED_COST">{{ $t('accountingSettings.treatments.LANDED_COST') }}</option>
+              <option value="SEPARATE_EXPENSE">{{ $t('accountingSettings.treatments.SEPARATE_EXPENSE') }}</option>
+            </select>
+            <p
+              v-if="fieldError('expenses_treatment')"
+              class="mt-1 text-xs font-semibold text-[var(--crimson)]"
+            >
+              {{ fieldError('expenses_treatment') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Default Purchase Journal -->
+        <div class="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-12 lg:items-center">
+          <div class="space-y-1 lg:col-span-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-extrabold text-[var(--text)]">
+                {{ $t('accountingSettings.defaultPurchaseJournalLabel') }}
+              </span>
+              <span class="inline-flex items-center rounded-full bg-[var(--bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--muted)]">
+                {{ $t('accountingSettings.optional') }}
+              </span>
+            </div>
+            <p class="text-xs leading-5 text-[var(--muted)]">
+              {{ $t('accountingSettings.defaultPurchaseJournalDesc') }}
+            </p>
+          </div>
+
+          <div class="lg:col-span-6">
+            <SearchableSelect
+              v-model="defaultPurchaseJournalId"
+              :options="purchaseJournalOptions"
+              :placeholder="$t('accountingSettings.selectDefaultJournalPlaceholder')"
+              :clearable="true"
+              :disabled="saving || !canUpdate"
+            />
+            <p
+              v-if="fieldError('default_purchase_journal_id')"
+              class="mt-1 text-xs font-semibold text-[var(--crimson)]"
+            >
+              {{ fieldError('default_purchase_journal_id') }}
+            </p>
+          </div>
+        </div>
+
         <div
           v-for="item in items"
           :key="item.key"
@@ -68,11 +135,11 @@
               <span class="text-sm font-extrabold text-[var(--text)]">{{ item.label }}</span>
               <span
                 class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
-                :class="item.required
+                :class="isItemRequired(item)
                   ? 'bg-[var(--crimson-soft)] text-[var(--crimson)]'
                   : 'bg-[var(--bg)] text-[var(--muted)]'"
               >
-                {{ item.required ? $t('accountingSettings.required') : $t('accountingSettings.optional') }}
+                {{ isItemRequired(item) ? $t('accountingSettings.required') : $t('accountingSettings.optional') }}
               </span>
               <span class="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-bold text-blue-700 dark:text-blue-300">
                 {{ item.account_type_label }}
@@ -94,7 +161,7 @@
               v-model="form[item.key]"
               :options="optionsForKey(item.key)"
               :placeholder="$t('accountingSettings.selectAccountPlaceholder')"
-              :clearable="!item.required"
+              :clearable="!isItemRequired(item)"
               :disabled="saving || !canUpdate"
             />
             <p
@@ -139,6 +206,9 @@ const canUpdate = computed(() => authStore.hasPermission('accounting.settings.up
 
 const items = ref([]);
 const compatibleAccounts = ref({});
+const expensesTreatment = ref('LANDED_COST');
+const defaultPurchaseJournalId = ref(null);
+const purchaseJournals = ref([]);
 const form = reactive({});
 const errors = ref({});
 const loading = ref(false);
@@ -162,6 +232,20 @@ function optionsForKey(key) {
     }));
 }
 
+const purchaseJournalOptions = computed(() =>
+  purchaseJournals.value.map((journal) => ({
+    value: journal.id,
+    label: `${journal.code} — ${journal.name}`,
+  }))
+);
+
+function isItemRequired(item) {
+  if (item.key === 'additional_expenses_account_id') {
+    return expensesTreatment.value === 'SEPARATE_EXPENSE';
+  }
+  return !!item.required;
+}
+
 function fieldError(key) {
   return errors.value[`settings.${key}`]?.[0] || '';
 }
@@ -169,6 +253,9 @@ function fieldError(key) {
 function applyResponsePayload(data) {
   items.value = data?.items || [];
   compatibleAccounts.value = data?.compatible_accounts || {};
+  expensesTreatment.value = data?.expenses_treatment || data?.data?.expenses_treatment || 'LANDED_COST';
+  defaultPurchaseJournalId.value = data?.default_purchase_journal_id ?? data?.data?.default_purchase_journal_id ?? null;
+  purchaseJournals.value = data?.purchase_journals || [];
   for (const item of items.value) {
     form[item.key] = item.account_id ?? null;
   }
@@ -193,7 +280,10 @@ async function saveSettings() {
   saving.value = true;
   errors.value = {};
 
-  const payload = {};
+  const payload = {
+    expenses_treatment: expensesTreatment.value,
+    default_purchase_journal_id: defaultPurchaseJournalId.value ? Number(defaultPurchaseJournalId.value) : null,
+  };
   for (const item of items.value) {
     payload[item.key] = form[item.key] ? Number(form[item.key]) : null;
   }

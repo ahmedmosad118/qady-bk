@@ -4,13 +4,21 @@ declare(strict_types=1);
 
 namespace App\Services\Purchase;
 
+use App\Enums\Accounting\JournalType;
 use App\Enums\InventoryDocumentStatus;
 use App\Enums\InventoryDocumentType;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Enums\PurchaseOrderStatus;
+use App\Events\Purchase\PurchaseInvoiceCancelled;
+use App\Events\Purchase\PurchaseInvoiceCreated;
+use App\Events\Purchase\PurchaseInvoiceDeleted;
+use App\Events\Purchase\PurchaseInvoicePosted;
+use App\Events\Purchase\PurchaseInvoiceUpdated;
 use App\Models\InventoryDocument;
+use App\Models\Journal;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
+use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -19,6 +27,7 @@ use App\Services\Inventory\DefaultWarehouseResolver;
 use App\Services\InventoryDocumentService;
 use App\Services\InventoryDocumentWorkflowService;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -50,11 +59,12 @@ class PurchaseInvoiceService
     protected function calculate(array $rawItems, ?string $discountType, mixed $discountValue, array $rawExpenses): array
     {
         $products = Product::query()
+            ->with('category:id,name,stock_input_account_id')
             ->whereIn('id', $this->calculator->productIds($rawItems))
             ->get()
             ->keyBy('id');
 
-        return $this->calculator->calculate(
+        $result = $this->calculator->calculate(
             $rawItems,
             $products,
             $discountType,
@@ -62,6 +72,42 @@ class PurchaseInvoiceService
             $rawExpenses,
             unitName: 'piece',
         );
+
+        $result['products'] = $products;
+
+        return $result;
+    }
+
+    /**
+     * Hydrate calculated invoice items in memory so synchronous listeners do not re-query purchase_invoice_items.
+     *
+     * @param  array<int, array<string, mixed>>  $calcItems
+     * @param  Collection<int, Product>  $products
+     */
+    protected function hydrateCalculatedItems(PurchaseInvoice $invoice, array $calcItems, $products): void
+    {
+        $models = new \Illuminate\Database\Eloquent\Collection;
+
+        foreach ($calcItems as $row) {
+            $item = new PurchaseInvoiceItem([
+                'purchase_invoice_id' => $invoice->id,
+                'product_id' => $row['product_id'],
+                'product_snapshot' => $row['product_snapshot'],
+                'quantity' => $row['quantity'],
+                'unit_price' => $row['unit_price'],
+                'discount_type' => $row['discount_type'],
+                'discount_value' => $row['discount_value'],
+                'discount_amount' => $row['discount_amount'],
+                'line_total' => $row['line_total'],
+            ]);
+            $product = $products->get((int) $row['product_id']);
+            if ($product) {
+                $item->setRelation('product', $product);
+            }
+            $models->push($item);
+        }
+
+        $invoice->setRelation('items', $models);
     }
 
     /**
@@ -80,6 +126,7 @@ class PurchaseInvoiceService
             }
 
             $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+            $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
             $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
 
             $calc = $this->calculate(
@@ -104,6 +151,7 @@ class PurchaseInvoiceService
             $invoice = PurchaseInvoice::query()->create([
                 'supplier_id' => $supplier->id,
                 'purchase_order_id' => $purchaseOrderId,
+                'journal_id' => $journal->id,
                 'invoice_date' => $invoiceDate->toDateString(),
                 'due_date' => $dueDate->toDateString(),
                 'subtotal' => $calc['subtotal'],
@@ -119,8 +167,11 @@ class PurchaseInvoiceService
 
             $this->lineWriter->insertInvoiceItems($invoice, $calc['items']);
             $this->lineWriter->insertInvoiceExpenses($invoice, $calc['expenses']);
+            $this->hydrateCalculatedItems($invoice, $calc['items'], $calc['products']);
 
             $this->createLinkedGoodsReceipt($invoice, $defaultWarehouse, $user, $calc['items']);
+
+            PurchaseInvoiceCreated::dispatch($invoice, $user);
 
             return $this->repository->findWithRelations($invoice->id);
         });
@@ -161,6 +212,12 @@ class PurchaseInvoiceService
             /** @var PurchaseInvoice $lockedInvoice */
             $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
+            if ($lockedInvoice->isPosted()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
+                ]);
+            }
+
             if ($lockedInvoice->isCancelled()) {
                 throw ValidationException::withMessages([
                     'status' => [(string) __('purchases.errors.invoice_update_cancelled')],
@@ -183,6 +240,7 @@ class PurchaseInvoiceService
             }
 
             $supplier = $this->supplierResolver->resolveActive((int) ($data['supplier_id'] ?? 0));
+            $journal = $this->resolveActivePurchaseJournal((int) ($data['journal_id'] ?? 0));
             $defaultWarehouse = $this->resolveDefaultActiveWarehouse();
 
             $calc = $this->calculate(
@@ -205,6 +263,7 @@ class PurchaseInvoiceService
 
             $lockedInvoice->update([
                 'supplier_id' => $supplier->id,
+                'journal_id' => $journal->id,
                 'invoice_date' => $invoiceDate->toDateString(),
                 'due_date' => $dueDate->toDateString(),
                 'subtotal' => $calc['subtotal'],
@@ -218,6 +277,7 @@ class PurchaseInvoiceService
 
             $lockedInvoice->items()->delete();
             $this->lineWriter->insertInvoiceItems($lockedInvoice, $calc['items']);
+            $this->hydrateCalculatedItems($lockedInvoice, $calc['items'], $calc['products']);
 
             $lockedInvoice->expenses()->delete();
             $this->lineWriter->insertInvoiceExpenses($lockedInvoice, $calc['expenses']);
@@ -233,6 +293,48 @@ class PurchaseInvoiceService
                 $this->createLinkedGoodsReceipt($lockedInvoice, $defaultWarehouse, $user, $calc['items']);
             }
 
+            PurchaseInvoiceUpdated::dispatch($lockedInvoice, $user);
+
+            return $this->repository->findWithRelations($lockedInvoice->id);
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Post a Draft Purchase Invoice and its linked Draft Journal Entry atomically.
+     * Does not post the linked Goods Receipt or modify inventory quantities.
+     */
+    public function postInvoice(PurchaseInvoice $invoice, User $user): PurchaseInvoice
+    {
+        return DB::transaction(function () use ($invoice, $user): PurchaseInvoice {
+            /** @var PurchaseInvoice $lockedInvoice */
+            $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
+
+            if ($lockedInvoice->isPosted()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_cancel_posted')],
+                ]);
+            }
+
+            if ($lockedInvoice->isCancelled()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_post_cancelled')],
+                ]);
+            }
+
+            if ($lockedInvoice->isPosted()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_already_posted')],
+                ]);
+            }
+
+            PurchaseInvoicePosted::dispatch($lockedInvoice, $user);
+
+            $lockedInvoice->update([
+                'status' => PurchaseInvoiceStatus::POSTED,
+                'posted_by' => $user->id,
+                'posted_at' => now(),
+            ]);
+
             return $this->repository->findWithRelations($lockedInvoice->id);
         }, self::TRANSACTION_ATTEMPTS);
     }
@@ -245,6 +347,12 @@ class PurchaseInvoiceService
         return DB::transaction(function () use ($invoice, $user, $reason): PurchaseInvoice {
             /** @var PurchaseInvoice $lockedInvoice */
             $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
+
+            if ($lockedInvoice->isPosted()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_cancel_posted')],
+                ]);
+            }
 
             if ($lockedInvoice->isCancelled()) {
                 throw ValidationException::withMessages([
@@ -280,6 +388,8 @@ class PurchaseInvoiceService
                 $this->inventoryDocumentWorkflowService->cancelForPurchaseInvoice($linkedGr, $user);
             }
 
+            PurchaseInvoiceCancelled::dispatch($lockedInvoice, $user);
+
             return $this->repository->findWithRelations($lockedInvoice->id);
         }, self::TRANSACTION_ATTEMPTS);
     }
@@ -293,7 +403,7 @@ class PurchaseInvoiceService
             /** @var PurchaseInvoice $lockedInvoice */
             $lockedInvoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
-            if ($lockedInvoice->hasPostedGoodsReceipt()) {
+            if ($lockedInvoice->isPosted() || $lockedInvoice->hasPostedGoodsReceipt()) {
                 throw ValidationException::withMessages([
                     'status' => [(string) __('purchases.errors.invoice_delete_posted')],
                 ]);
@@ -316,6 +426,8 @@ class PurchaseInvoiceService
             if ($linkedGr) {
                 $this->inventoryDocumentService->deleteForPurchaseInvoice($linkedGr);
             }
+
+            PurchaseInvoiceDeleted::dispatch($lockedInvoice);
 
             $lockedInvoice->items()->delete();
             $lockedInvoice->expenses()->delete();
@@ -424,6 +536,22 @@ class PurchaseInvoiceService
             'notes' => __('purchases.messages.auto_goods_receipt_notes', ['number' => $invoice->invoice_number]),
             'items' => $itemsPayload,
         ], $user);
+    }
+
+    /**
+     * Resolve an active Purchase journal or fail with a validation error on `journal_id`.
+     */
+    protected function resolveActivePurchaseJournal(int $journalId): Journal
+    {
+        $journal = $journalId > 0 ? Journal::query()->find($journalId) : null;
+
+        if (! $journal || ! $journal->is_active || $journal->type !== JournalType::Purchase) {
+            throw ValidationException::withMessages([
+                'journal_id' => [(string) __('accounting.errors.purchase_journal_missing')],
+            ]);
+        }
+
+        return $journal;
     }
 
     /**

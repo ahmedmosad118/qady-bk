@@ -27,6 +27,7 @@ export const purchaseStatusBadgeClass = (status) => {
       return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-400';
     case 'converted':
     case 'confirmed':
+    case 'posted':
       return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-400';
     case 'cancelled':
       return 'bg-rose-500/10 text-rose-700 border border-rose-500/20 dark:text-rose-400';

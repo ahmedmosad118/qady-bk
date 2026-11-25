@@ -79,6 +79,14 @@ return [
         'setting_account_cannot_be_cash_or_bank' => 'Accounting setting (:label) cannot point to a cash or bank account.',
         'setting_account_purpose_locked' => 'Cannot change the purpose of an account linked to accounting settings.',
         'setting_account_duplicate' => 'The same account cannot be assigned to multiple accounting settings (:label).',
+        'expenses_treatment_invalid' => 'The selected additional expenses treatment is invalid.',
+        'additional_expenses_account_required' => 'An additional expenses account is required when using separate expense treatment.',
+        'journal_entry_purchase_invoice_managed_only' => 'Purchase invoice journal entries cannot be edited, deleted, or posted manually; manage them from the purchase invoice.',
+        'journal_entry_missing_for_source' => 'No linked journal entry was found for this purchase invoice.',
+        'purchase_journal_missing' => 'The selected purchase journal does not exist, is inactive, or is not a purchase journal.',
+        'default_purchase_journal_invalid' => 'The default purchase journal must be an active purchase journal.',
+        'no_open_fiscal_year_for_date' => 'No open fiscal year covers the invoice date.',
+        'no_open_period_for_date' => 'No open accounting period covers the invoice date.',
         'payment_method_account_required' => 'A compatible account is required for the payment method.',
         'payment_method_account_not_found' => 'Selected account for the payment method does not exist.',
         'payment_method_account_inactive' => 'Selected account for the payment method must be active.',
@@ -124,6 +132,18 @@ return [
         'journal_entry_fiscal_year_not_open' => 'The selected fiscal year must exist and be open.',
         'journal_entry_line_invalid' => 'Journal entry line data is invalid.',
         'journal_entry_already_posted' => 'This journal entry is already posted and cannot be posted again.',
+        'stock_input_account_missing' => 'System stock input account (stock_input) was not found.',
+        'stock_input_account_invalid' => 'System stock input account is inactive or incompatible.',
+        'category_stock_input_account_invalid' => 'The stock input account for category (:category) is inactive or incompatible.',
+        'additional_expenses_account_invalid' => 'The additional expenses account is inactive or incompatible.',
+        'supplier_payable_account_missing' => 'No supplier payable account or default accounts_payable setting is configured.',
+        'supplier_payable_account_invalid' => 'The supplier payable account is inactive or incompatible.',
+    ],
+
+    'labels' => [
+        'purchase_invoice_entry_description' => 'Purchase invoice entry :number',
+        'purchase_stock_input_line' => 'Stock input - Invoice :number',
+        'purchase_additional_expenses' => 'Additional expenses - Invoice :number',
     ],
 
     'settings' => [
@@ -163,6 +183,10 @@ return [
             'accounts_payable' => [
                 'label' => 'Default Payable Account',
                 'description' => 'Default payable account for suppliers.',
+            ],
+            'additional_expenses_account_id' => [
+                'label' => 'Purchase Additional Expenses Account',
+                'description' => 'Expense account charged for purchase invoice additional expenses when separate expense treatment is selected.',
             ],
         ],
     ],

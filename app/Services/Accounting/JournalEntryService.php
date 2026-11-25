@@ -7,12 +7,14 @@ namespace App\Services\Accounting;
 use App\Enums\Accounting\AccountingPeriodStatus;
 use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\Accounting\JournalEntryStatus;
+use App\Enums\Accounting\JournalType;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
@@ -219,6 +221,213 @@ class JournalEntryService
     }
 
     /**
+     * Resolve and validate the selected Purchase journal, open fiscal year, and matching open period for a date.
+     *
+     * @return array{journal_id: int, fiscal_year_id: int, accounting_period_id: int}
+     */
+    public function resolvePurchaseContext(int $journalId, string $entryDate): array
+    {
+        $normalizedDate = Carbon::parse($entryDate)->toDateString();
+
+        $journal = Journal::query()->find($journalId);
+
+        if (! $journal || ! $journal->is_active || $journal->type !== JournalType::Purchase) {
+            throw ValidationException::withMessages([
+                'journal_id' => [(string) __('accounting.errors.purchase_journal_missing')],
+            ]);
+        }
+
+        $fiscalYear = FiscalYear::query()
+            ->where('status', FiscalYearStatus::Open->value)
+            ->whereDate('start_date', '<=', $normalizedDate)
+            ->whereDate('end_date', '>=', $normalizedDate)
+            ->first();
+
+        if (! $fiscalYear) {
+            throw ValidationException::withMessages([
+                'fiscal_year_id' => [(string) __('accounting.errors.no_open_fiscal_year_for_date')],
+            ]);
+        }
+
+        $period = AccountingPeriod::query()
+            ->where('fiscal_year_id', $fiscalYear->id)
+            ->where('status', AccountingPeriodStatus::Open->value)
+            ->whereDate('start_date', '<=', $normalizedDate)
+            ->whereDate('end_date', '>=', $normalizedDate)
+            ->first();
+
+        if (! $period) {
+            throw ValidationException::withMessages([
+                'accounting_period_id' => [(string) __('accounting.errors.no_open_period_for_date')],
+            ]);
+        }
+
+        return [
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+        ];
+    }
+
+    /**
+     * Create a draft journal entry linked to a persisted Draft PurchaseInvoice (idempotent).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function createDraftForPurchaseInvoice(
+        array $data,
+        PurchaseInvoice $invoice,
+        ?User $user = null,
+    ): JournalEntry {
+        $sourceKey = $invoice->getKey();
+
+        if (! $invoice->exists || $sourceKey === null || $sourceKey === '' || $sourceKey === 0) {
+            throw ValidationException::withMessages([
+                'source' => ['The source purchase invoice must be persisted with a valid primary key.'],
+            ]);
+        }
+
+        $sourceType = $invoice->getMorphClass();
+        $existing = $this->findBySource($sourceType, $sourceKey, lock: true);
+
+        if ($existing !== null) {
+            return $this->getDetails($existing);
+        }
+
+        try {
+            return $this->persistNewEntry(
+                data: $data,
+                user: $user,
+                status: JournalEntryStatus::Draft,
+                source: $invoice,
+            );
+        } catch (UniqueConstraintViolationException|QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $existing = $this->findBySource($sourceType, $sourceKey, lock: true);
+
+            if ($existing !== null) {
+                return $this->getDetails($existing);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Update the linked draft journal entry from its source PurchaseInvoice.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function updateDraftForPurchaseInvoice(PurchaseInvoice $invoice, array $data): JournalEntry
+    {
+        return DB::transaction(function () use ($invoice, $data): JournalEntry {
+            if (! $invoice->exists || ! $invoice->isDraft()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_update_posted')],
+                ]);
+            }
+
+            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+
+            if ($locked === null) {
+                throw ValidationException::withMessages([
+                    'journal_entry' => [(string) __('accounting.errors.journal_entry_missing_for_source')],
+                ]);
+            }
+
+            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+
+            if (! $locked->isDraft()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.journal_entry_posted_immutable')],
+                ]);
+            }
+
+            $entryDate = Carbon::parse((string) $data['entry_date'])->toDateString();
+            $this->validateAccountingContext(
+                (int) $data['journal_id'],
+                (int) $data['fiscal_year_id'],
+                (int) $data['accounting_period_id'],
+                $entryDate,
+            );
+
+            $preparedLines = $this->validateAndPrepareLines($data['lines'] ?? []);
+
+            $locked->update([
+                'journal_id' => (int) $data['journal_id'],
+                'fiscal_year_id' => (int) $data['fiscal_year_id'],
+                'accounting_period_id' => (int) $data['accounting_period_id'],
+                'entry_date' => $entryDate,
+                'reference' => isset($data['reference']) && $data['reference'] !== '' ? (string) $data['reference'] : null,
+                'description' => isset($data['description']) && $data['description'] !== '' ? (string) $data['description'] : null,
+            ]);
+
+            $locked->lines()->delete();
+
+            JournalEntry::query()
+                ->findOrFail($locked->id)
+                ->lines()
+                ->createMany($preparedLines);
+
+            return $this->getDetails($locked);
+        });
+    }
+
+    /**
+     * Post the linked draft journal entry from its source PurchaseInvoice.
+     */
+    public function postForPurchaseInvoice(PurchaseInvoice $invoice, User $user): JournalEntry
+    {
+        return DB::transaction(function () use ($invoice, $user): JournalEntry {
+            if (! $invoice->exists || ! $invoice->isDraft()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('purchases.errors.invoice_already_posted')],
+                ]);
+            }
+
+            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+
+            if ($locked === null) {
+                throw ValidationException::withMessages([
+                    'journal_entry' => [(string) __('accounting.errors.journal_entry_missing_for_source')],
+                ]);
+            }
+
+            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+
+            return $this->postEntryInternal($locked, $user);
+        });
+    }
+
+    /**
+     * Delete the linked draft journal entry when its source PurchaseInvoice is cancelled or deleted.
+     */
+    public function deleteDraftForPurchaseInvoice(PurchaseInvoice $invoice): void
+    {
+        DB::transaction(function () use ($invoice): void {
+            $locked = $this->findBySource($invoice->getMorphClass(), $invoice->getKey(), lock: true);
+
+            if ($locked === null) {
+                return;
+            }
+
+            $this->assertEntryBelongsToPurchaseInvoice($locked, $invoice);
+
+            if (! $locked->isDraft()) {
+                throw ValidationException::withMessages([
+                    'status' => [(string) __('accounting.errors.journal_entry_posted_cannot_delete')],
+                ]);
+            }
+
+            $locked->lines()->delete();
+            $locked->delete();
+        });
+    }
+
+    /**
      * Update an existing draft journal entry and replace its lines atomically.
      *
      * @param  array<string, mixed>  $data
@@ -228,6 +437,8 @@ class JournalEntryService
         return DB::transaction(function () use ($journalEntry, $data): JournalEntry {
             /** @var JournalEntry $locked */
             $locked = JournalEntry::query()->lockForUpdate()->findOrFail($journalEntry->id);
+
+            $this->assertNotPurchaseInvoiceSource($locked);
 
             if (! $locked->isDraft()) {
                 throw ValidationException::withMessages([
@@ -276,6 +487,8 @@ class JournalEntryService
             /** @var JournalEntry $locked */
             $locked = JournalEntry::query()->lockForUpdate()->findOrFail($journalEntry->id);
 
+            $this->assertNotPurchaseInvoiceSource($locked);
+
             if (! $locked->isDraft()) {
                 throw ValidationException::withMessages([
                     'status' => [(string) __('accounting.errors.journal_entry_posted_cannot_delete')],
@@ -296,41 +509,70 @@ class JournalEntryService
             /** @var JournalEntry $locked */
             $locked = JournalEntry::query()->lockForUpdate()->findOrFail($journalEntry->id);
 
-            if (! $locked->isDraft()) {
-                throw ValidationException::withMessages([
-                    'status' => [(string) __('accounting.errors.journal_entry_already_posted')],
-                ]);
-            }
+            $this->assertNotPurchaseInvoiceSource($locked);
 
-            $this->validateAccountingContext(
-                $locked->journal_id,
-                $locked->fiscal_year_id,
-                $locked->accounting_period_id,
-                $locked->entry_date->toDateString(),
-            );
-
-            $rawLines = $locked->lines()
-                ->orderBy('line_number')
-                ->get(['account_id', 'line_number', 'label', 'debit', 'credit'])
-                ->map(static fn (JournalEntryLine $line): array => [
-                    'account_id' => $line->account_id,
-                    'line_number' => $line->line_number,
-                    'label' => $line->label,
-                    'debit' => $line->debit,
-                    'credit' => $line->credit,
-                ])
-                ->all();
-
-            $this->validateAndPrepareLines($rawLines);
-
-            $locked->update([
-                'status' => JournalEntryStatus::Posted->value,
-                'posted_by' => $user?->id,
-                'posted_at' => now(),
-            ]);
-
-            return $this->getDetails($locked);
+            return $this->postEntryInternal($locked, $user);
         });
+    }
+
+    private function postEntryInternal(JournalEntry $locked, ?User $user = null): JournalEntry
+    {
+        if (! $locked->isDraft()) {
+            throw ValidationException::withMessages([
+                'status' => [(string) __('accounting.errors.journal_entry_already_posted')],
+            ]);
+        }
+
+        $this->validateAccountingContext(
+            $locked->journal_id,
+            $locked->fiscal_year_id,
+            $locked->accounting_period_id,
+            $locked->entry_date->toDateString(),
+        );
+
+        $rawLines = $locked->lines()
+            ->orderBy('line_number')
+            ->get(['account_id', 'line_number', 'label', 'debit', 'credit'])
+            ->map(static fn (JournalEntryLine $line): array => [
+                'account_id' => $line->account_id,
+                'line_number' => $line->line_number,
+                'label' => $line->label,
+                'debit' => $line->debit,
+                'credit' => $line->credit,
+            ])
+            ->all();
+
+        $this->validateAndPrepareLines($rawLines);
+
+        $locked->update([
+            'status' => JournalEntryStatus::Posted->value,
+            'posted_by' => $user?->id,
+            'posted_at' => now(),
+        ]);
+
+        return $this->getDetails($locked);
+    }
+
+    private function assertNotPurchaseInvoiceSource(JournalEntry $entry): void
+    {
+        $morphAlias = (new PurchaseInvoice)->getMorphClass();
+
+        if ($entry->source_type === $morphAlias || $entry->source_type === PurchaseInvoice::class) {
+            throw ValidationException::withMessages([
+                'source' => [(string) __('accounting.errors.journal_entry_purchase_invoice_managed_only')],
+            ]);
+        }
+    }
+
+    private function assertEntryBelongsToPurchaseInvoice(JournalEntry $entry, PurchaseInvoice $invoice): void
+    {
+        $expectedType = $invoice->getMorphClass();
+
+        if ($entry->source_type !== $expectedType || (int) $entry->source_id !== (int) $invoice->getKey()) {
+            throw ValidationException::withMessages([
+                'source' => [(string) __('accounting.errors.journal_entry_missing_for_source')],
+            ]);
+        }
     }
 
     /**

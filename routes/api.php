@@ -120,6 +120,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'show']);
     Route::put('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'update']);
     Route::delete('/purchase-invoices/{purchase_invoice}', [PurchaseInvoiceController::class, 'destroy']);
+    Route::post('/purchase-invoices/{purchase_invoice}/post', [PurchaseInvoiceController::class, 'post']);
     Route::post('/purchase-invoices/{purchase_invoice}/cancel', [PurchaseInvoiceController::class, 'cancel']);
 
     // Settings (Purchase & Accounting Settings)

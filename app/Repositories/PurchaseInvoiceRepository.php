@@ -12,7 +12,7 @@ class PurchaseInvoiceRepository
     /**
      * Paginate purchase invoices with filtering and eager loading.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -20,8 +20,11 @@ class PurchaseInvoiceRepository
             ->with([
                 'supplier:id,name,phone,mobile,tax_number',
                 'purchaseOrder:id,order_number,status',
+                'journal:id,code,name,type',
                 'creator:id,name',
+                'postedBy:id,name',
                 'goodsReceipt:id,document_number,document_type,referenceable_type,referenceable_id,destination_warehouse_id,status,posted_at',
+                'journalEntry:id,entry_number,status,source_type,source_id,entry_date,posted_at',
             ])
             ->withCount(['items', 'expenses'])
             ->withSum('items', 'discount_amount');
@@ -80,11 +83,16 @@ class PurchaseInvoiceRepository
             ->with([
                 'supplier',
                 'purchaseOrder',
+                'journal:id,code,name,type',
                 'items.product',
                 'expenses',
                 'creator:id,name,email',
+                'postedBy:id,name,email',
                 'goodsReceipt.destinationWarehouse',
                 'goodsReceipt.items.product',
+                'journalEntry.journal:id,code,name',
+                'journalEntry.postedBy:id,name',
+                'journalEntry.lines.account:id,code,name',
             ])
             ->findOrFail($id);
     }

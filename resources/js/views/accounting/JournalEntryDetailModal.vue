@@ -66,7 +66,7 @@
     <template v-if="entry" #actions>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2">
-          <template v-if="entry.status === 'draft'">
+          <template v-if="entry.status === 'draft' && entry.source_type !== 'purchase_invoice'">
             <button
               type="button"
               :disabled="processing"
@@ -97,6 +97,14 @@
               <span>{{ $t('common.delete') }}</span>
             </button>
           </template>
+          <router-link
+            v-if="entry.source_type === 'purchase_invoice' && entry.source_id"
+            :to="{ name: 'purchase-invoices', query: { open: String(entry.source_id) } }"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 text-xs font-bold text-[var(--text)] transition hover:bg-[var(--bg)] hover:text-[var(--crimson)]"
+            @click="emit('close')"
+          >
+            <span>{{ $t('journalEntries.openPurchaseInvoice') }}</span>
+          </router-link>
         </div>
 
         <button

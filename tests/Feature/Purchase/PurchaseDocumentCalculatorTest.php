@@ -4,10 +4,19 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Purchase;
 
+use App\Enums\Accounting\AccountingPeriodStatus;
+use App\Enums\Accounting\FiscalYearStatus;
+use App\Models\Account;
+use App\Models\AccountingPeriod;
 use App\Models\Contact;
+use App\Models\FiscalYear;
+use App\Models\Journal;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Warehouse;
+use App\Services\Accounting\AccountingSettingRegistry;
 use App\Services\Purchase\PurchaseDocumentCalculator;
+use Database\Seeders\AccountingSeeder;
 use Database\Seeders\WarehouseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -127,8 +136,29 @@ class PurchaseDocumentCalculatorTest extends TestCase
     public function test_purchase_order_and_invoice_produce_identical_amounts_for_same_input(): void
     {
         $this->actingAsSuperAdmin();
-        $this->seed(WarehouseSeeder::class);
+        $this->seed([WarehouseSeeder::class, AccountingSeeder::class]);
         Warehouse::query()->where('is_default', true)->firstOrFail();
+
+        $fy = FiscalYear::query()->create([
+            'code' => 'FY-2026',
+            'name' => '2026',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => FiscalYearStatus::Open->value,
+        ]);
+        AccountingPeriod::query()->create([
+            'fiscal_year_id' => $fy->id,
+            'name' => '2026',
+            'period_number' => 1,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => AccountingPeriodStatus::Open->value,
+        ]);
+        $payable = Account::query()->where('code', '2101')->firstOrFail();
+        Setting::query()->create([
+            'type' => AccountingSettingRegistry::SETTING_TYPE,
+            'data' => ['accounts_payable' => $payable->id],
+        ]);
 
         $supplier = Contact::factory()->create(['is_supplier' => true, 'is_customer' => false, 'is_active' => true]);
         $product = Product::factory()->create(['is_active' => true]);
@@ -147,8 +177,11 @@ class PurchaseDocumentCalculatorTest extends TestCase
             'items' => $items,
         ])->assertCreated();
 
+        $journal = Journal::query()->where('code', 'PUR')->firstOrFail();
+
         $invoice = $this->postJson('/api/purchase-invoices', [
             'supplier_id' => $supplier->id,
+            'journal_id' => $journal->id,
             'invoice_date' => $today,
             'due_date' => $today,
             'discount_type' => 'percentage',

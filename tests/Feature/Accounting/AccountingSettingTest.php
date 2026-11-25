@@ -67,7 +67,7 @@ class AccountingSettingTest extends TestCase
             ->assertJsonPath('data.type', AccountingSettingRegistry::SETTING_TYPE);
 
         $items = collect($res->json('data.items'))->keyBy('key');
-        $this->assertSame(['accounts_receivable', 'accounts_payable'], $items->keys()->all());
+        $this->assertSame(['accounts_receivable', 'accounts_payable', 'additional_expenses_account_id'], $items->keys()->all());
 
         foreach (['inventory', 'capital', 'owner_current', 'sales_revenue', 'sales_returns', 'cost_of_goods_sold', 'operating_expenses'] as $legacyKey) {
             $this->assertFalse($items->has($legacyKey));

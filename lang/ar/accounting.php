@@ -79,6 +79,14 @@ return [
         'setting_account_cannot_be_cash_or_bank' => 'لا يمكن ربط الإعداد (:label) بحساب مخصص للصندوق أو البنك.',
         'setting_account_purpose_locked' => 'لا يمكن تغيير تصنيف حساب مرتبط بإعدادات النظام المحاسبية.',
         'setting_account_duplicate' => 'لا يمكن تعيين نفس الحساب لأكثر من وظيفة محاسبية (:label).',
+        'expenses_treatment_invalid' => 'طريقة معالجة المصاريف الإضافية غير صالحة.',
+        'additional_expenses_account_required' => 'يجب تحديد حساب المصروفات الإضافية عند اختيار المعالجة المنفصلة.',
+        'journal_entry_purchase_invoice_managed_only' => 'لا يمكن تعديل أو حذف أو ترحيل قيد فاتورة المشتريات يدويًا؛ يجب إدارته من خلال فاتورة المشتريات فقط.',
+        'journal_entry_missing_for_source' => 'لم يتم العثور على القيد المحاسبي المرتبط بفاتورة المشتريات.',
+        'purchase_journal_missing' => 'دفتر يومية المشتريات المحدد غير موجود أو غير نشط أو غير متوافق.',
+        'default_purchase_journal_invalid' => 'دفتر اليومية الافتراضي للمشتريات يجب أن يكون دفتر مشتريات نشطًا.',
+        'no_open_fiscal_year_for_date' => 'لا توجد سنة مالية مفتوحة تغطي تاريخ الفاتورة.',
+        'no_open_period_for_date' => 'لا توجد فترة محاسبية مفتوحة تغطي تاريخ الفاتورة.',
         'payment_method_account_required' => 'يجب ربط طريقة الدفع بحساب محاسبي متوافق.',
         'payment_method_account_not_found' => 'الحساب المحاسبي المحدد لطريقة الدفع غير موجود.',
         'payment_method_account_inactive' => 'يجب أن يكون الحساب المرتبط بطريقة الدفع نشطًا.',
@@ -124,6 +132,18 @@ return [
         'journal_entry_fiscal_year_not_open' => 'يجب أن تكون السنة المالية موجودة وفي حالة مفتوحة.',
         'journal_entry_line_invalid' => 'بيانات سطر القيد غير صالحة.',
         'journal_entry_already_posted' => 'قيد اليومية مرحل بالفعل ولا يمكن ترحيله مرة أخرى.',
+        'stock_input_account_missing' => 'الحساب النظامي لوسيط استلام المخزون (stock_input) غير موجود.',
+        'stock_input_account_invalid' => 'الحساب النظامي لوسيط استلام المخزون غير نشط أو غير متوافق.',
+        'category_stock_input_account_invalid' => 'حساب وسيط استلام المخزون المرتبط بالفئة (:category) غير نشط أو غير متوافق.',
+        'additional_expenses_account_invalid' => 'حساب المصروفات الإضافية للمشتريات غير نشط أو غير متوافق.',
+        'supplier_payable_account_missing' => 'لم يتم تحديد حساب ذمم دائنة للمورد أو حساب افتراضي للموردين في الإعدادات.',
+        'supplier_payable_account_invalid' => 'حساب الذمم الدائنة المحدد للمورد غير نشط أو غير متوافق.',
+    ],
+
+    'labels' => [
+        'purchase_invoice_entry_description' => 'قيد فاتورة مشتريات رقم :number',
+        'purchase_stock_input_line' => 'وسيط استلام مخزون - فاتورة :number',
+        'purchase_additional_expenses' => 'مصاريف إضافية - فاتورة :number',
     ],
 
     'settings' => [
@@ -163,6 +183,10 @@ return [
             'accounts_payable' => [
                 'label' => 'الحساب الافتراضي للموردين',
                 'description' => 'الحساب الافتراضي للذمم الدائنة (الموردين).',
+            ],
+            'additional_expenses_account_id' => [
+                'label' => 'حساب المصروفات الإضافية للمشتريات',
+                'description' => 'الحساب المحاسبي المستخدم لتحميل المصاريف الإضافية لفواتير المشتريات عند اختيار المعالجة المنفصلة.',
             ],
         ],
     ],

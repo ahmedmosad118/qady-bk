@@ -281,6 +281,17 @@
                   </button>
 
                   <button
+                    v-if="invoice.status === 'draft'"
+                    type="button"
+                    :disabled="actionLoading"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 disabled:opacity-50"
+                    :title="$t('purchaseInvoices.post')"
+                    @click="postInvoiceAction(invoice)"
+                  >
+                    <CheckCircle2 class="h-4 w-4" />
+                  </button>
+
+                  <button
                     v-if="canModify(invoice)"
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
@@ -346,6 +357,7 @@
       :action-loading="actionLoading"
       @close="detailModalOpen = false"
       @edit="openEditFromDetail"
+      @post="postInvoiceAction"
       @cancel="cancelInvoiceAction"
     />
   </div>
@@ -364,7 +376,7 @@ import {
   totalDiscountAmount,
 } from '../../utils/purchaseFormatters';
 import api from '../../services/api';
-import { confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
+import { confirmAction, confirmDelete, showSuccess, showError, getSwalInstance } from '../../services/alert';
 import AppCheckbox from '../../components/ui/AppCheckbox.vue';
 import BulkActionsBar from '../../components/ui/BulkActionsBar.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
@@ -381,6 +393,7 @@ import {
   Pencil,
   Trash2,
   XCircle,
+  CheckCircle2,
   AlertCircle,
   ExternalLink,
 } from 'lucide-vue-next';
@@ -550,6 +563,36 @@ function onInvoiceSaved() {
     text: t('purchaseInvoices.saveSuccess'),
   });
   loadInvoices();
+}
+
+async function postInvoiceAction(invoice) {
+  const confirmed = await confirmAction({
+    title: t('purchaseInvoices.postTitle'),
+    text: t('purchaseInvoices.postConfirm'),
+    confirmButtonText: t('purchaseInvoices.confirmPostBtn'),
+    cancelButtonText: t('common.cancel'),
+  });
+  if (!confirmed) return;
+
+  actionLoading.value = true;
+  try {
+    const res = await api.post(`/purchase-invoices/${invoice.id}/post`);
+    if (detailModalOpen.value && selectedInvoice.value?.id === invoice.id) {
+      selectedInvoice.value = res.data.data;
+    }
+    showSuccess({
+      title: t('purchaseInvoices.postSuccessTitle'),
+      text: t('purchaseInvoices.postSuccess'),
+    });
+    loadInvoices();
+  } catch (err) {
+    showError({
+      title: t('common.error'),
+      text: err.response?.data?.message || t('purchaseInvoices.unexpectedError'),
+    });
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 async function cancelInvoiceAction(invoice) {

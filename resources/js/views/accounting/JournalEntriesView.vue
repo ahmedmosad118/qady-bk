@@ -259,7 +259,7 @@
                     <Eye class="h-4 w-4" />
                   </button>
                   <button
-                    v-if="entry.status === 'draft'"
+                    v-if="entry.status === 'draft' && entry.source_type !== 'purchase_invoice'"
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
                     :title="$t('common.edit')"
@@ -268,7 +268,7 @@
                     <Pencil class="h-4 w-4" />
                   </button>
                   <button
-                    v-if="entry.status === 'draft'"
+                    v-if="entry.status === 'draft' && entry.source_type !== 'purchase_invoice'"
                     type="button"
                     :disabled="actionEntryId === entry.id"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 cursor-pointer disabled:opacity-50"
@@ -278,7 +278,7 @@
                     <CheckCircle2 class="h-4 w-4" />
                   </button>
                   <button
-                    v-if="entry.status === 'draft'"
+                    v-if="entry.status === 'draft' && entry.source_type !== 'purchase_invoice'"
                     type="button"
                     :disabled="actionEntryId === entry.id"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer disabled:opacity-50"
@@ -287,6 +287,14 @@
                   >
                     <Trash2 class="h-4 w-4" />
                   </button>
+                  <router-link
+                    v-if="entry.source_type === 'purchase_invoice' && entry.source_id"
+                    :to="{ name: 'purchase-invoices', query: { open: String(entry.source_id) } }"
+                    class="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[11px] font-bold text-[var(--text)] hover:text-[var(--crimson)]"
+                    :title="$t('journalEntries.purchaseInvoiceSource')"
+                  >
+                    {{ $t('journalEntries.purchaseInvoiceSource') }}
+                  </router-link>
                 </div>
               </td>
       </template>

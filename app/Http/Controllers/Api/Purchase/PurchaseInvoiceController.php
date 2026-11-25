@@ -32,7 +32,7 @@ class PurchaseInvoiceController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('can:create,'.PurchaseInvoice::class, only: ['store', 'storeFromPurchaseOrder']),
-            new Middleware('can:update,'.PurchaseInvoice::class, only: ['update']),
+            new Middleware('can:update,'.PurchaseInvoice::class, only: ['update', 'post']),
             new Middleware('can:cancel,'.PurchaseInvoice::class, only: ['cancel']),
         ];
     }
@@ -172,6 +172,23 @@ class PurchaseInvoiceController extends Controller implements HasMiddleware
         return response()->json([
             'success' => true,
             'message' => __('purchases.messages.invoice_cancelled'),
+            'data' => $invoice,
+        ]);
+    }
+
+    /**
+     * Post a draft purchase invoice and its linked journal entry.
+     */
+    public function post(Request $request, PurchaseInvoice $purchase_invoice): JsonResponse
+    {
+        $invoice = $this->purchaseInvoiceService->postInvoice(
+            $purchase_invoice,
+            $request->user()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => __('purchases.messages.invoice_posted'),
             'data' => $invoice,
         ]);
     }

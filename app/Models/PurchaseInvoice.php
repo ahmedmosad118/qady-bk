@@ -26,6 +26,7 @@ use Spatie\Activitylog\LogOptions;
     'invoice_number',
     'supplier_id',
     'purchase_order_id',
+    'journal_id',
     'invoice_date',
     'due_date',
     'subtotal',
@@ -37,6 +38,8 @@ use Spatie\Activitylog\LogOptions;
     'notes',
     'status',
     'created_by',
+    'posted_by',
+    'posted_at',
 ])]
 class PurchaseInvoice extends Model
 {
@@ -66,6 +69,9 @@ class PurchaseInvoice extends Model
             'additional_expenses_total' => 'decimal:2',
             'total' => 'decimal:2',
             'status' => PurchaseInvoiceStatus::class,
+            'journal_id' => 'integer',
+            'posted_by' => 'integer',
+            'posted_at' => 'datetime',
         ];
     }
 
@@ -83,6 +89,14 @@ class PurchaseInvoice extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
+    }
+
+    /**
+     * Purchase journal selected for this invoice.
+     */
+    public function journal(): BelongsTo
+    {
+        return $this->belongsTo(Journal::class, 'journal_id');
     }
 
     /**
@@ -110,6 +124,22 @@ class PurchaseInvoice extends Model
     }
 
     /**
+     * User who posted the purchase invoice.
+     */
+    public function postedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by');
+    }
+
+    /**
+     * Linked journal entry via polymorphic source relation.
+     */
+    public function journalEntry(): MorphOne
+    {
+        return $this->morphOne(JournalEntry::class, 'source');
+    }
+
+    /**
      * Inventory documents linked to this purchase invoice.
      */
     public function inventoryDocuments(): MorphMany
@@ -132,6 +162,14 @@ class PurchaseInvoice extends Model
     public function scopeDraft(Builder $query): Builder
     {
         return $query->where('status', PurchaseInvoiceStatus::DRAFT);
+    }
+
+    /**
+     * Scope to posted invoices.
+     */
+    public function scopePosted(Builder $query): Builder
+    {
+        return $query->where('status', PurchaseInvoiceStatus::POSTED);
     }
 
     /**
@@ -167,9 +205,19 @@ class PurchaseInvoice extends Model
         return $this->status === PurchaseInvoiceStatus::DRAFT;
     }
 
+    public function isPosted(): bool
+    {
+        return $this->status === PurchaseInvoiceStatus::POSTED;
+    }
+
     public function isCancelled(): bool
     {
         return $this->status === PurchaseInvoiceStatus::CANCELLED;
+    }
+
+    public function canPost(): bool
+    {
+        return $this->isDraft();
     }
 
     /**
@@ -221,6 +269,10 @@ class PurchaseInvoice extends Model
         });
 
         static::deleting(function (PurchaseInvoice $invoice): void {
+            if ($invoice->isPosted()) {
+                throw new LogicException('Cannot delete a posted purchase invoice.');
+            }
+
             if ($invoice->hasPostedGoodsReceipt()) {
                 throw new LogicException('Cannot delete a purchase invoice that has already affected inventory.');
             }
