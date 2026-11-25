@@ -105,6 +105,17 @@
           </button>
 
           <button
+            v-if="canPay"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--crimson)] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-[var(--crimson-hover)] disabled:opacity-50 cursor-pointer"
+            :disabled="actionLoading"
+            @click="emit('pay', invoice)"
+          >
+            <Banknote class="h-3.5 w-3.5" />
+            <span>{{ $t('purchaseInvoices.payInvoice') }}</span>
+          </button>
+
+          <button
             v-if="invoice?.status === 'draft'"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700 disabled:opacity-50"
@@ -423,6 +434,7 @@ import {
   CheckCircle2,
   Lock,
   ExternalLink,
+  Banknote,
   X,
 } from 'lucide-vue-next';
 
@@ -432,7 +444,7 @@ const props = defineProps({
   actionLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'edit', 'post', 'cancel']);
+const emit = defineEmits(['close', 'edit', 'post', 'cancel', 'pay']);
 const router = useRouter();
 const { t } = useI18n();
 
@@ -443,6 +455,10 @@ const isLockedByPosting = computed(() => {
 
 const canModify = computed(() => {
   return props.invoice?.status === 'draft' && !isLockedByPosting.value;
+});
+
+const canPay = computed(() => {
+  return props.invoice?.status === 'posted' && Number(props.invoice?.outstanding_amount ?? 0) > 0;
 });
 
 const itemDiscountsTotal = computed(() => {

@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\Payment\PaymentStatus;
+use App\Models\PaymentAllocation;
 use App\Models\PurchaseInvoice;
+use App\Support\Decimal;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class PurchaseInvoiceRepository
 {
@@ -71,7 +75,10 @@ class PurchaseInvoiceRepository
 
         $limit = min(max($perPage, 1), 100);
 
-        return $query->orderBy($sortBy, $sortOrder)->paginate($limit);
+        $paginator = $query->orderBy($sortBy, $sortOrder)->paginate($limit);
+        $this->attachPaymentSummary($paginator->getCollection());
+
+        return $paginator;
     }
 
     /**
@@ -79,7 +86,7 @@ class PurchaseInvoiceRepository
      */
     public function findWithRelations(int $id): PurchaseInvoice
     {
-        return PurchaseInvoice::query()
+        $invoice = PurchaseInvoice::query()
             ->with([
                 'supplier',
                 'purchaseOrder',
@@ -95,5 +102,42 @@ class PurchaseInvoiceRepository
                 'journalEntry.lines.account:id,code,name',
             ])
             ->findOrFail($id);
+
+        $this->attachPaymentSummary(collect([$invoice]));
+
+        return $invoice;
+    }
+
+    /**
+     * Attach posted paid_amount and outstanding_amount using a single grouped query.
+     *
+     * @param  Collection<int, PurchaseInvoice>  $invoices
+     */
+    private function attachPaymentSummary(Collection $invoices): void
+    {
+        if ($invoices->isEmpty()) {
+            return;
+        }
+
+        $invoiceIds = $invoices->pluck('id')->all();
+        $morphType = (new PurchaseInvoice)->getMorphClass();
+
+        $postedPaidByInvoice = PaymentAllocation::query()
+            ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
+            ->where('payment_allocations.allocatable_type', $morphType)
+            ->whereIn('payment_allocations.allocatable_id', $invoiceIds)
+            ->where('payments.status', PaymentStatus::POSTED->value)
+            ->groupBy('payment_allocations.allocatable_id')
+            ->selectRaw('payment_allocations.allocatable_id, COALESCE(SUM(payment_allocations.allocated_amount), 0) as paid_total')
+            ->pluck('paid_total', 'allocatable_id');
+
+        foreach ($invoices as $invoice) {
+            $total = Decimal::fromNumeric($invoice->total ?? 0, Decimal::MONEY_SCALE);
+            $paid = Decimal::fromNumeric($postedPaidByInvoice->get($invoice->id, 0), Decimal::MONEY_SCALE);
+            $outstanding = Decimal::sub($total, $paid, Decimal::MONEY_SCALE);
+
+            $invoice->setAttribute('paid_amount', $paid);
+            $invoice->setAttribute('outstanding_amount', $outstanding);
+        }
     }
 }

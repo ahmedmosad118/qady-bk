@@ -281,6 +281,16 @@
                   </button>
 
                   <button
+                    v-if="canPayInvoice(invoice)"
+                    type="button"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--crimson)] hover:bg-[var(--crimson-soft)] cursor-pointer"
+                    :title="$t('purchaseInvoices.payInvoice')"
+                    @click="openPayModal(invoice)"
+                  >
+                    <Banknote class="h-4 w-4" />
+                  </button>
+
+                  <button
                     v-if="invoice.status === 'draft'"
                     type="button"
                     :disabled="actionLoading"
@@ -359,6 +369,15 @@
       @edit="openEditFromDetail"
       @post="postInvoiceAction"
       @cancel="cancelInvoiceAction"
+      @pay="openPayModal"
+    />
+
+    <!-- Pay Purchase Invoice Modal -->
+    <PayPurchaseInvoiceModal
+      :open="payModalOpen"
+      :invoice="payingInvoice"
+      @close="payModalOpen = false"
+      @saved="onPaymentSaved"
     />
   </div>
 </template>
@@ -386,6 +405,7 @@ import TablePagination from '../../components/ui/TablePagination.vue';
 import { deleteRecordsSequentially, useBulkSelection } from '../../composables/useBulkSelection';
 import PurchaseInvoiceFormModal from './PurchaseInvoiceFormModal.vue';
 import PurchaseInvoiceDetailModal from './PurchaseInvoiceDetailModal.vue';
+import PayPurchaseInvoiceModal from './PayPurchaseInvoiceModal.vue';
 import {
   FileText,
   Plus,
@@ -396,6 +416,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  Banknote,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -409,6 +430,30 @@ const confirmedOrders = ref([]);
 const loading = ref(false);
 const loadError = ref('');
 const actionLoading = ref(false);
+const payModalOpen = ref(false);
+const payingInvoice = ref(null);
+
+function canPayInvoice(invoice) {
+  return invoice?.status === 'posted' && Number(invoice?.outstanding_amount ?? 0) > 0;
+}
+
+function openPayModal(invoice) {
+  if (!canPayInvoice(invoice)) return;
+  payingInvoice.value = invoice;
+  payModalOpen.value = true;
+}
+
+async function onPaymentSaved() {
+  await loadInvoices();
+  if (detailModalOpen.value && selectedInvoice.value?.id && selectedInvoice.value.id === payingInvoice.value?.id) {
+    try {
+      const res = await api.get(`/purchase-invoices/${selectedInvoice.value.id}`);
+      selectedInvoice.value = res.data.data;
+    } catch {
+      // Non-blocking
+    }
+  }
+}
 
 const meta = reactive({
   current_page: 1,
