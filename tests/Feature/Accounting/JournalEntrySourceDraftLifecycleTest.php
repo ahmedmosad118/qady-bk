@@ -9,6 +9,7 @@ use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\Accounting\JournalEntryStatus;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
+use App\Models\Contact;
 use App\Models\Expense;
 use App\Models\FiscalYear;
 use App\Models\Journal;
@@ -242,5 +243,37 @@ class JournalEntrySourceDraftLifecycleTest extends TestCase
                 'status' => JournalEntryStatus::Posted->value,
             ]);
         }
+    }
+
+    public function test_generic_source_draft_persists_and_updates_optional_contact_id_and_rejects_mismatched_source(): void
+    {
+        $contact1 = Contact::factory()->create();
+        $contact2 = Contact::factory()->create();
+        $source = Expense::factory()->create(['created_by' => $this->user->id]);
+        $otherSource = Expense::factory()->create(['created_by' => $this->user->id]);
+        $service = app(JournalEntryService::class);
+
+        $created = $service->createDraftForSource(
+            $this->validPayload(['contact_id' => $contact1->id]),
+            $source,
+            $this->user,
+        );
+        $this->assertSame($contact1->id, $created->contact_id);
+        $this->assertSame($contact1->id, $created->contact?->id);
+
+        $updated = $service->updateDraftForSource(
+            $source,
+            $this->validPayload(['contact_id' => $contact2->id]),
+        );
+        $this->assertSame($created->id, $updated->id);
+        $this->assertSame($contact2->id, $updated->contact_id);
+
+        // Clearing contact_id via source update sets it to null
+        $cleared = $service->updateDraftForSource($source, $this->validPayload());
+        $this->assertNull($cleared->contact_id);
+
+        // Calling source-managed operations with a different source identity is rejected
+        $this->expectException(ValidationException::class);
+        $service->updateDraftForSource($otherSource, $this->validPayload());
     }
 }

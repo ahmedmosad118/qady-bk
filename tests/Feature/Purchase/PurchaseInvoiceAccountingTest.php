@@ -1378,4 +1378,53 @@ class PurchaseInvoiceAccountingTest extends TestCase
         $this->assertSame($this->payableAccount->id, $payload['lines'][1]['account_id']);
         $this->assertSame('250.00', $payload['lines'][1]['credit']);
     }
+
+    public function test_purchase_invoice_journal_entry_persists_and_retains_supplier_contact_id_across_lifecycle(): void
+    {
+        $supplierA = $this->createSupplier();
+        $supplierB = $this->createSupplier();
+        $product = $this->createProduct();
+
+        $created = $this->postJson('/api/purchase-invoices', [
+            'supplier_id' => $supplierA->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $invoiceId = $created->json('data.id');
+        $entry = JournalEntry::query()
+            ->where('source_type', 'purchase_invoice')
+            ->where('source_id', $invoiceId)
+            ->firstOrFail();
+
+        $this->assertSame($supplierA->id, $entry->contact_id);
+        $this->assertSame($supplierA->id, $entry->contact?->id);
+        $originalEntryId = $entry->id;
+        $originalEntryNumber = $entry->entry_number;
+
+        // Update Draft invoice to a different supplier
+        $this->putJson("/api/purchase-invoices/{$invoiceId}", [
+            'supplier_id' => $supplierB->id,
+            'journal_id' => $this->purchaseJournal->id,
+            'invoice_date' => '2026-06-15',
+            'due_date' => '2026-06-15',
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertOk();
+
+        $entry->refresh();
+        $this->assertSame($originalEntryId, $entry->id);
+        $this->assertSame($originalEntryNumber, $entry->entry_number);
+        $this->assertSame($supplierB->id, $entry->contact_id);
+
+        // Post invoice and confirm contact_id and identity are preserved
+        $this->postJson("/api/purchase-invoices/{$invoiceId}/post")->assertOk();
+
+        $entry->refresh();
+        $this->assertSame($originalEntryId, $entry->id);
+        $this->assertSame($originalEntryNumber, $entry->entry_number);
+        $this->assertSame(JournalEntryStatus::Posted, $entry->status);
+        $this->assertSame($supplierB->id, $entry->contact_id);
+    }
 }

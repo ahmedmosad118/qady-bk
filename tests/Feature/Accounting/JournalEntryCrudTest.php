@@ -9,6 +9,7 @@ use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\Accounting\JournalEntryStatus;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
+use App\Models\Contact;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntryLine;
@@ -554,5 +555,35 @@ class JournalEntryCrudTest extends TestCase
             $this->assertDatabaseCount('journal_entries', 0);
             $this->assertDatabaseCount('journal_entry_lines', 0);
         }
+    }
+
+    public function test_manual_journal_entry_supports_optional_contact_id_and_preserves_when_omitted_on_update(): void
+    {
+        $contact = Contact::factory()->create();
+
+        // Create with omitted contact_id -> null
+        $withoutContact = $this->actingAs($this->user)
+            ->postJson('/api/accounting/journal-entries', $this->validPayload())
+            ->assertCreated();
+        $this->assertNull($withoutContact->json('data.contact_id'));
+
+        // Create with valid contact_id -> persisted
+        $withContact = $this->actingAs($this->user)
+            ->postJson('/api/accounting/journal-entries', $this->validPayload(['contact_id' => $contact->id]))
+            ->assertCreated();
+        $entryId = (int) $withContact->json('data.id');
+        $this->assertSame($contact->id, $withContact->json('data.contact_id'));
+
+        // Update omitting contact_id -> preserves existing contact_id
+        $updated = $this->actingAs($this->user)
+            ->putJson("/api/accounting/journal-entries/{$entryId}", $this->validPayload(['reference' => 'REF-KEEP']))
+            ->assertOk();
+        $this->assertSame($contact->id, $updated->json('data.contact_id'));
+
+        // Invalid contact_id -> rejected
+        $this->actingAs($this->user)
+            ->putJson("/api/accounting/journal-entries/{$entryId}", $this->validPayload(['contact_id' => 999999]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['contact_id']);
     }
 }

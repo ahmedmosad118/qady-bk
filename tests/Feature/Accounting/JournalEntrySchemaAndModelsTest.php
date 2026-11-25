@@ -10,14 +10,18 @@ use App\Enums\Accounting\JournalEntryStatus;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
 use App\Models\Activity;
+use App\Models\Contact;
+use App\Models\Expense;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\PurchaseInvoice;
 use App\Models\User;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -40,6 +44,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'journal_id',
             'fiscal_year_id',
             'accounting_period_id',
+            'contact_id',
             'entry_number',
             'entry_date',
             'reference',
@@ -66,6 +71,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'created_at',
             'updated_at',
         ]));
+        $this->assertFalse(Schema::hasColumn('journal_entry_lines', 'contact_id'));
 
         $entryIndexes = collect(Schema::getIndexes('journal_entries'))->pluck('name')->all();
         foreach ([
@@ -75,6 +81,7 @@ class JournalEntrySchemaAndModelsTest extends TestCase
             'journal_entries_journal_id_index',
             'journal_entries_fiscal_year_id_index',
             'journal_entries_accounting_period_id_index',
+            'journal_entries_contact_id_index',
         ] as $indexName) {
             $this->assertContains($indexName, $entryIndexes);
         }
@@ -222,5 +229,89 @@ class JournalEntrySchemaAndModelsTest extends TestCase
 
         $this->expectException(QueryException::class);
         $entry->delete();
+    }
+
+    public function test_backfill_populates_contact_id_for_purchase_invoices_only_and_leaves_unrelated_untouched(): void
+    {
+        $migration = require database_path('migrations/2026_11_25_220532_add_contact_id_to_journal_entries_table.php');
+
+        $journal = Journal::query()->firstOrFail();
+        $fiscalYear = FiscalYear::query()->create([
+            'code' => 'FY-BF',
+            'name' => 'FY Backfill',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => FiscalYearStatus::Open,
+        ]);
+        $period = AccountingPeriod::query()->create([
+            'fiscal_year_id' => $fiscalYear->id,
+            'name' => 'Nov',
+            'period_number' => 11,
+            'start_date' => '2026-11-01',
+            'end_date' => '2026-11-30',
+            'status' => AccountingPeriodStatus::Open,
+        ]);
+        $creator = User::factory()->create();
+        $supplier1 = Contact::factory()->create(['is_supplier' => true]);
+        $supplier2 = Contact::factory()->create(['is_supplier' => true]);
+
+        $invoice1 = PurchaseInvoice::factory()->create([
+            'supplier_id' => $supplier1->id,
+            'journal_id' => $journal->id,
+            'created_by' => $creator->id,
+        ]);
+        $invoice2 = PurchaseInvoice::factory()->create([
+            'supplier_id' => $supplier2->id,
+            'journal_id' => $journal->id,
+            'created_by' => $creator->id,
+        ]);
+        $expense = Expense::factory()->create(['created_by' => $creator->id]);
+
+        // Roll back contact_id column, seed historical rows without contact_id, and re-run up().
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('journal_entries', 'contact_id'));
+
+        $aliasEntryId = DB::table('journal_entries')->insertGetId([
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+            'entry_number' => 'JE-BF-001',
+            'entry_date' => '2026-11-10',
+            'source_type' => 'purchase_invoice',
+            'source_id' => $invoice1->id,
+            'status' => JournalEntryStatus::Draft->value,
+            'created_by' => $creator->id,
+        ]);
+
+        $fqcnEntryId = DB::table('journal_entries')->insertGetId([
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+            'entry_number' => 'JE-BF-002',
+            'entry_date' => '2026-11-11',
+            'source_type' => PurchaseInvoice::class,
+            'source_id' => $invoice2->id,
+            'status' => JournalEntryStatus::Posted->value,
+            'created_by' => $creator->id,
+        ]);
+
+        $unrelatedEntryId = DB::table('journal_entries')->insertGetId([
+            'journal_id' => $journal->id,
+            'fiscal_year_id' => $fiscalYear->id,
+            'accounting_period_id' => $period->id,
+            'entry_number' => 'JE-BF-003',
+            'entry_date' => '2026-11-12',
+            'source_type' => $expense->getMorphClass(),
+            'source_id' => $expense->id,
+            'status' => JournalEntryStatus::Posted->value,
+            'created_by' => $creator->id,
+        ]);
+
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('journal_entries', 'contact_id'));
+
+        $this->assertSame($supplier1->id, JournalEntry::query()->findOrFail($aliasEntryId)->contact_id);
+        $this->assertSame($supplier2->id, JournalEntry::query()->findOrFail($fqcnEntryId)->contact_id);
+        $this->assertNull(JournalEntry::query()->findOrFail($unrelatedEntryId)->contact_id);
     }
 }
