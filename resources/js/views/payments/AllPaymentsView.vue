@@ -1,27 +1,29 @@
 <template>
   <div class="space-y-4">
-    <!-- Page Header -->
+    <!-- Page Header (Read-Only Monitoring — No Create Button) -->
     <PageHeader :title="$t('allPayments.title')" :subtitle="$t('allPayments.subtitle')">
       <template #actions>
-        <div class="flex flex-wrap items-center gap-2">
-          <router-link
-            to="/supplier-payments"
-            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
-          >
-            <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
-            <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-          </router-link>
-          <button
-            type="button"
-            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-xs font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
-            @click="openCreateModal"
-          >
-            <Plus class="h-4 w-4" aria-hidden="true" />
-            <span>{{ $t('supplierPayments.create') }}</span>
-          </button>
-        </div>
+        <router-link
+          to="/supplier-payments"
+          class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
+        >
+          <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
+          <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+        </router-link>
       </template>
     </PageHeader>
+
+    <!-- Backend Unified Endpoint Notice -->
+    <div
+      class="flex items-start gap-3 rounded-2xl border border-[var(--gold)]/35 bg-[var(--gold-soft)] px-4 py-3.5 text-xs text-[var(--text)]"
+      role="status"
+    >
+      <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-strong)]" aria-hidden="true" />
+      <div>
+        <p class="font-bold text-[var(--gold-strong)]">{{ $t('allPayments.apiUnavailableTitle') }}</p>
+        <p class="mt-0.5 text-[var(--muted)]">{{ $t('allPayments.apiUnavailableDesc') }}</p>
+      </div>
+    </div>
 
     <!-- DataTable Card -->
     <DataTable
@@ -123,48 +125,38 @@
               </div>
             </div>
 
-            <!-- Contact (Customer or Supplier) -->
+            <!-- Contact / Party -->
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('supplierPayments.relatedParty') }}</label>
-              <select
+              <SearchableSelect
                 v-model="filters.contact_id"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                :fetch-options="fetchContactOptions"
+                :paginate="15"
+                :placeholder="$t('allPayments.allParties')"
                 @change="loadPayments(1)"
-              >
-                <option :value="null">{{ $t('allPayments.allParties') }}</option>
-                <option v-for="c in contacts" :key="c.id" :value="c.id">
-                  {{ c.name }}
-                </option>
-              </select>
+              />
             </div>
 
             <!-- Payment Method & Account -->
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentMethod') }}</label>
-                <select
+                <SearchableSelect
                   v-model="filters.payment_method_id"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  :fetch-options="fetchPaymentMethodOptions"
+                  :placeholder="$t('supplierPayments.allPaymentMethods')"
                   @change="loadPayments(1)"
-                >
-                  <option :value="null">{{ $t('supplierPayments.allPaymentMethods') }}</option>
-                  <option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">
-                    {{ pm.name }}
-                  </option>
-                </select>
+                />
               </div>
               <div>
                 <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('supplierPayments.account') }}</label>
-                <select
+                <SearchableSelect
                   v-model="filters.account_id"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  :fetch-options="fetchAccountOptions"
+                  :paginate="15"
+                  :placeholder="$t('allPayments.allAccounts')"
                   @change="loadPayments(1)"
-                >
-                  <option :value="null">{{ $t('allPayments.allAccounts') }}</option>
-                  <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
-                    {{ acc.name }}
-                  </option>
-                </select>
+                />
               </div>
             </div>
 
@@ -175,7 +167,7 @@
                 <input
                   v-model="filters.payment_date_from"
                   type="date"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   @change="loadPayments(1)"
                 />
               </div>
@@ -184,7 +176,7 @@
                 <input
                   v-model="filters.payment_date_to"
                   type="date"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   @change="loadPayments(1)"
                 />
               </div>
@@ -193,57 +185,60 @@
         </FilterToolbar>
       </template>
 
-      <template #head>
+      <template #header>
         <tr>
           <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.paymentNumber') }}</th>
           <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.paymentType') }}</th>
           <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.relatedType') }}</th>
           <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.relatedParty') }}</th>
           <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.paymentDate') }}</th>
-          <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.amount') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('supplierPayments.amount') }}</th>
           <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.paymentMethod') }}</th>
           <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.account') }}</th>
           <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.status') }}</th>
           <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.createdBy') }}</th>
-          <th class="px-4 py-3.5 text-end">{{ $t('supplierPayments.actions') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
         </tr>
       </template>
 
       <template #row="{ item: payment }">
-        <td class="px-4 py-4 whitespace-nowrap">
+        <td class="px-4 py-4 font-mono text-sm font-bold whitespace-nowrap">
           <button
             type="button"
-            class="font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
+            class="text-[var(--text)] hover:text-[var(--crimson)] transition-colors cursor-pointer"
             @click="openDetailModal(payment)"
           >
             {{ payment.payment_number }}
           </button>
         </td>
 
-        <td class="px-4 py-4 text-center">
-          <span class="inline-flex rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 text-xs font-bold text-[var(--text)]">
-            {{ payment.payment_type ? $t(`supplierPayments.paymentTypes.${payment.payment_type}`) : '—' }}
+        <td class="px-4 py-4 text-center whitespace-nowrap">
+          <span
+            v-if="payment.payment_type"
+            class="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs font-bold text-[var(--text)]"
+          >
+            {{ $t(`supplierPayments.paymentTypes.${payment.payment_type}`) }}
           </span>
+          <span v-else class="text-xs text-[var(--muted)]">—</span>
         </td>
 
-        <td class="px-4 py-4 text-center text-xs text-[var(--muted)]">
+        <td class="px-4 py-4 text-center whitespace-nowrap text-xs text-[var(--muted)]">
           {{ payment.related_type ? $t(`supplierPayments.relatedTypes.${payment.related_type}`) : '—' }}
         </td>
 
-        <td class="px-4 py-4 font-bold text-[var(--text)]">
+        <td class="px-4 py-4 text-sm font-semibold text-[var(--text)]">
           {{ payment.supplier?.name || payment.customer?.name || payment.contact?.name || '—' }}
         </td>
 
-        <td class="px-4 py-4 text-center font-mono text-xs font-bold text-[var(--text)] whitespace-nowrap">
+        <td class="px-4 py-4 text-center font-mono text-xs text-[var(--muted)] whitespace-nowrap">
           {{ formatDateOnly(payment.payment_date) }}
         </td>
 
-        <td class="px-4 py-4 text-center font-mono text-sm font-black text-[var(--text)] whitespace-nowrap">
-          {{ formatMoney(payment.amount) }}
-          <span class="text-xs font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
+        <td class="px-4 py-4 text-end font-mono text-sm font-black text-[var(--text)] whitespace-nowrap">
+          {{ formatMoney(payment.amount) }} {{ $t('common.currency') }}
         </td>
 
-        <td class="px-4 py-4 text-xs font-semibold text-[var(--text)]">
+        <td class="px-4 py-4 text-xs text-[var(--muted)]">
           {{ payment.payment_method?.name || '—' }}
         </td>
 
@@ -251,7 +246,7 @@
           {{ payment.account?.name || '—' }}
         </td>
 
-        <td class="px-4 py-4 text-center">
+        <td class="px-4 py-4 text-center whitespace-nowrap">
           <span
             class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
             :class="statusBadgeClass(payment.status)"
@@ -280,17 +275,6 @@
       </template>
     </DataTable>
 
-    <!-- Create Payment Modal -->
-    <SupplierPaymentFormModal
-      :open="formOpen"
-      :payment="null"
-      :suppliers="suppliers"
-      :payment-methods="payablePaymentMethods"
-      :journals="journals"
-      @close="formOpen = false"
-      @saved="onPaymentSaved"
-    />
-
     <!-- Shared Read-Only Details Modal -->
     <SupplierPaymentDetailModal
       :open="detailOpen"
@@ -302,30 +286,22 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ExternalLink, Eye, Plus } from 'lucide-vue-next';
+import { AlertCircle, ExternalLink, Eye } from 'lucide-vue-next';
+import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SupplierPaymentDetailModal from '../purchases/SupplierPaymentDetailModal.vue';
-import SupplierPaymentFormModal from '../purchases/SupplierPaymentFormModal.vue';
 import api from '../../services/api';
-import { fetchJournals } from '../../services/accountingApi';
-import { fetchSupplierPayments } from '../../services/supplierPaymentsApi';
 import { formatDateOnly } from '../../utils/date';
+import { createContactFetcher, createPaginatedFetcher } from '../../utils/selectFetchers';
 
-const { t, locale } = useI18n();
+const { locale } = useI18n();
 
 const payments = ref([]);
-const contacts = ref([]);
-const suppliers = ref([]);
-const paymentMethods = ref([]);
-const accounts = ref([]);
-const journals = ref([]);
-const payablePaymentMethods = computed(() => paymentMethods.value.filter((pm) => pm.is_active && pm.account_id));
-
 const loading = ref(false);
 const loadError = ref('');
 const perPage = ref(15);
@@ -343,10 +319,31 @@ const filters = ref({
   payment_date_to: '',
 });
 
-const formOpen = ref(false);
 const detailOpen = ref(false);
 const selectedPayment = ref(null);
 let searchTimer = null;
+
+const fetchContactOptions = createContactFetcher({ activeOnly: true });
+const fetchAccountOptions = createPaginatedFetcher(
+  '/accounting/accounts',
+  () => ({ is_active: 1 }),
+  (acc) => ({
+    value: acc.id,
+    label: acc.code ? `${acc.code} — ${acc.name}` : acc.name,
+    raw: acc,
+  })
+);
+const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
+  const res = await api.get('/payment-methods');
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0);
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? active.filter((pm) => String(pm.name || '').toLowerCase().includes(query))
+    : active;
+  const options = filtered.map((pm) => ({ value: pm.id, label: pm.name, raw: pm }));
+  return { options, hasMore: false, total: options.length, currentPage: 1, lastPage: 1 };
+};
 
 const activeFiltersCount = computed(() => {
   let count = 0;
@@ -372,63 +369,11 @@ const statusBadgeClass = (status) => {
   return 'bg-[var(--gold-soft)] text-[var(--gold-strong)]';
 };
 
-const loadLookups = async () => {
-  try {
-    const [contactRes, supRes, pmRes, accRes, cashRes, bankRes] = await Promise.all([
-      api.get('/contacts', { params: { is_active: 1, per_page: 100 } }),
-      api.get('/contacts', { params: { role: 'supplier', is_active: 1, per_page: 100 } }),
-      api.get('/payment-methods'),
-      api.get('/accounting/accounts', { params: { is_active: 1, per_page: 100 } }),
-      fetchJournals({ type: 'cash', is_active: 1, per_page: 100 }),
-      fetchJournals({ type: 'bank', is_active: 1, per_page: 100 }),
-    ]);
-
-    contacts.value = contactRes.data?.data ?? [];
-    suppliers.value = supRes.data?.data ?? [];
-    paymentMethods.value = (pmRes.data?.data ?? []).filter((pm) => pm.is_active);
-    accounts.value = accRes.data?.data ?? [];
-    journals.value = [...(cashRes.data?.data ?? []), ...(bankRes.data?.data ?? [])];
-  } catch {
-    // Non-blocking
-  }
-};
-
+// Unified GET /api/payments endpoint is not yet implemented in Phase 7.
+// Do NOT call GET /api/supplier-payments to simulate unified results.
 const loadPayments = async (page = 1) => {
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const params = {
-      page,
-      per_page: perPage.value,
-      ...(filters.value.search.trim() ? { search: filters.value.search.trim() } : {}),
-      ...(filters.value.payment_type ? { payment_type: filters.value.payment_type } : {}),
-      ...(filters.value.related_type ? { related_type: filters.value.related_type } : {}),
-      ...(filters.value.status ? { status: filters.value.status } : {}),
-      ...(filters.value.contact_id ? { contact_id: filters.value.contact_id } : {}),
-      ...(filters.value.payment_method_id ? { payment_method_id: filters.value.payment_method_id } : {}),
-      ...(filters.value.account_id ? { account_id: filters.value.account_id } : {}),
-      ...(filters.value.payment_date_from ? { payment_date_from: filters.value.payment_date_from } : {}),
-      ...(filters.value.payment_date_to ? { payment_date_to: filters.value.payment_date_to } : {}),
-    };
-
-    const res = await fetchSupplierPayments(params);
-    let rows = res.data?.data ?? [];
-
-    // Ensure client-side consistency if payment_type/related_type filter is set
-    if (filters.value.payment_type) {
-      rows = rows.filter((r) => r.payment_type === filters.value.payment_type);
-    }
-    if (filters.value.related_type) {
-      rows = rows.filter((r) => r.related_type === filters.value.related_type);
-    }
-
-    payments.value = rows;
-    meta.value = res.data?.meta ?? { current_page: page, last_page: 1, per_page: perPage.value, total: rows.length };
-  } catch (err) {
-    loadError.value = err.response?.data?.message || t('allPayments.loadError');
-  } finally {
-    loading.value = false;
-  }
+  payments.value = [];
+  meta.value = { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
 };
 
 const debouncedSearch = () => {
@@ -456,22 +401,8 @@ const resetFilters = () => {
   loadPayments(1);
 };
 
-const openCreateModal = () => {
-  formOpen.value = true;
-};
-
-const onPaymentSaved = () => {
-  formOpen.value = false;
-  loadPayments(1);
-};
-
 const openDetailModal = (payment) => {
   selectedPayment.value = payment;
   detailOpen.value = true;
 };
-
-onMounted(() => {
-  loadLookups();
-  loadPayments(1);
-});
 </script>

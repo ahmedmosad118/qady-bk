@@ -3,6 +3,18 @@
     <!-- Page Header (No Create Button — Customer Receipt creation is not supported yet) -->
     <PageHeader :title="$t('customerReceipts.title')" :subtitle="$t('customerReceipts.subtitle')" />
 
+    <!-- Backend Customer Receipts Endpoint Notice -->
+    <div
+      class="flex items-start gap-3 rounded-2xl border border-[var(--gold)]/35 bg-[var(--gold-soft)] px-4 py-3.5 text-xs text-[var(--text)]"
+      role="status"
+    >
+      <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-strong)]" aria-hidden="true" />
+      <div>
+        <p class="font-bold text-[var(--gold-strong)]">{{ $t('customerReceipts.apiUnavailableTitle') }}</p>
+        <p class="mt-0.5 text-[var(--muted)]">{{ $t('customerReceipts.apiUnavailableDesc') }}</p>
+      </div>
+    </div>
+
     <!-- DataTable Card -->
     <DataTable
       :items="receipts"
@@ -57,31 +69,26 @@
             <!-- Customer -->
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('customerReceipts.customer') }}</label>
-              <select
+              <SearchableSelect
                 v-model="filters.contact_id"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                :fetch-options="fetchCustomerOptions"
+                :paginate="15"
+                :placeholder="$t('customerReceipts.allCustomers')"
+                :search-placeholder="$t('supplierPayments.searchCustomers')"
                 @change="loadReceipts(1)"
-              >
-                <option :value="null">{{ $t('customerReceipts.allCustomers') }}</option>
-                <option v-for="cust in customers" :key="cust.id" :value="cust.id">
-                  {{ cust.name }}
-                </option>
-              </select>
+              />
             </div>
 
             <!-- Payment Method -->
             <div>
               <label class="mb-1.5 block text-xs font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentMethod') }}</label>
-              <select
+              <SearchableSelect
                 v-model="filters.payment_method_id"
-                class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                :fetch-options="fetchPaymentMethodOptions"
+                :placeholder="$t('supplierPayments.allPaymentMethods')"
+                :search-placeholder="$t('supplierPayments.searchPaymentMethods')"
                 @change="loadReceipts(1)"
-              >
-                <option :value="null">{{ $t('supplierPayments.allPaymentMethods') }}</option>
-                <option v-for="pm in paymentMethods" :key="pm.id" :value="pm.id">
-                  {{ pm.name }}
-                </option>
-              </select>
+              />
             </div>
 
             <!-- Date Range -->
@@ -91,7 +98,7 @@
                 <input
                   v-model="filters.payment_date_from"
                   type="date"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   @change="loadReceipts(1)"
                 />
               </div>
@@ -100,7 +107,7 @@
                 <input
                   v-model="filters.payment_date_to"
                   type="date"
-                  class="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
+                  class="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--crimson)]"
                   @change="loadReceipts(1)"
                 />
               </div>
@@ -109,53 +116,46 @@
         </FilterToolbar>
       </template>
 
-      <template #head>
+      <template #header>
         <tr>
-          <th class="px-5 py-3.5 text-start">{{ $t('supplierPayments.paymentNumber') }}</th>
-          <th class="px-5 py-3.5 text-start">{{ $t('customerReceipts.customer') }}</th>
-          <th class="px-5 py-3.5 text-center">{{ $t('supplierPayments.paymentDate') }}</th>
-          <th class="px-5 py-3.5 text-center">{{ $t('supplierPayments.amount') }}</th>
-          <th class="px-5 py-3.5 text-start">{{ $t('supplierPayments.paymentMethod') }}</th>
-          <th class="px-5 py-3.5 text-start">{{ $t('supplierPayments.journal') }}</th>
-          <th class="px-5 py-3.5 text-center">{{ $t('supplierPayments.status') }}</th>
-          <th class="px-5 py-3.5 text-start">{{ $t('supplierPayments.createdBy') }}</th>
-          <th class="px-5 py-3.5 text-end">{{ $t('supplierPayments.actions') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.paymentNumber') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('customerReceipts.customer') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.paymentDate') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('supplierPayments.amount') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.paymentMethod') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.journal') }}</th>
+          <th class="px-4 py-3.5 text-center">{{ $t('supplierPayments.status') }}</th>
+          <th class="px-4 py-3.5 text-start">{{ $t('supplierPayments.createdBy') }}</th>
+          <th class="px-4 py-3.5 text-end">{{ $t('common.actions') }}</th>
         </tr>
       </template>
 
       <template #row="{ item: receipt }">
-        <td class="px-5 py-4 whitespace-nowrap">
-          <button
-            type="button"
-            class="font-mono text-sm font-black text-[var(--text)] hover:text-[var(--crimson)] hover:underline cursor-pointer"
-            @click="openDetailModal(receipt)"
-          >
-            {{ receipt.payment_number }}
-          </button>
+        <td class="px-4 py-4 font-mono text-sm font-bold whitespace-nowrap text-[var(--text)]">
+          {{ receipt.payment_number }}
         </td>
 
-        <td class="px-5 py-4 font-bold text-[var(--text)]">
+        <td class="px-4 py-4 text-sm font-semibold text-[var(--text)]">
           {{ receipt.customer?.name || receipt.contact?.name || '—' }}
         </td>
 
-        <td class="px-5 py-4 text-center font-mono text-xs font-bold text-[var(--text)] whitespace-nowrap">
+        <td class="px-4 py-4 text-center font-mono text-xs text-[var(--muted)] whitespace-nowrap">
           {{ formatDateOnly(receipt.payment_date) }}
         </td>
 
-        <td class="px-5 py-4 text-center font-mono text-sm font-black text-[var(--text)] whitespace-nowrap">
-          {{ formatMoney(receipt.amount) }}
-          <span class="text-xs font-normal text-[var(--muted)]">{{ $t('common.currency') }}</span>
+        <td class="px-4 py-4 text-end font-mono text-sm font-black text-[var(--text)] whitespace-nowrap">
+          {{ formatMoney(receipt.amount) }} {{ $t('common.currency') }}
         </td>
 
-        <td class="px-5 py-4 text-xs font-semibold text-[var(--text)]">
+        <td class="px-4 py-4 text-xs text-[var(--muted)]">
           {{ receipt.payment_method?.name || '—' }}
         </td>
 
-        <td class="px-5 py-4 text-xs font-semibold text-[var(--muted)]">
+        <td class="px-4 py-4 text-xs text-[var(--muted)]">
           {{ receipt.journal?.name || '—' }}
         </td>
 
-        <td class="px-5 py-4 text-center">
+        <td class="px-4 py-4 text-center whitespace-nowrap">
           <span
             class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
             :class="statusBadgeClass(receipt.status)"
@@ -165,52 +165,34 @@
           </span>
         </td>
 
-        <td class="px-5 py-4 text-xs text-[var(--muted)]">
+        <td class="px-4 py-4 text-xs text-[var(--muted)]">
           {{ receipt.creator?.name || '—' }}
         </td>
 
-        <td class="px-5 py-4 text-end">
-          <button
-            type="button"
-            class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
-            :title="$t('supplierPayments.view')"
-            @click="openDetailModal(receipt)"
-          >
-            <Eye class="h-4 w-4" />
-          </button>
+        <td class="px-4 py-4 text-end">
+          <span class="text-xs text-[var(--muted)]">—</span>
         </td>
       </template>
     </DataTable>
-
-    <!-- Shared Read-Only Details Drawer (lifecycle actions omitted since Phase 7 API supports supplier payments only) -->
-    <SupplierPaymentDetailModal
-      :open="detailOpen"
-      :payment="selectedReceipt"
-      :read-only="true"
-      @close="detailOpen = false"
-    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Eye } from 'lucide-vue-next';
+import { AlertCircle } from 'lucide-vue-next';
+import SearchableSelect from '../../components/common/SearchableSelect.vue';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
-import SupplierPaymentDetailModal from '../purchases/SupplierPaymentDetailModal.vue';
 import api from '../../services/api';
-import { fetchSupplierPayments } from '../../services/supplierPaymentsApi';
 import { formatDateOnly } from '../../utils/date';
+import { createContactFetcher } from '../../utils/selectFetchers';
 
-const { t, locale } = useI18n();
+const { locale } = useI18n();
 
 const receipts = ref([]);
-const customers = ref([]);
-const paymentMethods = ref([]);
-
 const loading = ref(false);
 const loadError = ref('');
 const perPage = ref(15);
@@ -225,9 +207,20 @@ const filters = ref({
   payment_date_to: '',
 });
 
-const detailOpen = ref(false);
-const selectedReceipt = ref(null);
 let searchTimer = null;
+
+const fetchCustomerOptions = createContactFetcher({ isCustomer: true, activeOnly: true });
+const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
+  const res = await api.get('/payment-methods');
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0);
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? active.filter((pm) => String(pm.name || '').toLowerCase().includes(query))
+    : active;
+  const options = filtered.map((pm) => ({ value: pm.id, label: pm.name, raw: pm }));
+  return { options, hasMore: false, total: options.length, currentPage: 1, lastPage: 1 };
+};
 
 const activeFiltersCount = computed(() => {
   let count = 0;
@@ -250,51 +243,11 @@ const statusBadgeClass = (status) => {
   return 'bg-[var(--gold-soft)] text-[var(--gold-strong)]';
 };
 
-const loadLookups = async () => {
-  try {
-    const [custRes, pmRes] = await Promise.all([
-      api.get('/contacts', { params: { role: 'customer', is_active: 1, per_page: 100 } }),
-      api.get('/payment-methods'),
-    ]);
-    customers.value = custRes.data?.data ?? [];
-    paymentMethods.value = (pmRes.data?.data ?? []).filter((pm) => pm.is_active);
-  } catch {
-    // Non-blocking
-  }
-};
-
+// Customer Receipts API (GET /api/customer-receipts) is not yet implemented in Phase 7.
+// Do NOT call GET /api/supplier-payments and filter locally.
 const loadReceipts = async (page = 1) => {
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const params = {
-      page,
-      per_page: perPage.value,
-      payment_type: 'receive',
-      related_type: 'customer',
-      ...(filters.value.search.trim() ? { search: filters.value.search.trim() } : {}),
-      ...(filters.value.status ? { status: filters.value.status } : {}),
-      ...(filters.value.contact_id ? { contact_id: filters.value.contact_id } : {}),
-      ...(filters.value.payment_method_id ? { payment_method_id: filters.value.payment_method_id } : {}),
-      ...(filters.value.payment_date_from ? { payment_date_from: filters.value.payment_date_from } : {}),
-      ...(filters.value.payment_date_to ? { payment_date_to: filters.value.payment_date_to } : {}),
-    };
-
-    const res = await fetchSupplierPayments(params);
-    // Keep strictly customer receipts (receive + customer) so supplier payments never leak into this screen
-    const rows = (res.data?.data ?? []).filter(
-      (r) => r.payment_type === 'receive' && r.related_type === 'customer'
-    );
-
-    receipts.value = rows;
-    meta.value = rows.length === 0
-      ? { current_page: 1, last_page: 1, per_page: perPage.value, total: 0 }
-      : (res.data?.meta ?? { current_page: page, last_page: 1, per_page: perPage.value, total: rows.length });
-  } catch (err) {
-    loadError.value = err.response?.data?.message || t('customerReceipts.loadError');
-  } finally {
-    loading.value = false;
-  }
+  receipts.value = [];
+  meta.value = { current_page: page, last_page: 1, per_page: perPage.value, total: 0 };
 };
 
 const debouncedSearch = () => {
@@ -318,14 +271,4 @@ const resetFilters = () => {
   };
   loadReceipts(1);
 };
-
-const openDetailModal = (receipt) => {
-  selectedReceipt.value = receipt;
-  detailOpen.value = true;
-};
-
-onMounted(() => {
-  loadLookups();
-  loadReceipts(1);
-});
 </script>

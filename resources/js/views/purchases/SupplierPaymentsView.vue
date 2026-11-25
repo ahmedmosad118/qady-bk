@@ -1,7 +1,18 @@
 <template>
   <div class="space-y-4">
-    <!-- Page Header (No Create Button — creation is in All Payments) -->
-    <PageHeader :title="$t('supplierPayments.title')" :subtitle="$t('supplierPayments.subtitle')" />
+    <!-- Page Header -->
+    <PageHeader :title="$t('supplierPayments.title')" :subtitle="$t('supplierPayments.subtitle')">
+      <template #actions>
+        <button
+          type="button"
+          class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-5 text-sm font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
+          @click="openCreateModal"
+        >
+          <Plus class="h-[18px] w-[18px]" aria-hidden="true" />
+          <span>{{ $t('supplierPayments.create') }}</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- DataTable Card -->
     <DataTable
@@ -240,18 +251,15 @@
       </template>
     </DataTable>
 
-    <!-- Create / Edit Drawer -->
+    <!-- Create / Edit Modal -->
     <SupplierPaymentFormModal
       :open="formOpen"
       :payment="editingPayment"
-      :suppliers="suppliers"
-      :payment-methods="paymentMethods"
-      :journals="journals"
       @close="formOpen = false"
       @saved="onPaymentSaved"
     />
 
-    <!-- Details Drawer -->
+    <!-- Details Modal -->
     <SupplierPaymentDetailModal
       :open="detailOpen"
       :payment="selectedPayment"
@@ -268,7 +276,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { CheckCircle2, Eye, Pencil, Trash2, XCircle } from 'lucide-vue-next';
+import { CheckCircle2, Eye, Pencil, Plus, Trash2, XCircle } from 'lucide-vue-next';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
@@ -343,7 +351,7 @@ const statusBadgeClass = (status) => {
 const loadLookups = async () => {
   try {
     const [supRes, pmRes, cashRes, bankRes] = await Promise.all([
-      api.get('/contacts', { params: { role: 'supplier', is_active: 1, per_page: 100 } }),
+      api.get('/contacts', { params: { is_supplier: 1, is_active: 1, per_page: 100 } }),
       api.get('/payment-methods'),
       fetchJournals({ type: 'cash', is_active: 1, per_page: 100 }),
       fetchJournals({ type: 'bank', is_active: 1, per_page: 100 }),
@@ -404,6 +412,11 @@ const resetFilters = () => {
     payment_date_to: '',
   };
   loadPayments(1);
+};
+
+const openCreateModal = () => {
+  editingPayment.value = null;
+  formOpen.value = true;
 };
 
 const openEditModal = (payment) => {
