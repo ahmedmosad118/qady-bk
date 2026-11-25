@@ -1,10 +1,9 @@
 <template>
-  <AppDrawer
+  <AppModal
     :open="open"
     :title="isEdit ? $t('supplierPayments.editTitle') : $t('supplierPayments.create')"
     :subtitle="isEdit ? $t('supplierPayments.editSubtitle') : $t('supplierPayments.createSubtitle')"
     width-class="max-w-3xl lg:max-w-4xl"
-    side="end"
     @close="emit('close')"
   >
     <div v-if="loadingDetails" class="flex items-center justify-center py-16">
@@ -351,14 +350,14 @@
         </button>
       </div>
     </template>
-  </AppDrawer>
+  </AppModal>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { AlertCircle, Info, Plus, Trash2 } from 'lucide-vue-next';
-import AppDrawer from '../../components/ui/AppDrawer.vue';
+import AppModal from '../../components/ui/AppModal.vue';
 import {
   createSupplierPayment,
   fetchOutstandingSupplierInvoices,

@@ -1,15 +1,25 @@
 <template>
   <div class="space-y-4">
-    <!-- Page Header (Read-Only Monitoring — No Create Button) -->
+    <!-- Page Header -->
     <PageHeader :title="$t('allPayments.title')" :subtitle="$t('allPayments.subtitle')">
       <template #actions>
-        <router-link
-          to="/supplier-payments"
-          class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
-        >
-          <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
-          <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-        </router-link>
+        <div class="flex flex-wrap items-center gap-2">
+          <router-link
+            to="/supplier-payments"
+            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--crimson)]/40 hover:text-[var(--crimson)]"
+          >
+            <span>{{ $t('allPayments.goToSupplierPayments') }}</span>
+            <ExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+          </router-link>
+          <button
+            type="button"
+            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--crimson)] px-4 text-xs font-bold text-white shadow-sm shadow-[var(--crimson)]/20 transition-colors hover:bg-[var(--crimson-hover)] cursor-pointer"
+            @click="openCreateModal"
+          >
+            <Plus class="h-4 w-4" aria-hidden="true" />
+            <span>{{ $t('supplierPayments.create') }}</span>
+          </button>
+        </div>
       </template>
     </PageHeader>
 
@@ -270,7 +280,18 @@
       </template>
     </DataTable>
 
-    <!-- Shared Read-Only Details Drawer -->
+    <!-- Create Payment Modal -->
+    <SupplierPaymentFormModal
+      :open="formOpen"
+      :payment="null"
+      :suppliers="suppliers"
+      :payment-methods="payablePaymentMethods"
+      :journals="journals"
+      @close="formOpen = false"
+      @saved="onPaymentSaved"
+    />
+
+    <!-- Shared Read-Only Details Modal -->
     <SupplierPaymentDetailModal
       :open="detailOpen"
       :payment="selectedPayment"
@@ -283,13 +304,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ExternalLink, Eye } from 'lucide-vue-next';
+import { ExternalLink, Eye, Plus } from 'lucide-vue-next';
 import DataTable from '../../components/ui/DataTable.vue';
 import FilterChip from '../../components/ui/FilterChip.vue';
 import FilterToolbar from '../../components/ui/FilterToolbar.vue';
 import PageHeader from '../../components/ui/PageHeader.vue';
 import SupplierPaymentDetailModal from '../purchases/SupplierPaymentDetailModal.vue';
+import SupplierPaymentFormModal from '../purchases/SupplierPaymentFormModal.vue';
 import api from '../../services/api';
+import { fetchJournals } from '../../services/accountingApi';
 import { fetchSupplierPayments } from '../../services/supplierPaymentsApi';
 import { formatDateOnly } from '../../utils/date';
 
@@ -297,8 +320,11 @@ const { t, locale } = useI18n();
 
 const payments = ref([]);
 const contacts = ref([]);
+const suppliers = ref([]);
 const paymentMethods = ref([]);
 const accounts = ref([]);
+const journals = ref([]);
+const payablePaymentMethods = computed(() => paymentMethods.value.filter((pm) => pm.is_active && pm.account_id));
 
 const loading = ref(false);
 const loadError = ref('');
@@ -317,6 +343,7 @@ const filters = ref({
   payment_date_to: '',
 });
 
+const formOpen = ref(false);
 const detailOpen = ref(false);
 const selectedPayment = ref(null);
 let searchTimer = null;
@@ -347,15 +374,20 @@ const statusBadgeClass = (status) => {
 
 const loadLookups = async () => {
   try {
-    const [contactRes, pmRes, accRes] = await Promise.all([
+    const [contactRes, supRes, pmRes, accRes, cashRes, bankRes] = await Promise.all([
       api.get('/contacts', { params: { is_active: 1, per_page: 100 } }),
+      api.get('/contacts', { params: { role: 'supplier', is_active: 1, per_page: 100 } }),
       api.get('/payment-methods'),
       api.get('/accounting/accounts', { params: { is_active: 1, per_page: 100 } }),
+      fetchJournals({ type: 'cash', is_active: 1, per_page: 100 }),
+      fetchJournals({ type: 'bank', is_active: 1, per_page: 100 }),
     ]);
 
     contacts.value = contactRes.data?.data ?? [];
+    suppliers.value = supRes.data?.data ?? [];
     paymentMethods.value = (pmRes.data?.data ?? []).filter((pm) => pm.is_active);
     accounts.value = accRes.data?.data ?? [];
+    journals.value = [...(cashRes.data?.data ?? []), ...(bankRes.data?.data ?? [])];
   } catch {
     // Non-blocking
   }
@@ -421,6 +453,15 @@ const resetFilters = () => {
     payment_date_from: '',
     payment_date_to: '',
   };
+  loadPayments(1);
+};
+
+const openCreateModal = () => {
+  formOpen.value = true;
+};
+
+const onPaymentSaved = () => {
+  formOpen.value = false;
   loadPayments(1);
 };
 

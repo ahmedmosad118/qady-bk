@@ -1,8 +1,7 @@
 <template>
-  <AppDrawer
+  <AppModal
     :open="open"
     width-class="max-w-2xl sm:max-w-3xl lg:max-w-4xl"
-    side="end"
     @close="emit('close')"
   >
     <template #header>
@@ -243,14 +242,14 @@
         </div>
       </div>
     </div>
-  </AppDrawer>
+  </AppModal>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Banknote, CheckCircle2, Info, Pencil, Trash2, X, XCircle } from 'lucide-vue-next';
-import AppDrawer from '../../components/ui/AppDrawer.vue';
+import AppModal from '../../components/ui/AppModal.vue';
 import { fetchSupplierPayment } from '../../services/supplierPaymentsApi';
 import { formatDateOnly, formatDateTime } from '../../utils/date';
 
