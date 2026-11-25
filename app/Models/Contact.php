@@ -201,4 +201,12 @@ class Contact extends Model
     {
         return $this->belongsTo(Account::class, 'payable_account_id');
     }
+
+    /**
+     * Payments associated with this contact.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'contact_id');
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\InventoryDocument;
+use App\Models\Payment;
 use App\Models\PosReturn;
 use App\Models\PosSale;
 use App\Models\PurchaseInvoice;
@@ -33,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
             'pos_sale' => PosSale::class,
             'pos_return' => PosReturn::class,
             'purchase_invoice' => PurchaseInvoice::class,
+            'payment' => Payment::class,
         ]);
 
         InventoryDocument::observe(InventoryDocumentObserver::class);

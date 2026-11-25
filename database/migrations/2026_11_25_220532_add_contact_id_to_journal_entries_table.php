@@ -13,10 +13,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('journal_entries')) {
-            return;
-        }
-
         if (! Schema::hasColumn('journal_entries', 'contact_id')) {
             Schema::table('journal_entries', function (Blueprint $table): void {
                 $table->foreignId('contact_id')
@@ -34,44 +30,20 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! Schema::hasTable('journal_entries') || ! Schema::hasColumn('journal_entries', 'contact_id')) {
+        if (! Schema::hasColumn('journal_entries', 'contact_id')) {
             return;
         }
 
-        $foreignKeys = Schema::getForeignKeys('journal_entries');
-        foreach ($foreignKeys as $fk) {
-            if (in_array('contact_id', $fk['columns'], true)) {
-                Schema::table('journal_entries', function (Blueprint $table): void {
-                    $table->dropForeign(['contact_id']);
-                });
-                break;
-            }
-        }
-
-        $indexes = Schema::getIndexes('journal_entries');
-        foreach ($indexes as $index) {
-            if ($index['primary']) {
-                continue;
-            }
-            if ($index['columns'] === ['contact_id']) {
-                Schema::table('journal_entries', function (Blueprint $table) use ($index): void {
-                    $table->dropIndex($index['name']);
-                });
-            }
-        }
-
         Schema::table('journal_entries', function (Blueprint $table): void {
+            $table->dropForeign(['contact_id']);
+            $table->dropIndex('journal_entries_contact_id_index');
             $table->dropColumn('contact_id');
         });
     }
 
     public function backfillPurchaseInvoiceContacts(): void
     {
-        if (! Schema::hasTable('purchase_invoices')) {
-            return;
-        }
-
-        $purchaseInvoiceSources = array_values(array_unique(array_filter([
+        $sources = array_values(array_unique(array_filter([
             'purchase_invoice',
             PurchaseInvoice::class,
             Relation::getMorphedModel('purchase_invoice'),
@@ -79,7 +51,7 @@ return new class extends Migration
 
         $entries = DB::table('journal_entries')
             ->whereNull('contact_id')
-            ->whereIn('source_type', $purchaseInvoiceSources)
+            ->whereIn('source_type', $sources)
             ->whereNotNull('source_id')
             ->get(['id', 'source_id']);
 
@@ -87,14 +59,12 @@ return new class extends Migration
             return;
         }
 
-        $invoiceIds = $entries->pluck('source_id')->unique()->values()->all();
-        $suppliersByInvoiceId = DB::table('purchase_invoices')
-            ->whereIn('id', $invoiceIds)
+        $suppliers = DB::table('purchase_invoices')
+            ->whereIn('id', $entries->pluck('source_id')->unique()->all())
             ->pluck('supplier_id', 'id');
 
         foreach ($entries as $entry) {
-            $supplierId = $suppliersByInvoiceId->get($entry->source_id);
-            if ($supplierId !== null) {
+            if (($supplierId = $suppliers->get($entry->source_id)) !== null) {
                 DB::table('journal_entries')
                     ->where('id', $entry->id)
                     ->whereNull('contact_id')

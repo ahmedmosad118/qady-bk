@@ -179,6 +179,14 @@ class PurchaseInvoice extends Model
     }
 
     /**
+     * Payment allocations settling this purchase invoice.
+     */
+    public function paymentAllocations(): MorphMany
+    {
+        return $this->morphMany(PaymentAllocation::class, 'allocatable');
+    }
+
+    /**
      * Scope to draft invoices.
      */
     public function scopeDraft(Builder $query): Builder

@@ -88,4 +88,12 @@ class Account extends Model
     {
         return $this->hasMany(ProductCategory::class, 'stock_input_account_id');
     }
+
+    /**
+     * Payments directly referencing this account.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'account_id');
+    }
 }
