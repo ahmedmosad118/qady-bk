@@ -24,16 +24,24 @@
                 {{ statusLabel(detail?.status) }}
               </span>
               <span
-                v-if="isAdvance"
+                v-if="detail?.payment_type"
+                class="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--bg)] px-2.5 py-0.5 text-xs font-bold text-[var(--text)]"
+              >
+                {{ $t(`supplierPayments.paymentTypes.${detail.payment_type}`) }}
+              </span>
+              <span
+                v-if="isSupplierAdvance"
                 class="inline-flex items-center rounded-full border border-[var(--gold)]/35 bg-[var(--gold-soft)] px-2.5 py-0.5 text-xs font-bold text-[var(--gold-strong)]"
               >
                 {{ $t('supplierPayments.advanceBadge') }}
               </span>
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-              <span>{{ $t('supplierPayments.supplier') }}:</span>
-              <span class="font-bold text-[var(--text)]">{{ detail?.supplier?.name || '—' }}</span>
-              <span>•</span>
+              <template v-if="partyName">
+                <span>{{ partyLabel }}:</span>
+                <span class="font-bold text-[var(--text)]">{{ partyName }}</span>
+                <span>•</span>
+              </template>
               <span class="font-mono">{{ formatDateOnly(detail?.payment_date) }}</span>
             </div>
           </div>
@@ -69,7 +77,7 @@
           </span>
         </div>
 
-        <div v-if="detail?.status === 'draft'" class="flex flex-wrap items-center gap-2">
+        <div v-if="!readOnly && detail?.status === 'draft'" class="flex flex-wrap items-center gap-2">
           <button
             type="button"
             class="inline-flex items-center gap-1.5 rounded-xl bg-[var(--success)] px-3.5 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
@@ -138,6 +146,10 @@
           <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.journal') }}</span>
           <span class="text-sm font-bold text-[var(--text)]">{{ detail.journal?.name || '—' }}</span>
         </div>
+        <div v-if="detail.account">
+          <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.account') }}</span>
+          <span class="text-sm font-bold text-[var(--text)]">{{ detail.account.name }}</span>
+        </div>
         <div>
           <span class="block text-xs text-[var(--muted)]">{{ $t('supplierPayments.reference') }}</span>
           <span class="font-mono text-sm font-semibold text-[var(--text)]">{{ detail.reference || '—' }}</span>
@@ -149,7 +161,7 @@
       </div>
 
       <!-- Allocations or Supplier Advance Notice -->
-      <div v-if="isAdvance" class="flex items-start gap-2.5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold-soft)] p-4 text-xs">
+      <div v-if="isSupplierAdvance" class="flex items-start gap-2.5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold-soft)] p-4 text-xs">
         <Info class="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-strong)]" />
         <div>
           <p class="font-bold text-[var(--gold-strong)]">{{ $t('supplierPayments.advanceBadge') }}</p>
@@ -157,7 +169,7 @@
         </div>
       </div>
 
-      <div v-else class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <div v-else-if="(detail.allocations?.length ?? 0) > 0" class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
         <div class="border-b border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-xs font-extrabold text-[var(--text)]">
           {{ $t('supplierPayments.allocationsTitle') }}
         </div>
@@ -246,6 +258,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   payment: { type: Object, default: null },
   actionLoading: { type: Boolean, default: false },
+  readOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'edit', 'post', 'cancel-payment', 'delete']);
@@ -255,7 +268,19 @@ const loading = ref(false);
 const loadError = ref('');
 const detail = ref(null);
 
-const isAdvance = computed(() => (detail.value?.allocations?.length ?? 0) === 0);
+const isSupplierAdvance = computed(
+  () => detail.value?.payment_type === 'send'
+    && detail.value?.related_type === 'supplier'
+    && (detail.value?.allocations?.length ?? 0) === 0
+);
+
+const partyName = computed(() =>
+  detail.value?.supplier?.name || detail.value?.customer?.name || detail.value?.contact?.name || ''
+);
+
+const partyLabel = computed(() =>
+  detail.value?.related_type ? t(`supplierPayments.relatedTypes.${detail.value.related_type}`) : t('supplierPayments.relatedParty')
+);
 
 const formatMoney = (val) => {
   const loc = locale.value === 'ar' ? 'ar-EG' : 'en-US';
