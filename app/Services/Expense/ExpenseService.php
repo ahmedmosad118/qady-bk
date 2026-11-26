@@ -7,6 +7,8 @@ namespace App\Services\Expense;
 use App\Enums\Accounting\AccountTypeCode;
 use App\Enums\Accounting\JournalType;
 use App\Enums\ExpenseStatus;
+use App\Events\Expense\ExpenseCreated;
+use App\Events\Expense\ExpenseUpdated;
 use App\Models\Account;
 use App\Models\Contact;
 use App\Models\Expense;
@@ -126,6 +128,8 @@ class ExpenseService
                 if ($plainItemRows !== []) {
                     ExpenseItem::query()->insert($plainItemRows);
                 }
+
+                ExpenseCreated::dispatch($expense, $user);
 
                 return $this->repository->findWithRelations($expense->id);
             });
@@ -318,6 +322,8 @@ class ExpenseService
                 }
 
                 $this->attachmentService->schedulePhysicalDeletion($attachmentsToDelete);
+
+                ExpenseUpdated::dispatch($lockedExpense, $user);
 
                 return $this->repository->findWithRelations($lockedExpense->id);
             });

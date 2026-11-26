@@ -4,16 +4,22 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Expense;
 
+use App\Enums\Accounting\AccountingPeriodStatus;
 use App\Enums\Accounting\AccountTypeCode;
+use App\Enums\Accounting\FiscalYearStatus;
 use App\Enums\Accounting\JournalType;
 use App\Enums\ExpenseStatus;
 use App\Models\Account;
+use App\Models\AccountingPeriod;
 use App\Models\Contact;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseItem;
+use App\Models\FiscalYear;
 use App\Models\Journal;
+use App\Models\Setting;
 use App\Models\User;
+use App\Services\Accounting\AccountingSettingRegistry;
 use App\Services\Expense\ExpenseService;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,6 +51,22 @@ class ExpenseTest extends TestCase
         Storage::fake('local');
         $this->seed(AccountingSeeder::class);
 
+        $fy = FiscalYear::query()->create([
+            'code' => 'FY-2026',
+            'name' => 'FY 2026',
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => FiscalYearStatus::Open->value,
+        ]);
+        AccountingPeriod::query()->create([
+            'fiscal_year_id' => $fy->id,
+            'period_number' => 11,
+            'name' => 'Nov 2026',
+            'start_date' => '2026-11-01',
+            'end_date' => '2026-11-30',
+            'status' => AccountingPeriodStatus::Open->value,
+        ]);
+
         $this->user = $this->createSuperAdmin();
         $this->category = ExpenseCategory::factory()->create(['name' => 'Operations']);
         $this->secondCategory = ExpenseCategory::factory()->create(['name' => 'Maintenance']);
@@ -64,6 +86,18 @@ class ExpenseTest extends TestCase
 
         $this->expenseAccount = $accounts->get(0);
         $this->secondExpenseAccount = $accounts->get(1) ?? $this->expenseAccount;
+
+        $payableAccount = Account::query()
+            ->where('is_active', true)
+            ->whereHas('accountType', static fn ($q) => $q->where('code', AccountTypeCode::Payable->value))
+            ->firstOrFail();
+
+        Setting::query()->create([
+            'type' => AccountingSettingRegistry::SETTING_TYPE,
+            'data' => [
+                'accounts_payable' => $payableAccount->id,
+            ],
+        ]);
     }
 
     public function test_unauthenticated_user_cannot_access_expenses(): void

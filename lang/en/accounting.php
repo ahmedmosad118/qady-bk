@@ -143,6 +143,7 @@ return [
 
     'labels' => [
         'purchase_invoice_entry_description' => 'Purchase invoice entry :number',
+        'expense_entry_description' => 'Expense entry :number',
         'purchase_stock_input_line' => 'Stock input - Invoice :number',
         'purchase_additional_expenses' => 'Additional expenses - Invoice :number',
     ],

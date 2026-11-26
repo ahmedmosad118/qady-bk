@@ -143,6 +143,7 @@ return [
 
     'labels' => [
         'purchase_invoice_entry_description' => 'قيد فاتورة مشتريات رقم :number',
+        'expense_entry_description' => 'قيد مصروف رقم :number',
         'purchase_stock_input_line' => 'وسيط استلام مخزون - فاتورة :number',
         'purchase_additional_expenses' => 'مصاريف إضافية - فاتورة :number',
     ],
