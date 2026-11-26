@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\ExpenseItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -22,7 +23,9 @@ class ExpenseItemFactory extends Factory
     {
         return [
             'expense_id' => Expense::factory(),
-            'name' => fake()->words(3, true),
+            'account_id' => null,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'reference_number' => null,
             'description' => fake()->optional()->sentence(),
             'amount' => 100.00,
         ];

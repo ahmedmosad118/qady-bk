@@ -18,7 +18,7 @@ class ExpenseCategoryService
     /**
      * Create a new expense category.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): ExpenseCategory
     {
@@ -35,7 +35,7 @@ class ExpenseCategoryService
     /**
      * Update an existing expense category.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(ExpenseCategory $category, array $data): ExpenseCategory
     {
@@ -63,7 +63,7 @@ class ExpenseCategoryService
             /** @var ExpenseCategory $locked */
             $locked = ExpenseCategory::query()->lockForUpdate()->findOrFail($category->id);
 
-            if ($locked->expenses()->exists()) {
+            if ($locked->items()->exists()) {
                 throw ValidationException::withMessages([
                     'category' => [__('expenses.errors.cannot_delete_used_category')],
                 ]);

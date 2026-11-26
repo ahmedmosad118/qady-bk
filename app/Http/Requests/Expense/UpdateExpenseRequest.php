@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Expense;
 
+use App\Enums\Accounting\AccountTypeCode;
+use App\Enums\Accounting\JournalType;
+use App\Models\Account;
 use App\Models\Expense;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,15 +32,20 @@ class UpdateExpenseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'expense_category_id' => [
-                'required',
-                'integer',
-                Rule::exists('expense_categories', 'id'),
-            ],
             'contact_id' => [
                 'nullable',
                 'integer',
-                Rule::exists('contacts', 'id')->whereNull('deleted_at'),
+                Rule::exists('contacts', 'id')
+                    ->where('is_active', true)
+                    ->where('is_supplier', true)
+                    ->whereNull('deleted_at'),
+            ],
+            'journal_id' => [
+                'required',
+                'integer',
+                Rule::exists('journals', 'id')
+                    ->where('is_active', true)
+                    ->where('type', JournalType::Expense->value),
             ],
             'expense_date' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -46,9 +54,19 @@ class UpdateExpenseRequest extends FormRequest
 
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer'],
-            'items.*.name' => ['required', 'string', 'max:255'],
+            'items.*.account_id' => [
+                'required',
+                'integer',
+                Rule::exists('accounts', 'id')->where('is_active', true),
+            ],
+            'items.*.expense_category_id' => [
+                'required',
+                'integer',
+                Rule::exists('expense_categories', 'id'),
+            ],
+            'items.*.reference_number' => ['nullable', 'string', 'max:100'],
             'items.*.description' => ['nullable', 'string', 'max:2000'],
-            'items.*.amount' => ['required', 'numeric', 'gt:0'],
+            'items.*.amount' => ['required', 'numeric', 'gt:0', 'max:9999999999999.99'],
             'items.*.remove_attachment_ids' => ['nullable', 'array'],
             'items.*.remove_attachment_ids.*' => ['required', 'integer'],
             'items.*.attachments' => ['nullable', 'array', 'max:20'],
@@ -69,6 +87,47 @@ class UpdateExpenseRequest extends FormRequest
 
             if ($expense && ! $expense->isDraft()) {
                 $v->errors()->add('status', __('expenses.errors.cannot_modify_posted_expense'));
+            }
+
+            $items = $this->input('items');
+            if (! is_array($items)) {
+                return;
+            }
+
+            $accountIds = collect($items)
+                ->pluck('account_id')
+                ->filter(static fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
+                ->map(static fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($accountIds === []) {
+                return;
+            }
+
+            $accounts = Account::query()
+                ->with('accountType:id,code')
+                ->whereIn('id', $accountIds)
+                ->get(['id', 'account_type_id', 'is_active'])
+                ->keyBy('id');
+
+            foreach ($items as $idx => $item) {
+                $accountId = isset($item['account_id']) && is_numeric($item['account_id'])
+                    ? (int) $item['account_id']
+                    : 0;
+
+                if ($accountId <= 0) {
+                    continue;
+                }
+
+                $account = $accounts->get($accountId);
+                if ($account && $account->is_active && $account->accountType?->code !== AccountTypeCode::Expenses->value) {
+                    $v->errors()->add(
+                        "items.{$idx}.account_id",
+                        (string) __('validation.in', ['attribute' => "items.{$idx}.account_id"])
+                    );
+                }
             }
         });
     }

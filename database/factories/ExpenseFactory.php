@@ -6,7 +6,6 @@ namespace Database\Factories;
 
 use App\Enums\ExpenseStatus;
 use App\Models\Expense;
-use App\Models\ExpenseCategory;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -23,15 +22,17 @@ class ExpenseFactory extends Factory
     public function definition(): array
     {
         return [
-            'expense_number' => 'EXP-' . now()->format('Ymd') . '-' . fake()->unique()->numerify('####'),
-            'expense_category_id' => ExpenseCategory::factory(),
+            'expense_number' => 'EXP-'.now()->format('Ymd').'-'.fake()->unique()->numerify('####'),
             'contact_id' => null,
+            'journal_id' => null,
             'expense_date' => now()->toDateString(),
             'subtotal' => 100.00,
             'total' => 100.00,
             'status' => ExpenseStatus::DRAFT,
             'notes' => fake()->optional()->sentence(),
             'created_by' => User::factory(),
+            'posted_by' => null,
+            'posted_at' => null,
         ];
     }
 }

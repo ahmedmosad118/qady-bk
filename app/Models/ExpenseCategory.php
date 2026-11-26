@@ -33,11 +33,11 @@ class ExpenseCategory extends Model
     }
 
     /**
-     * Expenses categorized under this category.
+     * Expense items categorized under this category.
      */
-    public function expenses(): HasMany
+    public function items(): HasMany
     {
-        return $this->hasMany(Expense::class, 'expense_category_id');
+        return $this->hasMany(ExpenseItem::class, 'expense_category_id');
     }
 
     /**
@@ -58,7 +58,7 @@ class ExpenseCategory extends Model
     protected static function booted(): void
     {
         static::deleting(function (ExpenseCategory $category): void {
-            if ($category->expenses()->exists()) {
+            if ($category->items()->exists()) {
                 throw new LogicException('Cannot delete an expense category that is associated with existing expenses.');
             }
         });

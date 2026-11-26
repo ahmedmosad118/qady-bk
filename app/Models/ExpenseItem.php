@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'expense_id',
-    'name',
+    'account_id',
+    'expense_category_id',
+    'reference_number',
     'description',
     'amount',
 ])]
@@ -28,6 +30,8 @@ class ExpenseItem extends Model
     protected function casts(): array
     {
         return [
+            'account_id' => 'integer',
+            'expense_category_id' => 'integer',
             'amount' => 'decimal:2',
         ];
     }
@@ -38,6 +42,22 @@ class ExpenseItem extends Model
     public function expense(): BelongsTo
     {
         return $this->belongsTo(Expense::class, 'expense_id');
+    }
+
+    /**
+     * Accounting expense account for this item.
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'account_id');
+    }
+
+    /**
+     * Expense category for this item.
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Tests\Feature\Expense;
 
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\ExpenseItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -106,9 +107,12 @@ class ExpenseCategoryTest extends TestCase
         $unused = ExpenseCategory::factory()->create(['name' => 'Unused']);
         $used = ExpenseCategory::factory()->create(['name' => 'Used']);
 
-        Expense::factory()->create([
-            'expense_category_id' => $used->id,
+        $expense = Expense::factory()->create([
             'created_by' => $this->user->id,
+        ]);
+        ExpenseItem::factory()->create([
+            'expense_id' => $expense->id,
+            'expense_category_id' => $used->id,
         ]);
 
         // Unused deletes cleanly
@@ -134,5 +138,28 @@ class ExpenseCategoryTest extends TestCase
         $this->postJson('/api/expense-categories', ['name' => 'Blocked'])->assertForbidden();
         $this->putJson("/api/expense-categories/{$category->id}", ['name' => 'Blocked'])->assertForbidden();
         $this->deleteJson("/api/expense-categories/{$category->id}")->assertForbidden();
+    }
+
+    public function test_expenses_count_returns_unique_expense_ids_not_item_count(): void
+    {
+        Sanctum::actingAs($this->user);
+
+        $category = ExpenseCategory::factory()->create(['name' => 'Utilities']);
+
+        $expense1 = Expense::factory()->create(['created_by' => $this->user->id]);
+        ExpenseItem::factory()->count(3)->create([
+            'expense_id' => $expense1->id,
+            'expense_category_id' => $category->id,
+        ]);
+
+        $expense2 = Expense::factory()->create(['created_by' => $this->user->id]);
+        ExpenseItem::factory()->create([
+            'expense_id' => $expense2->id,
+            'expense_category_id' => $category->id,
+        ]);
+
+        $this->getJson("/api/expense-categories/{$category->id}")
+            ->assertOk()
+            ->assertJsonPath('data.expenses_count', 2);
     }
 }

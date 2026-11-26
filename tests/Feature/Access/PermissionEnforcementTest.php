@@ -10,7 +10,6 @@ use App\Enums\PurchaseInvoiceStatus;
 use App\Enums\UserStatus;
 use App\Models\Contact;
 use App\Models\Expense;
-use App\Models\ExpenseCategory;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
@@ -124,9 +123,7 @@ class PermissionEnforcementTest extends TestCase
         $this->getJson('/api/products')->assertOk();
         $this->getJson('/api/expenses')->assertOk();
 
-        $category = ExpenseCategory::factory()->create();
         $postedExpense = Expense::factory()->create([
-            'expense_category_id' => $category->id,
             'status' => ExpenseStatus::POSTED,
             'created_by' => $superAdmin->id,
         ]);

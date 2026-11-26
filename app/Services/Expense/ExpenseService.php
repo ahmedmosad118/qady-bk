@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Services\Expense;
 
+use App\Enums\Accounting\AccountTypeCode;
+use App\Enums\Accounting\JournalType;
 use App\Enums\ExpenseStatus;
+use App\Models\Account;
 use App\Models\Contact;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseItem;
 use App\Models\ExpenseItemAttachment;
+use App\Models\Journal;
 use App\Models\User;
 use App\Repositories\ExpenseRepository;
 use Carbon\Carbon;
@@ -53,16 +57,18 @@ class ExpenseService
 
         try {
             return DB::transaction(function () use ($data, $user, &$trackedFiles): Expense {
-                $category = $this->resolveCategory((int) ($data['expense_category_id'] ?? 0));
-                $contactId = $this->resolveOptionalContactId($data['contact_id'] ?? null);
+                $contactId = $this->resolveOptionalActiveSupplierId($data['contact_id'] ?? null);
+                $journal = $this->resolveActiveExpenseJournal((int) ($data['journal_id'] ?? 0));
                 $expenseDate = Carbon::parse((string) $data['expense_date']);
 
                 $calc = $this->calculateTotals($data['items'] ?? []);
+                $this->resolveExpenseAccounts($calc['items']);
+                $this->resolveExpenseCategories($calc['items']);
 
                 /** @var Expense $expense */
                 $expense = Expense::query()->create([
-                    'expense_category_id' => $category->id,
                     'contact_id' => $contactId,
+                    'journal_id' => $journal->id,
                     'expense_date' => $expenseDate->toDateString(),
                     'subtotal' => $calc['subtotal'],
                     'total' => $calc['total'],
@@ -80,7 +86,9 @@ class ExpenseService
                     if (empty($itemRow['attachments'])) {
                         $plainItemRows[] = [
                             'expense_id' => $expense->id,
-                            'name' => $itemRow['name'],
+                            'account_id' => $itemRow['account_id'],
+                            'expense_category_id' => $itemRow['expense_category_id'],
+                            'reference_number' => $itemRow['reference_number'],
                             'description' => $itemRow['description'],
                             'amount' => $itemRow['amount'],
                             'created_at' => $now,
@@ -92,7 +100,9 @@ class ExpenseService
 
                     /** @var ExpenseItem $createdItem */
                     $createdItem = $expense->items()->create([
-                        'name' => $itemRow['name'],
+                        'account_id' => $itemRow['account_id'],
+                        'expense_category_id' => $itemRow['expense_category_id'],
+                        'reference_number' => $itemRow['reference_number'],
                         'description' => $itemRow['description'],
                         'amount' => $itemRow['amount'],
                     ]);
@@ -138,11 +148,13 @@ class ExpenseService
                     ]);
                 }
 
-                $category = $this->resolveCategory((int) ($data['expense_category_id'] ?? 0));
-                $contactId = $this->resolveOptionalContactId($data['contact_id'] ?? null);
+                $contactId = $this->resolveOptionalActiveSupplierId($data['contact_id'] ?? null);
+                $journal = $this->resolveActiveExpenseJournal((int) ($data['journal_id'] ?? 0));
                 $expenseDate = Carbon::parse((string) $data['expense_date']);
 
                 $calc = $this->calculateTotals($data['items'] ?? []);
+                $this->resolveExpenseAccounts($calc['items']);
+                $this->resolveExpenseCategories($calc['items']);
 
                 /** @var Collection<int, ExpenseItem> $existingItems */
                 $existingItems = $lockedExpense->items()
@@ -165,7 +177,6 @@ class ExpenseService
                     }
                 }
 
-                // Validate submitted item IDs and per-item remove_attachment_ids before mutating anything.
                 $keptItemIds = [];
                 foreach ($calc['items'] as $idx => $itemRow) {
                     $itemId = $itemRow['id'];
@@ -200,10 +211,9 @@ class ExpenseService
                     }
                 }
 
-                // Update header (expense_number and status remain immutable here).
                 $lockedExpense->update([
-                    'expense_category_id' => $category->id,
                     'contact_id' => $contactId,
+                    'journal_id' => $journal->id,
                     'expense_date' => $expenseDate->toDateString(),
                     'subtotal' => $calc['subtotal'],
                     'total' => $calc['total'],
@@ -215,7 +225,6 @@ class ExpenseService
                 /** @var Collection<int, ExpenseItemAttachment> $attachmentsToDelete */
                 $attachmentsToDelete = collect();
 
-                // Delete items that were removed from the form, along with their attachments in bulk.
                 $itemsToRemove = $existingItems->except($keptItemIds);
                 if ($itemsToRemove->isNotEmpty()) {
                     foreach ($itemsToRemove as $removedItem) {
@@ -228,13 +237,14 @@ class ExpenseService
                     ExpenseItem::query()->whereIn('id', $removedItemIds)->delete();
                 }
 
-                // Synchronize kept items and create new items.
                 foreach ($calc['items'] as $itemRow) {
                     if ($itemRow['id'] !== null) {
                         /** @var ExpenseItem $existingItem */
                         $existingItem = $existingItems->get($itemRow['id']);
                         $existingItem->update([
-                            'name' => $itemRow['name'],
+                            'account_id' => $itemRow['account_id'],
+                            'expense_category_id' => $itemRow['expense_category_id'],
+                            'reference_number' => $itemRow['reference_number'],
                             'description' => $itemRow['description'],
                             'amount' => $itemRow['amount'],
                         ]);
@@ -267,7 +277,9 @@ class ExpenseService
                     } else {
                         /** @var ExpenseItem $createdItem */
                         $createdItem = $lockedExpense->items()->create([
-                            'name' => $itemRow['name'],
+                            'account_id' => $itemRow['account_id'],
+                            'expense_category_id' => $itemRow['expense_category_id'],
+                            'reference_number' => $itemRow['reference_number'],
                             'description' => $itemRow['description'],
                             'amount' => $itemRow['amount'],
                         ]);
@@ -399,35 +411,101 @@ class ExpenseService
         });
     }
 
-    protected function resolveCategory(int $categoryId): ExpenseCategory
-    {
-        /** @var ExpenseCategory|null $category */
-        $category = ExpenseCategory::query()->find($categoryId);
-
-        if (! $category) {
-            throw ValidationException::withMessages([
-                'expense_category_id' => ['Selected expense category does not exist.'],
-            ]);
-        }
-
-        return $category;
-    }
-
-    protected function resolveOptionalContactId(mixed $rawContactId): ?int
+    protected function resolveOptionalActiveSupplierId(mixed $rawContactId): ?int
     {
         if ($rawContactId === null || $rawContactId === '') {
             return null;
         }
 
         $contactId = (int) $rawContactId;
-        $exists = Contact::query()->whereKey($contactId)->exists();
+        $exists = Contact::query()
+            ->whereKey($contactId)
+            ->where('is_active', true)
+            ->where('is_supplier', true)
+            ->exists();
 
         if (! $exists) {
             throw ValidationException::withMessages([
-                'contact_id' => ['Selected contact does not exist.'],
+                'contact_id' => ['Selected contact must be an active supplier.'],
             ]);
         }
 
         return $contactId;
+    }
+
+    protected function resolveActiveExpenseJournal(int $journalId): Journal
+    {
+        /** @var Journal|null $journal */
+        $journal = Journal::query()
+            ->whereKey($journalId)
+            ->where('is_active', true)
+            ->where('type', JournalType::Expense->value)
+            ->first();
+
+        if (! $journal) {
+            throw ValidationException::withMessages([
+                'journal_id' => ['Selected journal must be an active expense journal.'],
+            ]);
+        }
+
+        return $journal;
+    }
+
+    /**
+     * Validate all item account IDs in bulk (active + AccountTypeCode::Expenses).
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    protected function resolveExpenseAccounts(array $items): void
+    {
+        $accountIds = collect($items)
+            ->pluck('account_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $accounts = Account::query()
+            ->with('accountType:id,code')
+            ->whereIn('id', $accountIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($items as $idx => $itemRow) {
+            /** @var Account|null $account */
+            $account = $accounts->get($itemRow['account_id']);
+
+            if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::Expenses->value) {
+                throw ValidationException::withMessages([
+                    "items.{$idx}.account_id" => ['Selected account must be an active expense account.'],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Validate all item category IDs in bulk.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    protected function resolveExpenseCategories(array $items): void
+    {
+        $categoryIds = collect($items)
+            ->pluck('expense_category_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $existingIds = ExpenseCategory::query()
+            ->whereIn('id', $categoryIds)
+            ->pluck('id')
+            ->all();
+
+        foreach ($items as $idx => $itemRow) {
+            if (! in_array($itemRow['expense_category_id'], $existingIds, true)) {
+                throw ValidationException::withMessages([
+                    "items.{$idx}.expense_category_id" => ['Selected expense category does not exist.'],
+                ]);
+            }
+        }
     }
 }

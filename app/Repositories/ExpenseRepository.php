@@ -6,21 +6,25 @@ namespace App\Repositories;
 
 use App\Models\Expense;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 class ExpenseRepository
 {
     /**
      * Paginate expenses with filtering, sorting, and eager loading.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         $query = Expense::query()
             ->with([
-                'category:id,name',
                 'contact:id,name,phone,mobile',
+                'journal:id,code,name,type',
                 'creator:id,name',
+                'postedBy:id,name',
+                'items.category:id,name',
+                'items.account:id,code,name',
             ])
             ->withCount('items');
 
@@ -29,7 +33,10 @@ class ExpenseRepository
         }
 
         if (! empty($filters['expense_category_id'])) {
-            $query->where('expense_category_id', (int) $filters['expense_category_id']);
+            $categoryId = (int) $filters['expense_category_id'];
+            $query->whereHas('items', static function (Builder $itemQuery) use ($categoryId): void {
+                $itemQuery->where('expense_category_id', $categoryId);
+            });
         }
 
         if (! empty($filters['contact_id'])) {
@@ -68,11 +75,14 @@ class ExpenseRepository
     {
         return Expense::query()
             ->with([
-                'category:id,name,description',
                 'contact:id,name,type,phone,mobile,email',
-                'items' => fn ($q) => $q->orderBy('id'),
-                'items.attachments' => fn ($q) => $q->with('creator:id,name')->orderBy('id'),
+                'journal:id,code,name,type',
+                'items' => static fn ($q) => $q->orderBy('id'),
+                'items.category:id,name,description',
+                'items.account:id,code,name',
+                'items.attachments' => static fn ($q) => $q->with('creator:id,name')->orderBy('id'),
                 'creator:id,name,email',
+                'postedBy:id,name,email',
             ])
             ->findOrFail($id);
     }

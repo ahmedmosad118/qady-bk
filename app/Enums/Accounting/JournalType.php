@@ -10,6 +10,7 @@ enum JournalType: string
     case Purchase = 'Purchase';
     case Cash = 'Cash';
     case Bank = 'Bank';
+    case Expense = 'Expense';
     case Miscellaneous = 'Miscellaneous';
 
     /**
