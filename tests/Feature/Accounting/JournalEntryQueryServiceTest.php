@@ -26,7 +26,6 @@ use App\Services\Accounting\JournalEntryQueryService;
 use App\Services\Accounting\JournalEntryService;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Pagination\Paginator;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -122,19 +121,11 @@ class JournalEntryQueryServiceTest extends TestCase
         $this->assertSame('0.00', $page1->getCollection()->first()->getAttribute('difference'));
         $this->assertTrue($page1->getCollection()->first()->getAttribute('is_balanced'));
 
-        // Page 2
-        $this->getJson('/api/accounting/journal-entries?page=2&per_page=2')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.entry_number', 'JE-2026-00001')
-            ->assertJsonPath('meta.total', 3);
-
         // Clamping per_page between 1 and 100
         $this->assertSame(1, $queryService->paginate([], 0)->perPage());
         $this->assertSame(100, $queryService->paginate([], 500)->perPage());
 
-        // Search & filters + delegation parity (reset page to 1 after HTTP ?page=2)
-        Paginator::currentPageResolver(static fn (): int => 1);
+        // Search & filters + delegation parity
         $filtered = $queryService->paginate(['search' => 'REF-B', 'status' => 'posted'], 15);
         $delegated = $facade->paginate(['search' => 'REF-B', 'status' => 'posted'], 15);
         $this->assertSame(1, $filtered->total());
@@ -143,6 +134,13 @@ class JournalEntryQueryServiceTest extends TestCase
         // Ascending sort
         $asc = $queryService->paginate(['sort_by' => 'entry_date', 'sort_order' => 'asc'], 15);
         $this->assertSame(['JE-2026-00001', 'JE-2026-00002', 'JE-2026-00003'], $asc->getCollection()->pluck('entry_number')->all());
+
+        // Page 2 via HTTP endpoint
+        $this->getJson('/api/accounting/journal-entries?page=2&per_page=2')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.entry_number', 'JE-2026-00001')
+            ->assertJsonPath('meta.total', 3);
     }
 
     public function test_get_details_loads_payment_and_purchase_invoice_sources_and_totals(): void

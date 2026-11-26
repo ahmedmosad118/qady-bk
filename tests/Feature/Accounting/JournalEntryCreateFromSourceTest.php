@@ -16,6 +16,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
+use App\Services\Accounting\JournalEntryQueryService;
 use App\Services\Accounting\JournalEntryService;
 use App\Services\Support\DocumentSequenceGenerator;
 use Database\Seeders\AccountingSeeder;
@@ -344,7 +345,10 @@ class JournalEntryCreateFromSourceTest extends TestCase
         $invoice = PurchaseInvoice::factory()->create();
         $existing = app(JournalEntryService::class)->createFromSource($this->validPayload(), $invoice, $this->user);
 
-        $service = Mockery::mock(JournalEntryService::class, [app(DocumentSequenceGenerator::class)])
+        $service = Mockery::mock(JournalEntryService::class, [
+            app(DocumentSequenceGenerator::class),
+            app(JournalEntryQueryService::class),
+        ])
             ->makePartial()
             ->shouldAllowMockingProtectedMethods();
 
@@ -378,7 +382,7 @@ class JournalEntryCreateFromSourceTest extends TestCase
             ->once()
             ->andThrow($queryException);
 
-        $service = new JournalEntryService($sequenceMock);
+        $service = new JournalEntryService($sequenceMock, app(JournalEntryQueryService::class));
 
         $this->expectException(QueryException::class);
         $service->createFromSource($this->validPayload(), $invoice, $this->user);

@@ -29,14 +29,10 @@ use Throwable;
 
 class JournalEntryService
 {
-    private JournalEntryQueryService $queryService;
-
     public function __construct(
         protected DocumentSequenceGenerator $sequenceGenerator,
-        ?JournalEntryQueryService $queryService = null,
-    ) {
-        $this->queryService = $queryService ?? new JournalEntryQueryService;
-    }
+        protected JournalEntryQueryService $queryService,
+    ) {}
 
     /**
      * Paginate journal entries with server-side filters, safe sorting, and line totals.
