@@ -32,6 +32,7 @@ class JournalEntryService
     public function __construct(
         protected DocumentSequenceGenerator $sequenceGenerator,
         protected JournalEntryQueryService $queryService,
+        protected JournalEntryContextService $contextService,
     ) {}
 
     /**
@@ -176,52 +177,7 @@ class JournalEntryService
      */
     public function resolveContext(int $journalId, JournalType $expectedType, string $entryDate): array
     {
-        $normalizedDate = Carbon::parse($entryDate)->toDateString();
-
-        $journal = Journal::query()->find($journalId);
-
-        if (! $journal || ! $journal->is_active || $journal->type !== $expectedType) {
-            $errorKey = match ($expectedType) {
-                JournalType::Purchase => 'accounting.errors.purchase_journal_missing',
-                JournalType::Expense => 'accounting.errors.expense_journal_missing',
-                default => 'accounting.errors.journal_type_mismatch',
-            };
-
-            throw ValidationException::withMessages([
-                'journal_id' => [(string) __($errorKey)],
-            ]);
-        }
-
-        $fiscalYear = FiscalYear::query()
-            ->where('status', FiscalYearStatus::Open->value)
-            ->whereDate('start_date', '<=', $normalizedDate)
-            ->whereDate('end_date', '>=', $normalizedDate)
-            ->first();
-
-        if (! $fiscalYear) {
-            throw ValidationException::withMessages([
-                'fiscal_year_id' => [(string) __('accounting.errors.no_open_fiscal_year_for_date')],
-            ]);
-        }
-
-        $period = AccountingPeriod::query()
-            ->where('fiscal_year_id', $fiscalYear->id)
-            ->where('status', AccountingPeriodStatus::Open->value)
-            ->whereDate('start_date', '<=', $normalizedDate)
-            ->whereDate('end_date', '>=', $normalizedDate)
-            ->first();
-
-        if (! $period) {
-            throw ValidationException::withMessages([
-                'accounting_period_id' => [(string) __('accounting.errors.no_open_period_for_date')],
-            ]);
-        }
-
-        return [
-            'journal_id' => $journal->id,
-            'fiscal_year_id' => $fiscalYear->id,
-            'accounting_period_id' => $period->id,
-        ];
+        return $this->contextService->resolveContext($journalId, $expectedType, $entryDate);
     }
 
     /**
@@ -231,7 +187,7 @@ class JournalEntryService
      */
     public function resolvePurchaseContext(int $journalId, string $entryDate): array
     {
-        return $this->resolveContext($journalId, JournalType::Purchase, $entryDate);
+        return $this->contextService->resolvePurchaseContext($journalId, $entryDate);
     }
 
     /**
@@ -241,7 +197,7 @@ class JournalEntryService
      */
     public function resolveExpenseContext(int $journalId, string $entryDate): array
     {
-        return $this->resolveContext($journalId, JournalType::Expense, $entryDate);
+        return $this->contextService->resolveExpenseContext($journalId, $entryDate);
     }
 
     /**
