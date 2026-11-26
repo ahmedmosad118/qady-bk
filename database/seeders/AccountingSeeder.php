@@ -152,6 +152,7 @@ class AccountingSeeder extends Seeder
         $definitions = [
             ['code' => 'SAL', 'name' => 'دفتر المبيعات', 'type' => JournalType::Sales->value],
             ['code' => 'PUR', 'name' => 'دفتر المشتريات', 'type' => JournalType::Purchase->value],
+            ['code' => 'EXP', 'name' => 'دفتر المصروفات', 'type' => JournalType::Expense->value],
             ['code' => 'CSH', 'name' => 'دفتر النقدية', 'type' => JournalType::Cash->value],
             ['code' => 'BNK', 'name' => 'دفتر البنك', 'type' => JournalType::Bank->value],
             ['code' => 'MSC', 'name' => 'دفتر اليومية العامة', 'type' => JournalType::Miscellaneous->value],

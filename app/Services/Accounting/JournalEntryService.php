@@ -11,6 +11,7 @@ use App\Enums\Accounting\JournalType;
 use App\Models\Account;
 use App\Models\AccountingPeriod;
 use App\Models\Contact;
+use App\Models\Expense;
 use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
@@ -111,6 +112,14 @@ class JournalEntryService
             $journalEntry->source->loadMissing([
                 'supplier:id,name',
                 'journal:id,code,name',
+            ]);
+        } elseif ($journalEntry->source instanceof Expense) {
+            $journalEntry->source->loadMissing([
+                'contact:id,name',
+                'journal:id,code,name',
+                'items' => static fn ($q) => $q->orderBy('id'),
+                'items.account:id,code,name',
+                'items.category:id,name',
             ]);
         }
 
@@ -254,8 +263,14 @@ class JournalEntryService
         $journal = Journal::query()->find($journalId);
 
         if (! $journal || ! $journal->is_active || $journal->type !== $expectedType) {
+            $errorKey = match ($expectedType) {
+                JournalType::Purchase => 'accounting.errors.purchase_journal_missing',
+                JournalType::Expense => 'accounting.errors.expense_journal_missing',
+                default => 'accounting.errors.journal_type_mismatch',
+            };
+
             throw ValidationException::withMessages([
-                'journal_id' => [(string) __('accounting.errors.purchase_journal_missing')],
+                'journal_id' => [(string) __($errorKey)],
             ]);
         }
 
@@ -299,6 +314,16 @@ class JournalEntryService
     public function resolvePurchaseContext(int $journalId, string $entryDate): array
     {
         return $this->resolveContext($journalId, JournalType::Purchase, $entryDate);
+    }
+
+    /**
+     * Resolve and validate the selected Expense journal, open fiscal year, and matching open period for a date.
+     *
+     * @return array{journal_id: int, fiscal_year_id: int, accounting_period_id: int}
+     */
+    public function resolveExpenseContext(int $journalId, string $entryDate): array
+    {
+        return $this->resolveContext($journalId, JournalType::Expense, $entryDate);
     }
 
     /**

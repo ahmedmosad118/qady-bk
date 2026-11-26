@@ -83,13 +83,20 @@ class ExpenseService
                 $plainItemRows = [];
 
                 foreach ($calc['items'] as $itemRow) {
+                    $referenceNumber = isset($itemRow['reference_number']) && trim((string) $itemRow['reference_number']) !== ''
+                        ? trim((string) $itemRow['reference_number'])
+                        : null;
+                    $description = isset($itemRow['description']) && trim((string) $itemRow['description']) !== ''
+                        ? trim((string) $itemRow['description'])
+                        : null;
+
                     if (empty($itemRow['attachments'])) {
                         $plainItemRows[] = [
                             'expense_id' => $expense->id,
-                            'account_id' => $itemRow['account_id'],
-                            'expense_category_id' => $itemRow['expense_category_id'],
-                            'reference_number' => $itemRow['reference_number'],
-                            'description' => $itemRow['description'],
+                            'account_id' => (int) $itemRow['account_id'],
+                            'expense_category_id' => (int) $itemRow['expense_category_id'],
+                            'reference_number' => $referenceNumber,
+                            'description' => $description,
                             'amount' => $itemRow['amount'],
                             'created_at' => $now,
                             'updated_at' => $now,
@@ -100,10 +107,10 @@ class ExpenseService
 
                     /** @var ExpenseItem $createdItem */
                     $createdItem = $expense->items()->create([
-                        'account_id' => $itemRow['account_id'],
-                        'expense_category_id' => $itemRow['expense_category_id'],
-                        'reference_number' => $itemRow['reference_number'],
-                        'description' => $itemRow['description'],
+                        'account_id' => (int) $itemRow['account_id'],
+                        'expense_category_id' => (int) $itemRow['expense_category_id'],
+                        'reference_number' => $referenceNumber,
+                        'description' => $description,
                         'amount' => $itemRow['amount'],
                     ]);
 
@@ -179,7 +186,10 @@ class ExpenseService
 
                 $keptItemIds = [];
                 foreach ($calc['items'] as $idx => $itemRow) {
-                    $itemId = $itemRow['id'];
+                    $itemId = isset($itemRow['id']) && $itemRow['id'] !== '' ? (int) $itemRow['id'] : null;
+                    $removeAttachmentIds = is_array($itemRow['remove_attachment_ids'] ?? null)
+                        ? array_values(array_unique(array_map('intval', $itemRow['remove_attachment_ids'])))
+                        : [];
 
                     if ($itemId !== null) {
                         if (! $existingItems->has($itemId)) {
@@ -197,14 +207,14 @@ class ExpenseService
                         $keptItemIds[] = $itemId;
                         $existingItemAttachments = $existingItems->get($itemId)->attachments->keyBy('id');
 
-                        foreach ($itemRow['remove_attachment_ids'] as $attId) {
+                        foreach ($removeAttachmentIds as $attId) {
                             if (! $existingItemAttachments->has($attId)) {
                                 throw ValidationException::withMessages([
                                     "items.{$idx}.remove_attachment_ids" => [__('expenses.errors.invalid_attachment_id')],
                                 ]);
                             }
                         }
-                    } elseif (! empty($itemRow['remove_attachment_ids'])) {
+                    } elseif ($removeAttachmentIds !== []) {
                         throw ValidationException::withMessages([
                             "items.{$idx}.remove_attachment_ids" => [__('expenses.errors.invalid_attachment_id')],
                         ]);
@@ -238,19 +248,30 @@ class ExpenseService
                 }
 
                 foreach ($calc['items'] as $itemRow) {
-                    if ($itemRow['id'] !== null) {
+                    $itemId = isset($itemRow['id']) && $itemRow['id'] !== '' ? (int) $itemRow['id'] : null;
+                    $referenceNumber = isset($itemRow['reference_number']) && trim((string) $itemRow['reference_number']) !== ''
+                        ? trim((string) $itemRow['reference_number'])
+                        : null;
+                    $description = isset($itemRow['description']) && trim((string) $itemRow['description']) !== ''
+                        ? trim((string) $itemRow['description'])
+                        : null;
+                    $removeAttachmentIds = is_array($itemRow['remove_attachment_ids'] ?? null)
+                        ? array_values(array_unique(array_map('intval', $itemRow['remove_attachment_ids'])))
+                        : [];
+
+                    if ($itemId !== null) {
                         /** @var ExpenseItem $existingItem */
-                        $existingItem = $existingItems->get($itemRow['id']);
+                        $existingItem = $existingItems->get($itemId);
                         $existingItem->update([
-                            'account_id' => $itemRow['account_id'],
-                            'expense_category_id' => $itemRow['expense_category_id'],
-                            'reference_number' => $itemRow['reference_number'],
-                            'description' => $itemRow['description'],
+                            'account_id' => (int) $itemRow['account_id'],
+                            'expense_category_id' => (int) $itemRow['expense_category_id'],
+                            'reference_number' => $referenceNumber,
+                            'description' => $description,
                             'amount' => $itemRow['amount'],
                         ]);
 
                         $removeIds = array_values(array_unique(array_merge(
-                            $itemRow['remove_attachment_ids'],
+                            $removeAttachmentIds,
                             $existingItem->attachments
                                 ->whereIn('id', $topLevelRemovedIds)
                                 ->pluck('id')
@@ -277,10 +298,10 @@ class ExpenseService
                     } else {
                         /** @var ExpenseItem $createdItem */
                         $createdItem = $lockedExpense->items()->create([
-                            'account_id' => $itemRow['account_id'],
-                            'expense_category_id' => $itemRow['expense_category_id'],
-                            'reference_number' => $itemRow['reference_number'],
-                            'description' => $itemRow['description'],
+                            'account_id' => (int) $itemRow['account_id'],
+                            'expense_category_id' => (int) $itemRow['expense_category_id'],
+                            'reference_number' => $referenceNumber,
+                            'description' => $description,
                             'amount' => $itemRow['amount'],
                         ]);
 
