@@ -93,7 +93,7 @@ class SyncExpenseJournalEntry
 
             if (! $account || ! $account->is_active || $account->accountType?->code !== AccountTypeCode::Expenses->value) {
                 throw ValidationException::withMessages([
-                    "items.{$idx}.account_id" => ['Selected account must be an active expense account.'],
+                    "items.{$idx}.account_id" => [(string) __('accounting.errors.expense_account_invalid')],
                 ]);
             }
 

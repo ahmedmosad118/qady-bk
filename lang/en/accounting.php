@@ -85,6 +85,7 @@ return [
         'journal_entry_missing_for_source' => 'No linked journal entry was found for this purchase invoice.',
         'purchase_journal_missing' => 'The selected purchase journal does not exist, is inactive, or is not a purchase journal.',
         'expense_journal_missing' => 'The selected expense journal does not exist, is inactive, or is not an expense journal.',
+        'expense_account_invalid' => 'Selected account must be an active expense account.',
         'default_purchase_journal_invalid' => 'The default purchase journal must be an active purchase journal.',
         'no_open_fiscal_year_for_date' => 'No open fiscal year covers the invoice date.',
         'no_open_period_for_date' => 'No open accounting period covers the invoice date.',
