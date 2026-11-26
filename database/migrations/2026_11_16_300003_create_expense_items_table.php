@@ -18,12 +18,21 @@ return new class extends Migration
             $table->foreignId('expense_id')
                 ->constrained('expenses')
                 ->cascadeOnDelete();
-            $table->string('name', 255);
+            $table->foreignId('account_id')
+                ->nullable()
+                ->constrained('accounts')
+                ->restrictOnDelete();
+            $table->foreignId('expense_category_id')
+                ->constrained('expense_categories')
+                ->restrictOnDelete();
+            $table->string('reference_number', 100)->nullable();
             $table->text('description')->nullable();
             $table->decimal('amount', 15, 2);
             $table->timestamps();
 
             $table->index('expense_id');
+            $table->index('account_id');
+            $table->index('expense_category_id');
         });
     }
 
