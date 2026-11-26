@@ -15,6 +15,8 @@ use App\Models\FiscalYear;
 use App\Models\Journal;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\Payment;
+use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
@@ -22,7 +24,6 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -93,9 +94,25 @@ class JournalEntryService
             'contact:id,name',
             'createdBy:id,name',
             'postedBy:id,name',
+            'source',
             'lines' => static fn ($q) => $q->orderBy('line_number'),
             'lines.account:id,code,name,account_type_id,is_active',
         ]);
+
+        if ($journalEntry->source instanceof Payment) {
+            $journalEntry->source->loadMissing([
+                'contact:id,name',
+                'account:id,code,name',
+                'paymentMethod:id,name',
+                'journal:id,code,name',
+                'allocations.allocatable',
+            ]);
+        } elseif ($journalEntry->source instanceof PurchaseInvoice) {
+            $journalEntry->source->loadMissing([
+                'supplier:id,name',
+                'journal:id,code,name',
+            ]);
+        }
 
         $totalDebit = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
         $totalCredit = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
@@ -562,9 +579,7 @@ class JournalEntryService
 
     private function assertNotPurchaseInvoiceSource(JournalEntry $entry): void
     {
-        $purchaseInvoiceClass = Relation::getMorphedModel('purchase_invoice') ?? 'App\\Models\\PurchaseInvoice';
-
-        if ($entry->source_type === 'purchase_invoice' || $entry->source_type === $purchaseInvoiceClass) {
+        if ($entry->source_type !== null && $entry->source_type !== '') {
             throw ValidationException::withMessages([
                 'source' => [(string) __('accounting.errors.journal_entry_purchase_invoice_managed_only')],
             ]);

@@ -259,7 +259,7 @@ class SupplierPaymentServiceTest extends TestCase
         $inv1 = $this->createPostedPurchaseInvoice($supplier, 400.00);
         $inv2 = $this->createPostedPurchaseInvoice($supplier, 600.00);
 
-        // First partial payment (Draft) should NOT reduce outstanding balance yet
+        // First partial payment (Draft) immediately reserves remaining balance
         $draftPayment = $this->service->create(
             $this->validPayload($supplier, [
                 ['purchase_invoice_id' => $inv1->id, 'allocated_amount' => '250.00'],
@@ -268,8 +268,8 @@ class SupplierPaymentServiceTest extends TestCase
             $this->user,
         );
 
-        $this->assertSame('400.00', $this->service->calculateInvoiceOutstandingAmount($inv1));
-        $this->assertSame('600.00', $this->service->calculateInvoiceOutstandingAmount($inv2));
+        $this->assertSame('150.00', $this->service->calculateInvoiceOutstandingAmount($inv1));
+        $this->assertSame('450.00', $this->service->calculateInvoiceOutstandingAmount($inv2));
 
         // Post first partial payment
         $this->service->post($draftPayment, $this->user);
@@ -380,7 +380,7 @@ class SupplierPaymentServiceTest extends TestCase
         $supplier = $this->createSupplier();
         $invoice = $this->createPostedPurchaseInvoice($supplier, 500.00);
 
-        // Two Draft payments both created while invoice has 500.00 outstanding
+        // First Draft payment reserves 350.00 of 500.00
         $first = $this->service->create(
             $this->validPayload($supplier, [
                 ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '350.00'],
@@ -388,12 +388,18 @@ class SupplierPaymentServiceTest extends TestCase
             $this->user,
         );
 
-        $second = $this->service->create(
-            $this->validPayload($supplier, [
-                ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '300.00'],
-            ], ['amount' => '300.00']),
-            $this->user,
-        );
+        // Creating a second Draft payment for 300.00 must fail immediately because only 150.00 remains
+        try {
+            $this->service->create(
+                $this->validPayload($supplier, [
+                    ['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '300.00'],
+                ], ['amount' => '300.00']),
+                $this->user,
+            );
+            $this->fail('Expected ValidationException when creating draft exceeding remaining balance.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('allocations.0.allocated_amount', $e->errors());
+        }
 
         $firstEntryId = $first->journalEntry->id;
         $postedFirst = $this->service->post($first, $this->user);
@@ -403,18 +409,6 @@ class SupplierPaymentServiceTest extends TestCase
         $this->assertNotNull($postedFirst->posted_at);
         $this->assertSame($firstEntryId, $postedFirst->journalEntry->id);
         $this->assertSame(JournalEntryStatus::Posted, $postedFirst->journalEntry->status);
-
-        // Posting the second draft payment must fail revalidation because only 150.00 remains
-        try {
-            $this->service->post($second, $this->user);
-            $this->fail('Expected ValidationException when posting exceeds remaining balance.');
-        } catch (ValidationException $e) {
-            $this->assertArrayHasKey('allocations.0.allocated_amount', $e->errors());
-        }
-
-        $second->refresh();
-        $this->assertSame(PaymentStatus::DRAFT, $second->status);
-        $this->assertSame(JournalEntryStatus::Draft, $second->journalEntry->status);
 
         // Posted payment cannot be updated, cancelled, or deleted
         foreach ([

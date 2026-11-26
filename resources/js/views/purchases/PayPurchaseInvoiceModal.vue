@@ -92,13 +92,14 @@
             :paginate="15"
             :placeholder="$t('supplierPayments.selectJournal')"
             :search-placeholder="$t('supplierPayments.searchJournals')"
+            @change="onJournalChange"
           />
           <p v-if="errors.journal_id" class="mt-1 text-xs text-[var(--crimson)]">
             {{ errors.journal_id[0] }}
           </p>
         </div>
 
-        <!-- 2. Payment Method (Active bank_cash-linked methods) -->
+        <!-- 2. Payment Method (Active bank_cash-linked methods matching selected Journal type) -->
         <div>
           <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
             {{ $t('supplierPayments.paymentMethod') }} <span class="text-[var(--crimson)]">*</span>
@@ -106,6 +107,7 @@
           <SearchableSelect
             v-model="form.payment_method_id"
             :fetch-options="fetchPaymentMethodOptions"
+            :disabled="!selectedJournalType"
             :placeholder="$t('supplierPayments.selectPaymentMethod')"
             :search-placeholder="$t('supplierPayments.searchPaymentMethods')"
           />
@@ -176,6 +178,7 @@ import AppModal from '../../components/ui/AppModal.vue';
 import api from '../../services/api';
 import { createPayment, fetchOutstandingSupplierInvoices } from '../../services/paymentsApi';
 import { useNotificationStore } from '../../stores/notification';
+import { getLocalTodayDate } from '../../utils/date';
 import { formatMoney } from '../../utils/format';
 import { createPaginatedFetcher } from '../../utils/selectFetchers';
 
@@ -206,6 +209,7 @@ const form = ref({
   payment_method_id: null,
   amount: '',
 });
+const selectedJournalType = ref('');
 
 const modalSubtitle = computed(() => {
   if (!props.invoice) return t('purchaseInvoices.payModalSubtitle');
@@ -250,10 +254,39 @@ const fetchJournalOptions = createPaginatedFetcher(
 );
 
 const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
+  if (!selectedJournalType.value) {
+    return {
+      options: [],
+      hasMore: false,
+      total: 0,
+      currentPage: 1,
+      lastPage: 1,
+    };
+  }
+
   try {
     const res = await api.get('/payment-methods');
     const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-    const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0 && pm.account_id);
+    const active = rows.filter((pm) => {
+      if (
+        pm.is_active === false
+        || pm.is_active === 0
+        || !pm.account
+        || pm.account.is_active === false
+        || pm.account.is_active === 0
+        || pm.account.account_type?.code !== 'bank_cash'
+      ) {
+        return false;
+      }
+
+      if (selectedJournalType.value === 'cash') {
+        return pm.type === 'cash';
+      }
+      if (selectedJournalType.value === 'bank') {
+        return pm.type === 'bank_transfer' || pm.type === 'visa';
+      }
+      return false;
+    });
     const query = search.trim().toLowerCase();
     const filtered = query
       ? active.filter((pm) => {
@@ -288,8 +321,6 @@ const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
   }
 };
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
 const initModal = async () => {
   loadError.value = '';
   submitError.value = '';
@@ -299,6 +330,7 @@ const initModal = async () => {
     payment_method_id: null,
     amount: '',
   };
+  selectedJournalType.value = '';
   summary.value = {
     total: '0.00',
     paid_amount: '0.00',
@@ -336,6 +368,11 @@ const initModal = async () => {
   } finally {
     loadingOutstanding.value = false;
   }
+};
+
+const onJournalChange = (_val, opt) => {
+  selectedJournalType.value = String(opt?.raw?.type || '').toLowerCase();
+  form.value.payment_method_id = null;
 };
 
 watch(
@@ -378,7 +415,7 @@ const submitPayment = async () => {
     account_id: null,
     payment_method_id: form.value.payment_method_id,
     journal_id: form.value.journal_id,
-    payment_date: todayStr(),
+    payment_date: getLocalTodayDate(),
     amount: amountStr,
     allocations: [
       {

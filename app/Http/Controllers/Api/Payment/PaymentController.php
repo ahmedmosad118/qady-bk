@@ -33,6 +33,7 @@ class PaymentController extends Controller
             'payment_date_to' => $request->input('payment_date_to'),
             'payment_method_id' => $request->input('payment_method_id'),
             'journal_id' => $request->input('journal_id'),
+            'purchase_invoice_id' => $request->input('purchase_invoice_id'),
             'sort_by' => $request->input('sort_by'),
             'sort_order' => $request->input('sort_order'),
         ];

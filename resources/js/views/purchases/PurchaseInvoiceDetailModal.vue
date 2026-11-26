@@ -153,6 +153,54 @@
 
     <!-- Drawer Content -->
     <div v-if="invoice" class="space-y-6 text-sm text-[var(--text)]">
+      <!-- Tabs Navigation -->
+      <div class="print:hidden flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+          :class="activeTab === 'details'
+            ? 'bg-[var(--crimson)] text-white shadow-xs'
+            : 'border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]'"
+          @click="activeTab = 'details'"
+        >
+          <FileText class="h-3.5 w-3.5" />
+          <span>{{ $t('purchaseInvoices.tabs.details') }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+          :class="activeTab === 'payments'
+            ? 'bg-[var(--crimson)] text-white shadow-xs'
+            : 'border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]'"
+          @click="switchToPaymentsTab"
+        >
+          <Banknote class="h-3.5 w-3.5" />
+          <span>{{ $t('purchaseInvoices.tabs.payments') }}</span>
+          <span
+            v-if="paymentsMeta.total > 0"
+            class="rounded-full px-2 py-0.5 font-mono text-[10px] font-black"
+            :class="activeTab === 'payments' ? 'bg-white/20 text-white' : 'bg-[var(--card)] text-[var(--text)]'"
+          >
+            {{ paymentsMeta.total }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+          :class="activeTab === 'journalEntry'
+            ? 'bg-[var(--crimson)] text-white shadow-xs'
+            : 'border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]'"
+          @click="activeTab = 'journalEntry'"
+        >
+          <BookOpen class="h-3.5 w-3.5" />
+          <span>{{ $t('purchaseInvoices.tabs.journalEntry') }}</span>
+        </button>
+      </div>
+
+      <!-- Tab 1: Invoice Details -->
+      <div v-show="activeTab === 'details'" class="space-y-6">
       <!-- Summary Cards -->
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <!-- Supplier Card -->
@@ -404,7 +452,7 @@
 
           <div class="border-t border-[var(--border)] my-1"></div>
 
-          <div class="flex items-baseline justify-between pt-1">
+            <div class="flex items-baseline justify-between pt-1">
             <span class="text-base font-extrabold text-[var(--text)]">{{ $t('purchaseInvoices.total') }}</span>
             <div class="flex items-baseline gap-1">
               <span class="text-2xl font-black font-mono text-[var(--text)]">{{ formatMoney(invoice.total) }}</span>
@@ -413,16 +461,233 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <!-- Tab 2: Payments -->
+      <div v-show="activeTab === 'payments'" class="space-y-4">
+        <DataTable
+          :items="invoicePayments"
+          :loading="paymentsLoading"
+          :error="paymentsError"
+          :colspan="7"
+          :meta="paymentsMeta"
+          :per-page="paymentsPerPage"
+          :empty-title="$t('purchaseInvoices.noPaymentsTitle')"
+          :empty-subtitle="$t('purchaseInvoices.noPaymentsSubtitle')"
+          @update:per-page="paymentsPerPage = $event"
+          @change-per-page="loadInvoicePayments(1)"
+          @change-page="loadInvoicePayments"
+          @retry="loadInvoicePayments(paymentsMeta.current_page)"
+        >
+          <template #header>
+            <tr>
+              <th class="px-4 py-3 text-start">{{ $t('supplierPayments.paymentNumber') }}</th>
+              <th class="px-4 py-3 text-center">{{ $t('supplierPayments.paymentDate') }}</th>
+              <th class="px-4 py-3 text-start">{{ $t('supplierPayments.paymentMethod') }}</th>
+              <th class="px-4 py-3 text-start">{{ $t('supplierPayments.journal') }}</th>
+              <th class="px-4 py-3 text-end">{{ $t('supplierPayments.amount') }}</th>
+              <th class="px-4 py-3 text-center">{{ $t('supplierPayments.status') }}</th>
+              <th class="px-4 py-3 text-end">{{ $t('common.actions') }}</th>
+            </tr>
+          </template>
+
+          <template #row="{ item: payment }">
+            <td class="px-4 py-3.5 font-mono text-xs font-bold whitespace-nowrap">
+              <button
+                type="button"
+                class="text-[var(--text)] hover:text-[var(--crimson)] transition-colors cursor-pointer"
+                @click="openPaymentDetail(payment)"
+              >
+                {{ payment.payment_number }}
+              </button>
+            </td>
+
+            <td class="px-4 py-3.5 text-center font-mono text-xs text-[var(--muted)] whitespace-nowrap">
+              {{ formatDateOnly(payment.payment_date) }}
+            </td>
+
+            <td class="px-4 py-3.5 text-xs text-[var(--muted)]">
+              {{ payment.payment_method?.name || '—' }}
+            </td>
+
+            <td class="px-4 py-3.5 text-xs text-[var(--muted)]">
+              {{ payment.journal?.name || '—' }}
+            </td>
+
+            <td class="px-4 py-3.5 text-end font-mono text-xs font-black text-[var(--text)] whitespace-nowrap">
+              {{ formatMoney(payment.amount) }} {{ $t('common.currency') }}
+            </td>
+
+            <td class="px-4 py-3.5 text-center whitespace-nowrap">
+              <span
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold"
+                :class="paymentStatusBadgeClass(payment.status)"
+              >
+                <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                {{ $t(`supplierPayments.statuses.${payment.status}`) }}
+              </span>
+            </td>
+
+            <td class="px-4 py-3.5 text-end">
+              <div class="inline-flex items-center justify-end gap-1">
+                <button
+                  type="button"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                  :title="$t('supplierPayments.view')"
+                  @click="openPaymentDetail(payment)"
+                >
+                  <Eye class="h-4 w-4" />
+                </button>
+                <button
+                  v-if="payment.status === 'draft'"
+                  type="button"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] cursor-pointer"
+                  :title="$t('supplierPayments.edit')"
+                  @click="openPaymentEdit(payment)"
+                >
+                  <Edit2 class="h-4 w-4" />
+                </button>
+                <button
+                  v-if="payment.status === 'draft'"
+                  type="button"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--crimson)] hover:bg-[var(--crimson-soft)] cursor-pointer"
+                  :title="$t('common.delete')"
+                  @click="handleDeletePayment(payment)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              </div>
+            </td>
+          </template>
+        </DataTable>
+      </div>
+
+      <!-- Tab 3: Journal Entry -->
+      <div v-show="activeTab === 'journalEntry'" class="space-y-4">
+        <div
+          v-if="!invoice.journal_entry"
+          class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg)] px-6 py-12 text-center"
+        >
+          <BookOpen class="mx-auto h-8 w-8 text-[var(--muted)]" />
+          <p class="mt-3 text-sm font-extrabold text-[var(--text)]">
+            {{ $t('purchaseInvoices.noJournalEntryTitle') }}
+          </p>
+          <p class="mt-1 text-xs text-[var(--muted)]">
+            {{ $t('purchaseInvoices.noJournalEntrySubtitle') }}
+          </p>
+        </div>
+
+        <template v-else>
+          <!-- Journal Entry Header -->
+          <div class="grid grid-cols-1 gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div>
+              <span class="block text-[var(--muted)]">{{ $t('supplierPayments.entryNumber') }}</span>
+              <span class="font-mono text-sm font-black text-[var(--text)]">{{ invoice.journal_entry.entry_number }}</span>
+            </div>
+            <div>
+              <span class="block text-[var(--muted)]">{{ $t('supplierPayments.paymentDate') }}</span>
+              <span class="font-mono font-bold text-[var(--text)]">{{ formatDateOnly(invoice.journal_entry.entry_date) }}</span>
+            </div>
+            <div>
+              <span class="block text-[var(--muted)]">{{ $t('supplierPayments.journal') }}</span>
+              <span class="font-bold text-[var(--text)]">{{ invoice.journal_entry.journal?.name || invoice.journal?.name || '—' }}</span>
+            </div>
+            <div>
+              <span class="block text-[var(--muted)]">{{ $t('supplierPayments.entryStatus') }}</span>
+              <span class="font-bold text-[var(--text)]">{{ $t(`journalEntries.statuses.${invoice.journal_entry.status}`) }}</span>
+            </div>
+            <div v-if="invoice.journal_entry.reference">
+              <span class="block text-[var(--muted)]">{{ $t('purchaseInvoices.entryReference') }}</span>
+              <span class="font-mono font-semibold text-[var(--text)]">{{ invoice.journal_entry.reference }}</span>
+            </div>
+            <div v-if="invoice.journal_entry.posted_at">
+              <span class="block text-[var(--muted)]">{{ $t('purchaseInvoices.postedAt') }}</span>
+              <span class="font-mono font-semibold text-[var(--text)]">{{ formatDateTime(invoice.journal_entry.posted_at) }}</span>
+            </div>
+            <div v-if="invoice.journal_entry.description" class="sm:col-span-2">
+              <span class="block text-[var(--muted)]">{{ $t('purchaseInvoices.entryDescription') }}</span>
+              <span class="text-[var(--text)]">{{ invoice.journal_entry.description }}</span>
+            </div>
+          </div>
+
+          <!-- Journal Entry Lines Table -->
+          <div class="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+            <table class="w-full text-start text-xs">
+              <thead class="border-b border-[var(--border)] bg-[var(--bg)] font-bold text-[var(--muted)]">
+                <tr>
+                  <th class="px-4 py-3 text-center">{{ $t('purchaseInvoices.lineNumber') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('purchaseInvoices.accountCode') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('purchaseInvoices.accountName') }}</th>
+                  <th class="px-4 py-3 text-start">{{ $t('purchaseInvoices.lineLabel') }}</th>
+                  <th class="px-4 py-3 text-end">{{ $t('journalEntries.debit') }}</th>
+                  <th class="px-4 py-3 text-end">{{ $t('journalEntries.credit') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[var(--border)]">
+                <tr v-for="line in invoice.journal_entry.lines || []" :key="line.id">
+                  <td class="px-4 py-3 text-center font-mono text-[var(--muted)]">{{ line.line_number }}</td>
+                  <td class="px-4 py-3 font-mono font-bold text-[var(--text)]">{{ line.account?.code || '—' }}</td>
+                  <td class="px-4 py-3 font-semibold text-[var(--text)]">{{ line.account?.name || '—' }}</td>
+                  <td class="px-4 py-3 text-[var(--muted)]">{{ line.label || '—' }}</td>
+                  <td class="px-4 py-3 text-end font-mono font-bold text-[var(--text)] whitespace-nowrap">
+                    {{ formatMoney(line.debit) }}
+                  </td>
+                  <td class="px-4 py-3 text-end font-mono font-bold text-[var(--text)] whitespace-nowrap">
+                    {{ formatMoney(line.credit) }}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot class="border-t border-[var(--border)] bg-[var(--bg)] font-black text-[var(--text)]">
+                <tr>
+                  <td colspan="4" class="px-4 py-3 text-end">
+                    {{ $t('journalEntries.totalDebit') }} / {{ $t('journalEntries.totalCredit') }}
+                  </td>
+                  <td class="px-4 py-3 text-end font-mono whitespace-nowrap">
+                    {{ formatMoney(journalEntryTotals.debit) }}
+                  </td>
+                  <td class="px-4 py-3 text-end font-mono whitespace-nowrap">
+                    {{ formatMoney(journalEntryTotals.credit) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </template>
+      </div>
     </div>
+
+    <!-- Payment Read-Only Detail Modal -->
+    <SupplierPaymentDetailModal
+      :open="paymentDetailOpen"
+      :payment="selectedPayment"
+      :read-only="true"
+      @close="paymentDetailOpen = false"
+    />
+
+    <!-- Payment Edit Modal (Draft Supplier Payment) -->
+    <SupplierPaymentFormModal
+      :open="paymentFormOpen"
+      :payment="editingPayment"
+      locked-payment-type="send"
+      @close="paymentFormOpen = false"
+      @saved="onPaymentUpdated"
+    />
   </AppDrawer>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
+import DataTable from '../../components/ui/DataTable.vue';
 import PurchaseAttachmentBox from '../../components/purchases/PurchaseAttachmentBox.vue';
+import SupplierPaymentDetailModal from './SupplierPaymentDetailModal.vue';
+import SupplierPaymentFormModal from './SupplierPaymentFormModal.vue';
+import { confirmDelete } from '../../services/alert';
+import { deletePayment, fetchPayments } from '../../services/paymentsApi';
+import { useNotificationStore } from '../../stores/notification';
+import { formatDateTime } from '../../utils/date';
 import {
   FileText,
   Truck,
@@ -435,6 +700,9 @@ import {
   Lock,
   ExternalLink,
   Banknote,
+  BookOpen,
+  Eye,
+  Trash2,
   X,
 } from 'lucide-vue-next';
 
@@ -442,11 +710,128 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   invoice: { type: Object, default: null },
   actionLoading: { type: Boolean, default: false },
+  paymentsRefreshKey: { type: Number, default: 0 },
 });
 
-const emit = defineEmits(['close', 'edit', 'post', 'cancel', 'pay']);
+const emit = defineEmits(['close', 'edit', 'post', 'cancel', 'pay', 'refresh']);
 const router = useRouter();
 const { t } = useI18n();
+const notificationStore = useNotificationStore();
+
+const activeTab = ref('details');
+const invoicePayments = ref([]);
+const paymentsLoading = ref(false);
+const paymentsError = ref('');
+const paymentsPerPage = ref(10);
+const paymentsMeta = ref({ current_page: 1, last_page: 1, per_page: 10, total: 0 });
+
+const paymentDetailOpen = ref(false);
+const selectedPayment = ref(null);
+const paymentFormOpen = ref(false);
+const editingPayment = ref(null);
+
+const journalEntryTotals = computed(() => {
+  const lines = props.invoice?.journal_entry?.lines || [];
+  let debitCents = 0;
+  let creditCents = 0;
+  for (const line of lines) {
+    debitCents += Math.round((Number(line.debit) || 0) * 100);
+    creditCents += Math.round((Number(line.credit) || 0) * 100);
+  }
+  return {
+    debit: debitCents / 100,
+    credit: creditCents / 100,
+  };
+});
+
+const paymentStatusBadgeClass = (status) => {
+  if (status === 'posted') return 'bg-[var(--success-soft)] text-[var(--success)]';
+  if (status === 'cancelled') return 'bg-[var(--crimson-soft)] text-[var(--crimson)]';
+  return 'bg-[var(--gold-soft)] text-[var(--gold-strong)]';
+};
+
+const loadInvoicePayments = async (page = 1) => {
+  if (!props.invoice?.id) return;
+  paymentsLoading.value = true;
+  paymentsError.value = '';
+  try {
+    const res = await fetchPayments({
+      purchase_invoice_id: props.invoice.id,
+      page,
+      per_page: paymentsPerPage.value,
+    });
+    invoicePayments.value = res.data?.data ?? [];
+    paymentsMeta.value = res.data?.meta ?? {
+      current_page: page,
+      last_page: 1,
+      per_page: paymentsPerPage.value,
+      total: 0,
+    };
+  } catch (err) {
+    paymentsError.value = err.response?.data?.message || t('purchaseInvoices.paymentsLoadError');
+  } finally {
+    paymentsLoading.value = false;
+  }
+};
+
+const switchToPaymentsTab = () => {
+  activeTab.value = 'payments';
+  loadInvoicePayments(1);
+};
+
+const openPaymentDetail = (payment) => {
+  selectedPayment.value = payment;
+  paymentDetailOpen.value = true;
+};
+
+const openPaymentEdit = (payment) => {
+  editingPayment.value = payment;
+  paymentFormOpen.value = true;
+};
+
+const onPaymentUpdated = () => {
+  loadInvoicePayments(paymentsMeta.value.current_page || 1);
+  emit('refresh');
+};
+
+const handleDeletePayment = async (payment) => {
+  const confirmed = await confirmDelete({
+    title: t('supplierPayments.confirmDeleteTitle'),
+    text: t('supplierPayments.confirmDeleteDesc', { number: payment.payment_number }),
+  });
+  if (!confirmed) return;
+
+  try {
+    await deletePayment(payment.id);
+    notificationStore.success(t('supplierPayments.deletedSuccess'));
+    await loadInvoicePayments(paymentsMeta.value.current_page || 1);
+    emit('refresh');
+  } catch (err) {
+    notificationStore.error(err.response?.data?.message || t('common.genericError'));
+  }
+};
+
+watch(
+  () => [props.open, props.invoice?.id],
+  ([isOpen, invoiceId]) => {
+    if (isOpen && invoiceId) {
+      activeTab.value = 'details';
+      loadInvoicePayments(1);
+    } else if (!isOpen) {
+      invoicePayments.value = [];
+      paymentsMeta.value = { current_page: 1, last_page: 1, per_page: paymentsPerPage.value, total: 0 };
+    }
+  }
+);
+
+watch(
+  () => props.paymentsRefreshKey,
+  () => {
+    if (props.open && props.invoice?.id) {
+      loadInvoicePayments(paymentsMeta.value.current_page || 1);
+    }
+  }
+);
 
 const isLockedByPosting = computed(() => {
   const grStatus = props.invoice?.goods_receipt?.status;

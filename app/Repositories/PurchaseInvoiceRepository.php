@@ -126,7 +126,7 @@ class PurchaseInvoiceRepository
             ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
             ->where('payment_allocations.allocatable_type', $morphType)
             ->whereIn('payment_allocations.allocatable_id', $invoiceIds)
-            ->where('payments.status', PaymentStatus::POSTED->value)
+            ->whereIn('payments.status', [PaymentStatus::DRAFT->value, PaymentStatus::POSTED->value])
             ->groupBy('payment_allocations.allocatable_id')
             ->selectRaw('payment_allocations.allocatable_id, COALESCE(SUM(payment_allocations.allocated_amount), 0) as paid_total')
             ->pluck('paid_total', 'allocatable_id');

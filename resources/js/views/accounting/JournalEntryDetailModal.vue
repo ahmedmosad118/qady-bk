@@ -66,7 +66,7 @@
     <template v-if="entry" #actions>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2">
-          <template v-if="entry.status === 'draft' && entry.source_type !== 'purchase_invoice'">
+          <template v-if="entry.status === 'draft' && !entry.source_type">
             <button
               type="button"
               :disabled="processing"
@@ -105,6 +105,20 @@
           >
             <span>{{ $t('journalEntries.openPurchaseInvoice') }}</span>
           </router-link>
+          <router-link
+            v-else-if="entry.source_type === 'payment' && entry.source_id"
+            to="/payments"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 text-xs font-bold text-[var(--text)] transition hover:bg-[var(--bg)] hover:text-[var(--crimson)]"
+            @click="emit('close')"
+          >
+            <span>{{ $t('journalEntries.openPayments') }}</span>
+          </router-link>
+          <span
+            v-else-if="entry.source_type"
+            class="inline-flex h-9 items-center rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-xs font-bold text-[var(--muted)]"
+          >
+            {{ entry.source_type }}
+          </span>
         </div>
 
         <button
@@ -142,6 +156,37 @@
       </div>
 
       <template v-else-if="entry">
+        <!-- Tabs when linked to a Morph Source -->
+        <div
+          v-if="entry.source_type"
+          class="print:hidden flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-3"
+        >
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+            :class="activeTab === 'details'
+              ? 'bg-[var(--crimson)] text-white shadow-xs'
+              : 'border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]'"
+            @click="activeTab = 'details'"
+          >
+            <BookOpenCheck class="h-3.5 w-3.5" />
+            <span>{{ $t('journalEntries.entryDetailsTab') }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+            :class="activeTab === 'source'
+              ? 'bg-[var(--crimson)] text-white shadow-xs'
+              : 'border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] hover:text-[var(--text)]'"
+            @click="activeTab = 'source'"
+          >
+            <FileText class="h-3.5 w-3.5" />
+            <span>{{ $t('journalEntries.sourceDataTab') }}</span>
+          </button>
+        </div>
+
+        <div v-show="activeTab === 'details'" class="space-y-5">
         <!-- Header Metadata -->
         <div class="grid grid-cols-1 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
@@ -240,6 +285,152 @@
             </table>
           </div>
         </div>
+        </div>
+
+        <!-- Source Data Tab -->
+        <div v-if="entry.source_type" v-show="activeTab === 'source'" class="space-y-4">
+          <div
+            v-if="!entry.source"
+            class="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg)] px-6 py-10 text-center text-xs font-semibold text-[var(--muted)]"
+          >
+            {{ $t('journalEntries.noSourceData') }}
+          </div>
+
+          <template v-else-if="entry.source_type === 'payment'">
+            <div class="grid grid-cols-1 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('journalEntries.sourceTypeLabel') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ $t('journalEntries.paymentSource') }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentNumber') }}</span>
+                <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">{{ entry.source.payment_number }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentType') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">
+                  {{ entry.source.payment_type ? $t(`supplierPayments.paymentTypes.${entry.source.payment_type}`) : '—' }}
+                </span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentDate') }}</span>
+                <span class="mt-1 block font-mono font-bold text-[var(--text)]">{{ formatDate(entry.source.payment_date) }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.amount') }}</span>
+                <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">
+                  {{ formatMoney(entry.source.amount) }} {{ $t('common.currency') }}
+                </span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.status') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">
+                  {{ entry.source.status ? $t(`supplierPayments.statuses.${entry.source.status}`) : '—' }}
+                </span>
+              </div>
+              <div v-if="entry.source.contact">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.relatedParty') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ entry.source.contact.name }}</span>
+              </div>
+              <div v-if="entry.source.account">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.destinationAccount') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">
+                  {{ entry.source.account.code ? `${entry.source.account.code} — ${entry.source.account.name}` : entry.source.account.name }}
+                </span>
+              </div>
+              <div v-if="entry.source.payment_method">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.paymentMethod') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ entry.source.payment_method.name }}</span>
+              </div>
+              <div v-if="entry.source.journal">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.journal') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ entry.source.journal.name }}</span>
+              </div>
+              <div v-if="entry.source.reference">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.reference') }}</span>
+                <span class="mt-1 block font-mono text-[var(--text)]">{{ entry.source.reference }}</span>
+              </div>
+              <div v-if="entry.source.description" class="sm:col-span-2 lg:col-span-3">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('supplierPayments.description') }}</span>
+                <span class="mt-1 block text-[var(--text)]">{{ entry.source.description }}</span>
+              </div>
+            </div>
+
+            <div v-if="(entry.source.allocations?.length ?? 0) > 0" class="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+              <div class="border-b border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-xs font-extrabold text-[var(--text)]">
+                {{ $t('supplierPayments.allocationsTitle') }}
+              </div>
+              <table class="w-full text-start text-xs">
+                <thead class="border-b border-[var(--border)] bg-[var(--bg)]/50 font-bold text-[var(--muted)]">
+                  <tr>
+                    <th class="px-4 py-2.5 text-start">{{ $t('supplierPayments.invoiceNumber') }}</th>
+                    <th class="px-4 py-2.5 text-end">{{ $t('supplierPayments.allocatedAmount') }}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[var(--border)]">
+                  <tr v-for="alloc in entry.source.allocations" :key="alloc.id">
+                    <td class="px-4 py-2.5 font-mono font-bold text-[var(--text)]">
+                      {{ alloc.allocatable?.invoice_number || `#${alloc.allocatable_id}` }}
+                    </td>
+                    <td class="px-4 py-2.5 text-end font-mono font-black text-[var(--text)]">
+                      {{ formatMoney(alloc.allocated_amount) }} {{ $t('common.currency') }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <template v-else-if="entry.source_type === 'purchase_invoice'">
+            <div class="grid grid-cols-1 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('journalEntries.sourceTypeLabel') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ $t('journalEntries.purchaseInvoiceSource') }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.invoiceNumber') }}</span>
+                <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">{{ entry.source.invoice_number }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.status') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">
+                  {{ entry.source.status ? $t(`purchaseInvoices.statuses.${entry.source.status}`) : '—' }}
+                </span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.supplier') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ entry.source.supplier?.name || '—' }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.invoiceDate') }}</span>
+                <span class="mt-1 block font-mono font-bold text-[var(--text)]">{{ formatDate(entry.source.invoice_date) }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.total') }}</span>
+                <span class="mt-1 block font-mono text-sm font-black text-[var(--text)]">
+                  {{ formatMoney(entry.source.total) }} {{ $t('common.currency') }}
+                </span>
+              </div>
+              <div v-if="entry.source.notes" class="sm:col-span-2 lg:col-span-3">
+                <span class="block font-bold text-[var(--muted)]">{{ $t('purchaseInvoices.notes') }}</span>
+                <span class="mt-1 block text-[var(--text)]">{{ entry.source.notes }}</span>
+              </div>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="grid grid-cols-1 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/50 p-4 sm:grid-cols-2 text-xs">
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('journalEntries.sourceTypeLabel') }}</span>
+                <span class="mt-1 block font-bold text-[var(--text)]">{{ entry.source_type }}</span>
+              </div>
+              <div>
+                <span class="block font-bold text-[var(--muted)]">{{ $t('journalEntries.documentNumber') }}</span>
+                <span class="mt-1 block font-mono font-bold text-[var(--text)]">#{{ entry.source_id }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
       </template>
     </div>
   </AppDrawer>
@@ -248,7 +439,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AlertCircle, BookOpenCheck, CheckCircle2, Pencil, Printer, Trash2, X } from 'lucide-vue-next';
+import { AlertCircle, BookOpenCheck, CheckCircle2, FileText, Pencil, Printer, Trash2, X } from 'lucide-vue-next';
 import AppDrawer from '../../components/ui/AppDrawer.vue';
 import { deleteJournalEntry, fetchJournalEntry, postJournalEntry } from '../../services/accountingApi';
 import { confirmAction, confirmDelete } from '../../services/alert';
@@ -274,6 +465,7 @@ const { t } = useI18n();
 const notify = useNotificationStore();
 
 const entry = ref(null);
+const activeTab = ref('details');
 const loading = ref(false);
 const loadError = ref('');
 const processing = ref(false);
@@ -349,6 +541,7 @@ watch(
   () => [props.show, props.entryId],
   ([visible, id]) => {
     if (visible && id) {
+      activeTab.value = 'details';
       loadEntry();
     } else if (!visible) {
       entry.value = null;

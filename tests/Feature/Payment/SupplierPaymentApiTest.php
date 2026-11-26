@@ -372,8 +372,8 @@ class SupplierPaymentApiTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $postedPartial->id)
             ->assertJsonPath('data.0.total', '500.00')
-            ->assertJsonPath('data.0.paid_amount', '200.00')
-            ->assertJsonPath('data.0.outstanding_amount', '300.00');
+            ->assertJsonPath('data.0.paid_amount', '300.00')
+            ->assertJsonPath('data.0.outstanding_amount', '200.00');
 
         $returnedIds = collect($res->json('data'))->pluck('id')->all();
         $this->assertNotContains($postedSettled->id, $returnedIds);

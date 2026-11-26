@@ -109,12 +109,12 @@ class SupplierPaymentService
         $invoiceIds = $invoices->pluck('id')->all();
         $morphType = (new PurchaseInvoice)->getMorphClass();
 
-        // Only POSTED payment allocations reduce invoice outstanding balances; advances without allocations are excluded.
+        // Include both DRAFT and POSTED payment allocations so creating a draft immediately reserves the remaining balance; cancelled/deleted release it.
         $postedPaidByInvoice = PaymentAllocation::query()
             ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
             ->where('payment_allocations.allocatable_type', $morphType)
             ->whereIn('payment_allocations.allocatable_id', $invoiceIds)
-            ->where('payments.status', PaymentStatus::POSTED->value)
+            ->whereIn('payments.status', [PaymentStatus::DRAFT->value, PaymentStatus::POSTED->value])
             ->groupBy('payment_allocations.allocatable_id')
             ->selectRaw('payment_allocations.allocatable_id, COALESCE(SUM(payment_allocations.allocated_amount), 0) as paid_total')
             ->pluck('paid_total', 'allocatable_id');
@@ -239,6 +239,7 @@ class SupplierPaymentService
                 $data['allocations'] ?? [],
                 $supplier->id,
                 $amount,
+                $lockedPayment->id,
             );
 
             $lockedPayment->update([
@@ -306,7 +307,7 @@ class SupplierPaymentService
                 'allocated_amount' => $allocation->allocated_amount,
             ])->all();
 
-            $this->validateAndPrepareAllocations($rawAllocations, $supplier->id, $amount);
+            $this->validateAndPrepareAllocations($rawAllocations, $supplier->id, $amount, $lockedPayment->id);
 
             $lockedPayment->setRelation('contact', $supplier);
             $lockedPayment->setRelation('paymentMethod', $paymentMethod);
@@ -383,7 +384,7 @@ class SupplierPaymentService
             ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
             ->where('payment_allocations.allocatable_type', $invoice->getMorphClass())
             ->where('payment_allocations.allocatable_id', $invoice->id)
-            ->where('payments.status', PaymentStatus::POSTED->value)
+            ->whereIn('payments.status', [PaymentStatus::DRAFT->value, PaymentStatus::POSTED->value])
             ->sum('payment_allocations.allocated_amount');
 
         $totalStr = Decimal::fromNumeric($invoice->total, Decimal::MONEY_SCALE);
@@ -522,6 +523,7 @@ class SupplierPaymentService
         array $rawAllocations,
         int $supplierId,
         string $paymentAmount,
+        ?int $ignorePaymentId = null,
     ): array {
         if ($rawAllocations === []) {
             return [];
@@ -577,14 +579,33 @@ class SupplierPaymentService
 
         $morphType = (new PurchaseInvoice)->getMorphClass();
 
-        $postedPaidByInvoice = PaymentAllocation::query()
+        // Use a locking current read on draft + posted allocations so MySQL REPEATABLE READ
+        // sees the latest committed payments rather than an older transaction snapshot.
+        $allocationQuery = PaymentAllocation::query()
             ->join('payments', 'payments.id', '=', 'payment_allocations.payment_id')
             ->where('payment_allocations.allocatable_type', $morphType)
             ->whereIn('payment_allocations.allocatable_id', $sortedIds)
-            ->where('payments.status', PaymentStatus::POSTED->value)
-            ->groupBy('payment_allocations.allocatable_id')
-            ->selectRaw('payment_allocations.allocatable_id, COALESCE(SUM(payment_allocations.allocated_amount), 0) as paid_total')
-            ->pluck('paid_total', 'allocatable_id');
+            ->whereIn('payments.status', [PaymentStatus::DRAFT->value, PaymentStatus::POSTED->value]);
+
+        if ($ignorePaymentId !== null) {
+            $allocationQuery->where('payments.id', '!=', $ignorePaymentId);
+        }
+
+        $postedAllocationRows = $allocationQuery
+            ->orderBy('payment_allocations.id')
+            ->lockForUpdate()
+            ->get(['payment_allocations.allocatable_id', 'payment_allocations.allocated_amount']);
+
+        $postedPaidByInvoice = [];
+        foreach ($postedAllocationRows as $allocRow) {
+            $allocInvoiceId = (int) $allocRow->allocatable_id;
+            $currentSum = $postedPaidByInvoice[$allocInvoiceId] ?? Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
+            $postedPaidByInvoice[$allocInvoiceId] = Decimal::add(
+                $currentSum,
+                Decimal::fromNumeric($allocRow->allocated_amount, Decimal::MONEY_SCALE),
+                Decimal::MONEY_SCALE,
+            );
+        }
 
         $allocationsTotal = Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
         $prepared = [];
@@ -614,7 +635,7 @@ class SupplierPaymentService
             }
 
             $invoiceTotal = Decimal::fromNumeric($invoice->total, Decimal::MONEY_SCALE);
-            $alreadyPaid = Decimal::fromNumeric($postedPaidByInvoice->get($invoiceId, 0), Decimal::MONEY_SCALE);
+            $alreadyPaid = $postedPaidByInvoice[$invoiceId] ?? Decimal::fromNumeric(0, Decimal::MONEY_SCALE);
             $outstanding = Decimal::sub($invoiceTotal, $alreadyPaid, Decimal::MONEY_SCALE);
 
             if (Decimal::comp($row['allocated_amount'], $outstanding, Decimal::MONEY_SCALE) > 0) {

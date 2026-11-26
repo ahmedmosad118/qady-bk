@@ -19,6 +19,7 @@ use App\Models\Contact;
 use App\Models\Journal;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Services\Support\DocumentSequenceGenerator;
 use App\Support\Decimal;
@@ -634,6 +635,16 @@ class PaymentService
 
         if (! empty($filters['journal_id'])) {
             $query->where('journal_id', (int) $filters['journal_id']);
+        }
+
+        if (! empty($filters['purchase_invoice_id'])) {
+            $invoiceId = (int) $filters['purchase_invoice_id'];
+            $morphType = (new PurchaseInvoice)->getMorphClass();
+
+            $query->whereHas('allocations', static function (Builder $allocQuery) use ($morphType, $invoiceId): void {
+                $allocQuery->where('allocatable_type', $morphType)
+                    ->where('allocatable_id', $invoiceId);
+            });
         }
     }
 

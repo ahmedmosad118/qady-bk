@@ -117,7 +117,7 @@
           </p>
         </div>
 
-        <!-- Payment Method (Select2 via Axios) -->
+        <!-- Payment Method (Select2 via Axios, filtered by selected Journal type) -->
         <div>
           <label class="mb-1.5 block text-xs font-bold text-[var(--text)]">
             {{ $t('supplierPayments.paymentMethod') }} <span class="text-[var(--crimson)]">*</span>
@@ -125,6 +125,7 @@
           <SearchableSelect
             v-model="form.payment_method_id"
             :fetch-options="fetchPaymentMethodOptions"
+            :disabled="!selectedJournalType"
             :selected-option-data="selectedPaymentMethodOption"
             :placeholder="$t('supplierPayments.selectPaymentMethod')"
             :search-placeholder="$t('supplierPayments.searchPaymentMethods')"
@@ -146,6 +147,7 @@
             :selected-option-data="selectedJournalOption"
             :placeholder="$t('supplierPayments.selectJournal')"
             :search-placeholder="$t('supplierPayments.searchJournals')"
+            @change="onJournalChange"
           />
           <p v-if="errors.journal_id" class="mt-1 text-xs text-[var(--crimson)]">
             {{ errors.journal_id[0] }}
@@ -422,7 +424,7 @@ import {
   updatePayment,
 } from '../../services/paymentsApi';
 import { useNotificationStore } from '../../stores/notification';
-import { formatDateOnly } from '../../utils/date';
+import { formatDateOnly, getLocalTodayDate } from '../../utils/date';
 import { createContactFetcher, createPaginatedFetcher } from '../../utils/selectFetchers';
 
 const props = defineProps({
@@ -451,8 +453,9 @@ const selectedContactOption = ref(null);
 const selectedAccountOption = ref(null);
 const selectedPaymentMethodOption = ref(null);
 const selectedJournalOption = ref(null);
+const selectedJournalType = ref('');
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => getLocalTodayDate();
 
 const form = ref({
   payment_type: 'send',
@@ -502,10 +505,39 @@ const fetchJournalOptions = createPaginatedFetcher(
 );
 
 const fetchPaymentMethodOptions = async ({ search = '' } = {}) => {
+  if (!selectedJournalType.value) {
+    return {
+      options: [],
+      hasMore: false,
+      total: 0,
+      currentPage: 1,
+      lastPage: 1,
+    };
+  }
+
   try {
     const res = await api.get('/payment-methods');
     const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-    const active = rows.filter((pm) => pm.is_active !== false && pm.is_active !== 0);
+    const active = rows.filter((pm) => {
+      if (
+        pm.is_active === false
+        || pm.is_active === 0
+        || !pm.account
+        || pm.account.is_active === false
+        || pm.account.is_active === 0
+        || pm.account.account_type?.code !== 'bank_cash'
+      ) {
+        return false;
+      }
+
+      if (selectedJournalType.value === 'cash') {
+        return pm.type === 'cash';
+      }
+      if (selectedJournalType.value === 'bank') {
+        return pm.type === 'bank_transfer' || pm.type === 'visa';
+      }
+      return false;
+    });
     const query = search.trim().toLowerCase();
     const filtered = query
       ? active.filter((pm) => {
@@ -591,6 +623,7 @@ const resetForm = () => {
   selectedAccountOption.value = null;
   selectedPaymentMethodOption.value = null;
   selectedJournalOption.value = null;
+  selectedJournalType.value = '';
   outstandingInvoices.value = [];
   selectedInvoiceIdToAdd.value = null;
   submitError.value = '';
@@ -642,6 +675,7 @@ const initModal = async () => {
     selectedJournalOption.value = data.journal
       ? { value: data.journal.id, label: data.journal.code ? `${data.journal.code} — ${data.journal.name}` : data.journal.name }
       : null;
+    selectedJournalType.value = String(data.journal?.type || '').toLowerCase();
 
     form.value = {
       payment_type: paymentType,
@@ -719,6 +753,13 @@ const onCustomerChange = (_val, opt) => {
 
 const onAccountChange = (_val, opt) => {
   selectedAccountOption.value = opt ? { value: opt.value, label: opt.label } : null;
+};
+
+const onJournalChange = (_val, opt) => {
+  selectedJournalType.value = String(opt?.raw?.type || '').toLowerCase();
+  selectedJournalOption.value = opt ? { value: opt.value, label: opt.label } : null;
+  form.value.payment_method_id = null;
+  selectedPaymentMethodOption.value = null;
 };
 
 const addInvoiceAllocation = () => {

@@ -22,7 +22,10 @@ class PaymentMethodService
     public function listAll(): Collection
     {
         return PaymentMethod::query()
-            ->with('account:id,code,name,account_type_id,is_active')
+            ->with([
+                'account:id,code,name,account_type_id,is_active',
+                'account.accountType:id,code',
+            ])
             ->orderBy('id', 'asc')
             ->get(['id', 'name', 'type', 'account_id', 'is_active']);
     }

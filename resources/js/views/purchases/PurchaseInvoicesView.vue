@@ -365,11 +365,13 @@
       :open="detailModalOpen"
       :invoice="selectedInvoice"
       :action-loading="actionLoading"
+      :payments-refresh-key="paymentsRefreshKey"
       @close="detailModalOpen = false"
       @edit="openEditFromDetail"
       @post="postInvoiceAction"
       @cancel="cancelInvoiceAction"
       @pay="openPayModal"
+      @refresh="refreshInvoiceAndList"
     />
 
     <!-- Pay Purchase Invoice Modal -->
@@ -432,6 +434,7 @@ const loadError = ref('');
 const actionLoading = ref(false);
 const payModalOpen = ref(false);
 const payingInvoice = ref(null);
+const paymentsRefreshKey = ref(0);
 
 function canPayInvoice(invoice) {
   return invoice?.status === 'posted' && Number(invoice?.outstanding_amount ?? 0) > 0;
@@ -443,9 +446,9 @@ function openPayModal(invoice) {
   payModalOpen.value = true;
 }
 
-async function onPaymentSaved() {
+async function refreshInvoiceAndList() {
   await loadInvoices();
-  if (detailModalOpen.value && selectedInvoice.value?.id && selectedInvoice.value.id === payingInvoice.value?.id) {
+  if (detailModalOpen.value && selectedInvoice.value?.id) {
     try {
       const res = await api.get(`/purchase-invoices/${selectedInvoice.value.id}`);
       selectedInvoice.value = res.data.data;
@@ -453,6 +456,11 @@ async function onPaymentSaved() {
       // Non-blocking
     }
   }
+}
+
+async function onPaymentSaved() {
+  paymentsRefreshKey.value += 1;
+  await refreshInvoiceAndList();
 }
 
 const meta = reactive({

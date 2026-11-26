@@ -150,13 +150,13 @@ class PayPurchaseInvoiceTest extends TestCase
 
         $p1Id = (int) $p1Res->json('data.id');
 
-        // Draft payment does NOT reduce outstanding amount yet
+        // Draft payment immediately reserves outstanding amount (300.00 paid, 700.00 remaining)
         $this->getJson("/api/purchase-invoices/{$invoice->id}")
             ->assertOk()
-            ->assertJsonPath('data.paid_amount', '0.00')
-            ->assertJsonPath('data.outstanding_amount', '1000.00');
+            ->assertJsonPath('data.paid_amount', '300.00')
+            ->assertJsonPath('data.outstanding_amount', '700.00');
 
-        // 2. Post first partial payment -> outstanding becomes 700.00
+        // 2. Post first partial payment -> outstanding remains 700.00
         $this->postJson("/api/payments/{$p1Id}/post")
             ->assertOk()
             ->assertJsonPath('data.status', PaymentStatus::POSTED->value);
@@ -302,5 +302,152 @@ class PayPurchaseInvoiceTest extends TestCase
 
         $this->assertDatabaseCount('payments', 0);
         $this->assertDatabaseMissing('journal_entries', ['source_type' => Payment::class]);
+    }
+
+    public function test_payments_can_be_filtered_by_purchase_invoice_id_across_statuses_and_paginated(): void
+    {
+        $supplier = $this->createSupplier('مورد الفواتير');
+        $invoiceA = $this->createInvoice($supplier, 1000.00, true);
+        $invoiceB = $this->createInvoice($supplier, 1000.00, true);
+
+        // Posted payment on Invoice A
+        $p1 = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-15',
+            'amount' => '200.00',
+            'allocations' => [['purchase_invoice_id' => $invoiceA->id, 'allocated_amount' => '200.00']],
+        ])->assertCreated();
+        $this->postJson('/api/payments/'.$p1->json('data.id').'/post')->assertOk();
+
+        // Draft payment on Invoice A
+        $p2 = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-16',
+            'amount' => '150.00',
+            'allocations' => [['purchase_invoice_id' => $invoiceA->id, 'allocated_amount' => '150.00']],
+        ])->assertCreated();
+
+        // Cancelled payment on Invoice A (preserves allocation history)
+        $p3 = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-17',
+            'amount' => '100.00',
+            'allocations' => [['purchase_invoice_id' => $invoiceA->id, 'allocated_amount' => '100.00']],
+        ])->assertCreated();
+        $this->postJson('/api/payments/'.$p3->json('data.id').'/cancel')->assertOk();
+
+        // Payment on Invoice B (same supplier, different invoice -> must NOT appear for Invoice A)
+        $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '300.00',
+            'allocations' => [['purchase_invoice_id' => $invoiceB->id, 'allocated_amount' => '300.00']],
+        ])->assertCreated();
+
+        // Filtered by Invoice A with pagination
+        $page1 = $this->getJson("/api/payments?purchase_invoice_id={$invoiceA->id}&per_page=2")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonCount(2, 'data');
+
+        $page2 = $this->getJson("/api/payments?purchase_invoice_id={$invoiceA->id}&per_page=2&page=2")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $returnedIds = collect($page1->json('data'))
+            ->merge($page2->json('data'))
+            ->pluck('id')
+            ->all();
+
+        $this->assertEqualsCanonicalizing(
+            [$p1->json('data.id'), $p2->json('data.id'), $p3->json('data.id')],
+            $returnedIds,
+        );
+
+        // General listing without purchase_invoice_id returns all 4 payments
+        $this->getJson('/api/payments')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 4);
+    }
+
+    public function test_purchase_invoice_detail_includes_own_journal_entry_with_balanced_lines_and_payment_methods_expose_account_type(): void
+    {
+        $supplier = $this->createSupplier('مورد القيد');
+        $invoice = $this->createInvoice($supplier, 500.00, true);
+
+        $detail = $this->getJson("/api/purchase-invoices/{$invoice->id}")
+            ->assertOk()
+            ->assertJsonPath('data.journal_entry.id', $invoice->journalEntry->id);
+
+        $lines = $detail->json('data.journal_entry.lines');
+        $this->assertNotEmpty($lines);
+        $this->assertArrayHasKey('account', $lines[0]);
+
+        $this->getJson('/api/payment-methods')
+            ->assertOk()
+            ->assertJsonPath('data.0.account.account_type.code', AccountTypeCode::BankCash->value);
+    }
+
+    public function test_two_draft_payments_cannot_over_allocate_and_cancel_releases_balance(): void
+    {
+        $supplier = $this->createSupplier('مورد التزامن');
+        $invoice = $this->createInvoice($supplier, 1000.00, true);
+
+        $paymentA = $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '600.00',
+            'allocations' => [['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '600.00']],
+        ])->assertCreated();
+
+        // Second Draft payment exceeding remaining 400.00 is rejected immediately
+        $this->postJson('/api/payments', [
+            'payment_type' => 'send',
+            'related_type' => 'supplier',
+            'contact_id' => $supplier->id,
+            'account_id' => null,
+            'payment_method_id' => $this->cashMethod->id,
+            'journal_id' => $this->cashJournal->id,
+            'payment_date' => '2026-11-18',
+            'amount' => '600.00',
+            'allocations' => [['purchase_invoice_id' => $invoice->id, 'allocated_amount' => '600.00']],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['allocations.0.allocated_amount']);
+
+        // Cancelling Draft A releases the 600.00 back to 1000.00 outstanding
+        $this->postJson('/api/payments/'.$paymentA->json('data.id').'/cancel')
+            ->assertOk()
+            ->assertJsonPath('data.status', PaymentStatus::CANCELLED->value);
+
+        $this->getJson("/api/purchase-invoices/{$invoice->id}")
+            ->assertOk()
+            ->assertJsonPath('data.outstanding_amount', '1000.00');
     }
 }
